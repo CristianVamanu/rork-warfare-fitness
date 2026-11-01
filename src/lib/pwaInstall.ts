@@ -62,6 +62,9 @@ export async function promptInstall(): Promise<boolean> {
 export function isStandalone(): boolean {
   if (typeof window === 'undefined') return false;
   if (installedNow) return true;
+  // The native iOS/Android apps count as installed: nothing to add to the
+  // home screen, so every "Install the app" prompt stays hidden there.
+  if (navigator.userAgent.includes('WarfareFitnessNative')) return true;
   return window.matchMedia('(display-mode: standalone)').matches
     || (navigator as unknown as { standalone?: boolean }).standalone === true;
 }
