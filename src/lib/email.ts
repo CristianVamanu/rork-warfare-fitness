@@ -386,7 +386,7 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
-export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string): string {
+export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string, stores: { androidAppUrl?: string; iosAppUrl?: string } = {}): string {
   // Sent from inside signUp(), before onboarding (program selection, goals,
   // etc.) has actually run — it used to say "pick a training program",
   // which read as if nothing had been set up yet even for someone who'd
@@ -404,7 +404,21 @@ export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string
       Your account is live. Log your first workout, track a meal, and start your streak.
     </p>
     ${button('Open ' + appName, appUrl)}
+    ${storeLinks(stores)}
   `, 'Your account is live — here is where to start.');
+}
+
+/** "Get the app" row for the store listings the admin has entered; nothing while both are empty. */
+function storeLinks(stores: { androidAppUrl?: string; iosAppUrl?: string }): string {
+  const links: string[] = [];
+  if (stores.androidAppUrl) links.push(`<a href="${escapeHtml(stores.androidAppUrl)}" style="color:#F5A623;font-weight:700;text-decoration:none;">Get it on Google Play</a>`);
+  if (stores.iosAppUrl) links.push(`<a href="${escapeHtml(stores.iosAppUrl)}" style="color:#F5A623;font-weight:700;text-decoration:none;">Download on the App Store</a>`);
+  if (!links.length) return '';
+  return `
+    <p style="margin:24px 0 0;font-size:14px;line-height:1.6;color:#c9c9c9;">
+      <strong style="color:#f5f5f5;">Get the app.</strong> Full screen, reminders that reach you, and your watch's steps and sleep on your dashboard. Log in with this same email.
+    </p>
+    <p style="margin:10px 0 0;font-size:14px;line-height:1.8;">${links.join(' &nbsp;·&nbsp; ')}</p>`;
 }
 
 // Firebase Auth can send its own verification and password-reset mail, but it

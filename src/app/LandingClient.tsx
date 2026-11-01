@@ -240,6 +240,8 @@ export default function LandingPage({
   // swapped labels ("Get Matched Free" -> "Start N-Day Free Trial") the
   // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
+  // Store listings, shown in the footer once the admin enters them (Settings).
+  const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: '', ios: '' });
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
   const [membership, setMembership] = useState<MembershipConfig | null>(initialMembership);
@@ -276,6 +278,7 @@ export default function LandingPage({
     getSystemConfig().then((cfg) => {
       if (cfg?.appName) setAppName(cfg.appName as string);
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
+      setStoreUrls({ android: ((cfg?.androidAppUrl as string) || '').trim(), ios: ((cfg?.iosAppUrl as string) || '').trim() });
       if (cfg?.landingPage) setLanding({ ...DEFAULT_LANDING_CONFIG, ...(cfg.landingPage as LandingPageConfig) });
     }).catch(() => {});
     getMembershipConfig().then(setMembership).catch(() => {});
@@ -1470,7 +1473,13 @@ export default function LandingPage({
           <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
           <OperatorLine className="mt-1" />
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 flex-wrap justify-center">
+          {storeUrls.android && (
+            <a href={storeUrls.android} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:text-white transition-colors">Get it on Google Play</a>
+          )}
+          {storeUrls.ios && (
+            <a href={storeUrls.ios} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:text-white transition-colors">Download on the App Store</a>
+          )}
           <Link href="/download" className="text-xs text-text-tertiary hover:text-white transition-colors">Download App</Link>
           <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
           <Link href="/partners" className="text-xs text-text-tertiary hover:text-white transition-colors">Partners</Link>

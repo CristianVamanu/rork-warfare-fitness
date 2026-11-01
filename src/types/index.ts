@@ -390,6 +390,9 @@ export interface SystemConfig {
   videoGreetingUrl?: string;
   logoUrl?: string;
   pwaInstallBannerEnabled?: boolean; // admin can disable the install banner
+  /** Store listing URLs. Empty until the listing is live; every "Get the app" button hides itself while empty. */
+  androidAppUrl?: string;
+  iosAppUrl?: string;
   /** Marketing email sequences, each switchable by the admin. Missing = on. */
   emailSequences?: { leadTips?: boolean; freePlanFollowUp?: boolean; quizAbandon?: boolean; onboardingAbandon?: boolean; winBack?: boolean };
   /** The free-plan lead magnet: which program drips, for how long, and the page copy. */

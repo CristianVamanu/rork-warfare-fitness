@@ -23,6 +23,7 @@ import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
+import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
@@ -539,6 +540,9 @@ export default function DashboardPage() {
 
         {/* Watch data (steps, sleep, heart rate). Native apps only; null on the web. */}
         <HealthCard />
+
+        {/* Store buttons on the web once the listings are live; null in the apps. */}
+        <GetTheAppCard />
 
         {/* The day's tip. Renders nothing when there is none. */}
         <DailyTip />

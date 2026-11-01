@@ -42,7 +42,10 @@ export async function POST(req: NextRequest) {
       kind: 'welcome',
       to: user.email,
       subject: `Welcome to ${appName} 💪`,
-      html: welcomeEmailHtml(user.displayName?.split(' ')[0] || 'there', brand, appUrl),
+      html: welcomeEmailHtml(user.displayName?.split(' ')[0] || 'there', brand, appUrl, {
+        androidAppUrl: ((cfgSnap.data()?.androidAppUrl as string) || '').trim() || undefined,
+        iosAppUrl: ((cfgSnap.data()?.iosAppUrl as string) || '').trim() || undefined,
+      }),
     });
 
     return NextResponse.json({ ok: sent });

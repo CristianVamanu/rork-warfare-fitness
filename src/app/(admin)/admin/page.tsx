@@ -441,7 +441,7 @@ function AdminPageInner() {
   const [totalUsers, setTotalUsers] = useState<number | null>(null);
   const [loadingMoreUsers, setLoadingMoreUsers] = useState(false);
   const [orgAiUsage, setOrgAiUsage] = useState<{ used: number; limit: number; byFeature: Record<string, number>; date: string } | null>(null);
-  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, communityUploadsDailyLimit: 20, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT, onboardingCopy: { whyPrice: '', offerStack: [] as { title: string; body: string }[] } });
+  const [settingsForm, setSettingsForm] = useState({ appName: '', trainerName: '', trainerEmail: '', openaiModel: 'gpt-4o-mini', videoGreetingUrl: '', stripePublishableKey: '', logoUrl: '', faviconUrl: '', pwaInstallBannerEnabled: true, androidAppUrl: '', iosAppUrl: '', emailSequences: { ...SEQUENCE_DEFAULTS }, vapidPublicKey: '', barcodeScanDailyLimit: 20, foodAnalysisDailyLimit: 20, mealIdeasDailyLimit: 15, communityUploadsDailyLimit: 20, aiOrgDailyLimit: DEFAULT_ORG_DAILY_LIMIT, onboardingCopy: { whyPrice: '', offerStack: [] as { title: string; body: string }[] } });
   const [savingSettings, setSavingSettings] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
@@ -656,6 +656,8 @@ function AdminPageInner() {
           logoUrl: cfg.logoUrl || '',
           faviconUrl: cfg.faviconUrl || '',
           pwaInstallBannerEnabled: cfg.pwaInstallBannerEnabled !== false as unknown,
+          androidAppUrl: cfg.androidAppUrl || '',
+          iosAppUrl: cfg.iosAppUrl || '',
           emailSequences: sequenceToggles(cfg as { emailSequences?: Partial<typeof SEQUENCE_DEFAULTS> }),
           vapidPublicKey: cfg.vapidPublicKey || '',
           barcodeScanDailyLimit: Number(cfg.barcodeScanDailyLimit) || 20,
@@ -5439,6 +5441,26 @@ function AdminPageInner() {
                 >
                   <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settingsForm.pwaInstallBannerEnabled ? 'left-6' : 'left-1'}`} />
                 </button>
+              </div>
+              {/* Store listings. While a URL is empty every "Get the app" button
+                  for that store stays hidden (dashboard card, download page,
+                  welcome email, landing footer), so nothing points at a listing
+                  that is not live yet. */}
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-white">Native app store links</p>
+                <p className="text-xs text-text-secondary">Paste the listing URL once the store has approved the app. Leave empty to hide that store&apos;s buttons.</p>
+                <input
+                  value={settingsForm.androidAppUrl}
+                  onChange={(e) => setSettingsForm(s => ({ ...s, androidAppUrl: e.target.value.trim() }))}
+                  placeholder="Google Play: https://play.google.com/store/apps/details?id=com.warfarefitness.app"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
+                <input
+                  value={settingsForm.iosAppUrl}
+                  onChange={(e) => setSettingsForm(s => ({ ...s, iosAppUrl: e.target.value.trim() }))}
+                  placeholder="App Store: https://apps.apple.com/app/id…"
+                  className="w-full bg-surface border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                />
               </div>
               {/* The email funnel, one switch per sequence. Copy and timing
                   are fixed in lib/emailSequences; this is on/off. Every
