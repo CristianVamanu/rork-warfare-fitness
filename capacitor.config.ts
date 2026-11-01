@@ -23,12 +23,17 @@ const config: CapacitorConfig = {
     allowNavigation: ['warfarefitness.com', '*.warfarefitness.com', 'checkout.stripe.com', 'accounts.google.com', '*.firebaseapp.com'],
   },
   backgroundColor: '#0A0A0A',
+  // The site's CSP only allows nonce'd scripts, which would block the bridge
+  // script Capacitor injects. src/middleware.ts recognises this UA marker and
+  // relaxes script-src for the app's own web view only.
   android: {
     allowMixedContent: false,
+    appendUserAgent: 'WarfareFitnessNative',
   },
   ios: {
     contentInset: 'automatic',
     backgroundColor: '#0A0A0A',
+    appendUserAgent: 'WarfareFitnessNative',
   },
   plugins: {
     SplashScreen: { launchShowDuration: 0 },

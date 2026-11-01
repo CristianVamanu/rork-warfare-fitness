@@ -36,6 +36,16 @@ export function middleware(request: NextRequest) {
   // executes under) — randomUUID()'s output is plain ASCII, so this is a
   // safe base64 encode with no Unicode edge cases to worry about.
   const nonce = btoa(crypto.randomUUID());
+  // The native iOS/Android apps (Capacitor, see capacitor.config.ts) load this
+  // site in their web view and inject the native bridge as an inline script,
+  // which a nonce-only script-src blocks — leaving the app unable to tell it
+  // is an app (no HealthKit / Health Connect, the PWA install banner shows).
+  // Those web views send the "WarfareFitnessNative" UA marker; for them the
+  // nonce is replaced by unsafe-inline. The web view is a controlled context
+  // (the app's own binary chooses what it loads), so this does not reopen
+  // the browser-side inline-script hole the nonce was added to close.
+  const nativeApp = (request.headers.get('user-agent') || '').includes('WarfareFitnessNative');
+  const scriptSelf = nativeApp ? "'self' 'unsafe-inline'" : `'self' 'nonce-${nonce}' 'strict-dynamic'`;
   const csp = [
     "default-src 'self'",
     // www.googletagmanager.com serves GA4's own gtag.js loader (loaded by
@@ -47,7 +57,7 @@ export function middleware(request: NextRequest) {
     // checkout (/checkout). Loaded by a nonce'd bundle, so strict-dynamic
     // already trusts it; the explicit hosts are the fallback for browsers
     // and webviews without strict-dynamic, same as the two above.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://digimetrix.ai https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com https://checkout.stripe.com`,
+    `script-src ${scriptSelf} https://digimetrix.ai https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com https://checkout.stripe.com`,
     // A prior attempt scoped unsafe-inline to style-src-attr only, on the
     // assumption this app never injects raw <style> blocks — that was
     // wrong. Framer Motion (AnimatePresence/layout animations) and the

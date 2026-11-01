@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import {
   isNativeApp, nativePlatform, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings, formatSleep,
+  healthAvailability, openHealthConnectInstall,
   type HealthAuthState, type HealthDaySummary,
 } from '@/lib/native/health';
 
@@ -32,6 +33,7 @@ export function HealthCard() {
   const [today, setToday] = useState<HealthDaySummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [reason, setReason] = useState('');
   const sourceName = nativePlatform() === 'ios' ? 'Apple Health' : 'Health Connect';
 
   const sync = useCallback(async () => {
@@ -51,6 +53,9 @@ export function HealthCard() {
     if (!native || !user) return;
     let cancelled = false;
     (async () => {
+      const avail = await healthAvailability();
+      if (cancelled) return;
+      if (!avail.available) { setReason(avail.reason || ''); setAuth('unavailable'); return; }
       const state = await checkHealthAuth();
       if (cancelled) return;
       setAuth(state);
@@ -65,7 +70,32 @@ export function HealthCard() {
     return () => { cancelled = true; };
   }, [native, user, sync]);
 
-  if (!native || auth === 'unknown' || auth === 'unavailable') return null;
+  if (!native || auth === 'unknown') return null;
+
+  // Health Connect missing or switched off (Android), or HealthKit absent
+  // (iPad). Say so instead of hiding, so a blank dashboard is never a mystery.
+  if (auth === 'unavailable') {
+    const android = nativePlatform() === 'android';
+    return (
+      <Card className="p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-surface-elevated flex items-center justify-center flex-shrink-0">
+          <Watch className="w-5 h-5 text-text-tertiary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">{sourceName} not available</p>
+          <p className="text-xs text-text-secondary">
+            {android ? 'Install or turn on Health Connect, then reopen the app.' : 'Health data is not available on this device.'}
+            {reason && reason !== 'not-native' ? ` (${reason})` : ''}
+          </p>
+        </div>
+        {android && (
+          <button onClick={openHealthConnectInstall} className="px-3 py-2 rounded-lg bg-surface-elevated text-white text-xs font-bold active:scale-95 transition-transform">
+            Get it
+          </button>
+        )}
+      </Card>
+    );
+  }
 
   const connect = async () => {
     setBusy(true);

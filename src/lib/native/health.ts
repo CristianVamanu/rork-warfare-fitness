@@ -56,8 +56,19 @@ async function plugin() {
 }
 
 export async function isHealthAvailable(): Promise<boolean> {
-  if (!isNativeApp()) return false;
-  try { const r = await (await plugin()).isAvailable(); return !!r.available; } catch { return false; }
+  return (await healthAvailability()).available;
+}
+
+/** Availability plus the platform's reason when it is not, for the card to show. */
+export async function healthAvailability(): Promise<{ available: boolean; reason?: string }> {
+  if (!isNativeApp()) return { available: false, reason: 'not-native' };
+  try { const r = await (await plugin()).isAvailable(); return { available: !!r.available, reason: r.reason }; }
+  catch (e) { return { available: false, reason: (e as Error)?.message || 'plugin-error' }; }
+}
+
+/** Android: opens the Play Store page for Health Connect (built in on Android 14+, an app before). */
+export function openHealthConnectInstall(): void {
+  window.open('https://play.google.com/store/apps/details?id=com.google.android.apps.healthdata', '_blank');
 }
 
 export type HealthAuthState = 'unavailable' | 'granted' | 'partial' | 'denied';

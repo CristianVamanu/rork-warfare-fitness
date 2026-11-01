@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isNativeApp } from '@/lib/native/health';
 import toast from 'react-hot-toast';
 import { Smartphone, ChevronRight, X, Share, SquarePlus, Check, Download, MoreVertical, Copy, ExternalLink, Monitor, Bell, Zap, Maximize } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
@@ -44,6 +45,10 @@ export function InstallAppStrip() {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    // Inside the native iOS/Android app there is nothing to install. The UA
+    // marker is set by capacitor.config.ts; the bridge check covers a build
+    // without it.
+    if (isNativeApp() || (typeof navigator !== 'undefined' && navigator.userAgent.includes('WarfareFitnessNative'))) return;
     const { platform: p, inAppName: n } = detectPlatform();
     setPlatform(p);
     setInAppName(n);
