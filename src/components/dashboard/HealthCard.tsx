@@ -70,6 +70,21 @@ export function HealthCard() {
     return () => { cancelled = true; };
   }, [native, user, sync]);
 
+  // Diagnostics while the native shells are being brought up: the UA marker
+  // is set by the shell itself, so this shows inside the app even when the
+  // injected bridge never ran (CSP, injection failure) and says which layer
+  // is missing. Invisible in any browser.
+  const uaNative = typeof navigator !== 'undefined' && navigator.userAgent.includes('WarfareFitnessNative');
+  if (!native && uaNative) {
+    const hasBridge = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: unknown }).Capacitor;
+    return (
+      <Card className="p-3 text-[11px] text-text-secondary">
+        <p className="font-bold text-white mb-1">Native shell diagnostics</p>
+        <p>App UA marker: yes · Bridge object: {hasBridge ? 'yes' : 'no'} · Native platform: no</p>
+        <p className="mt-1 text-text-tertiary break-all">{navigator.userAgent}</p>
+      </Card>
+    );
+  }
   if (!native || auth === 'unknown') return null;
 
   // Health Connect missing or switched off (Android), or HealthKit absent
