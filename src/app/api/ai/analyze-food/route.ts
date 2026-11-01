@@ -23,7 +23,9 @@ const NutritionEstimate = z.object({
   portion: z.string().trim().min(1).max(60).catch('1 serving'),
   // True for a labelled product (bottle, can, wrapper, box), so the page can
   // point at the barcode scanner, which returns the label's exact values.
-  packaged: z.coerce.boolean().catch(false),
+  // Not z.coerce: Boolean('false') is true. Accept real booleans and the
+  // quoted forms a model sometimes emits.
+  packaged: z.preprocess((v) => (typeof v === 'string' ? ['true', 'yes', '1'].includes(v.trim().toLowerCase()) : v === true), z.boolean()).catch(false),
 }).strip();
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;

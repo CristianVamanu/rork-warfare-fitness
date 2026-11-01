@@ -46,8 +46,11 @@ export function GetTheAppCard() {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
   const isIphone = /iPhone|iPad|iPod/i.test(ua);
   const isAndroid = /Android/i.test(ua);
-  const showAndroid = !!android && !isIphone;
-  const showIos = !!ios && !isAndroid;
+  // Prefer the store for the phone in hand; if that store has no listing
+  // yet, still show whatever exists rather than an empty card.
+  let showAndroid = !!android && !isIphone;
+  let showIos = !!ios && !isAndroid;
+  if (!showAndroid && !showIos) { showAndroid = !!android; showIos = !!ios; }
 
   return (
     <Card className="p-4 border-accent/25">

@@ -53,6 +53,10 @@ async function resizeFile(file: File, maxDimension: number, quality: number): Pr
       resizeQuality: 'medium',
       imageOrientation: 'from-image',
     });
+    // WebKit ignores the resize options and hands back the full-size bitmap;
+    // a canvas that large can exceed iOS limits and toDataURL returns the
+    // useless 'data:,'. Any sign of that and the <img> path below takes over.
+    if (bitmap.width > maxDimension * 1.01) { bitmap.close(); return null; }
     const canvas = document.createElement('canvas');
     canvas.width = bitmap.width;
     canvas.height = bitmap.height;
@@ -60,7 +64,8 @@ async function resizeFile(file: File, maxDimension: number, quality: number): Pr
     if (!ctx) { bitmap.close(); return null; }
     ctx.drawImage(bitmap, 0, 0);
     bitmap.close();
-    return canvas.toDataURL('image/jpeg', quality);
+    const out = canvas.toDataURL('image/jpeg', quality);
+    return out.startsWith('data:image/jpeg') && out.length > 100 ? out : null;
   } catch {
     return null;
   }

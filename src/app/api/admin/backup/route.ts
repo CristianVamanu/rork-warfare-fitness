@@ -60,7 +60,7 @@ const BACKUP_FORMAT_VERSION = 2;
 // system/config, which holds branding, the trainerId every user doc points
 // at, and the AI spend caps. That is configuration you cannot reconstruct.
 const COLLECTIONS = [
-  'users', 'events', 'meals', 'waterLogs', 'workoutLogs', 'weightLogs', 'habitLogs',
+  'users', 'events', 'meals', 'waterLogs', 'workoutLogs', 'weightLogs', 'habitLogs', 'healthDays',
   'programs', 'posts', 'notifications', 'coachingApplications', 'config',
   'prPosts', 'progressPhotos', 'userPreferences', 'exerciseLibrary',
   'system', 'stripeCustomers', 'goals', 'ptTestResults', 'communityActivity',

@@ -6,6 +6,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthedNotTfaPending } from '@/lib/verifyAdmin';
+import { rateLimit } from '@/lib/rateLimit';
 
 /**
  * Receives the per-day wearable summaries the native app builds from Apple
@@ -41,12 +42,25 @@ const Body = z.object({ days: z.array(Day).min(1).max(31) });
 export async function POST(req: NextRequest) {
   const auth = await verifyAuthedNotTfaPending(req);
   if ('error' in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  // The app syncs on dashboard open and on a manual tap; anything past this
+  // is a script, and each request can write up to 31 documents.
+  const limit = await rateLimit({ scope: 'health-sync', key: auth.uid, windowMs: 60_000, max: 12 });
+  if (!limit.allowed) return NextResponse.json({ error: 'Too many syncs, try again in a minute' }, { status: 429 });
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
 
   let parsed;
   try { parsed = Body.safeParse(await req.json()); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
   if (!parsed.success) return NextResponse.json({ error: 'Invalid health payload' }, { status: 400 });
+  // Real dates only, and only the recent window the app reads (plus a day of
+  // time-zone slack): no minting documents for 9999-99-99 or for years back.
+  const now = Date.now();
+  for (const day of parsed.data.days) {
+    const t = Date.parse(`${day.date}T12:00:00Z`);
+    if (Number.isNaN(t) || t > now + 2 * 86400_000 || t < now - 40 * 86400_000) {
+      return NextResponse.json({ error: `Date out of range: ${day.date}` }, { status: 400 });
+    }
+  }
 
   const db = getAdminDb(app);
   const batch = db.batch();

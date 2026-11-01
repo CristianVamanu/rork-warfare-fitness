@@ -23,7 +23,19 @@ async function load(): Promise<{ M: Mod }> {
 }
 
 const TOKEN_KEY = 'wf.nativePushToken';
-const deviceId = () => `native-${nativePlatform()}`;
+const DEVICE_KEY = 'wf.nativeDeviceId';
+// One document per install, not per platform: a phone and a tablet on the
+// same account must not overwrite each other's token.
+function deviceId(): string {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = `native-${nativePlatform()}-${(crypto.randomUUID?.() || Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 16)}`;
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch { return `native-${nativePlatform()}`; }
+}
 
 export async function nativePushEnabled(): Promise<boolean> {
   if (!isNativeApp()) return false;

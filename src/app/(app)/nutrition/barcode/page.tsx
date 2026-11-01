@@ -410,7 +410,7 @@ export default function BarcodePage() {
             {cameraState === 'initializing' && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black">
                 <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                <p className="text-xs text-white/70">Starting camera…</p>
+                <p className="text-xs text-white/70">{cameraError || 'Starting camera…'}</p>
               </div>
             )}
 
