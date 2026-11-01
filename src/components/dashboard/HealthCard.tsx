@@ -158,6 +158,23 @@ export function HealthCard() {
         <Stat icon={<Moon className="w-3.5 h-3.5 text-indigo-300" />} label="Sleep" value={sleep != null ? formatSleep(sleep) : '—'} />
         <Stat icon={<HeartPulse className="w-3.5 h-3.5 text-red-400" />} label={today?.restingHeartRate != null ? 'Resting HR' : 'Heart rate'} value={hr != null ? `${hr} bpm` : '—'} />
       </div>
+      {steps == null && sleep == null && hr == null && !busy && (
+        // Granted on paper, nothing came back: permissions were never actually
+        // shown (a fresh install can report a type as readable before the
+        // sheet has been seen), or the health app isn't syncing to Health
+        // Connect yet. Give both fixes a button instead of a row of dashes.
+        <div className="mt-2.5 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-text-tertiary">
+            Nothing from {sourceName} yet.{nativePlatform() === 'android' ? ' Check Samsung Health → Settings → Health Connect is syncing.' : ''}
+          </p>
+          <div className="flex gap-1.5 flex-shrink-0">
+            <button onClick={connect} className="px-2.5 py-1.5 rounded-lg bg-accent text-black text-[11px] font-bold active:scale-95 transition-transform">Allow access</button>
+            {nativePlatform() === 'android' && (
+              <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg bg-surface-elevated text-white text-[11px] font-bold active:scale-95 transition-transform">Open</button>
+            )}
+          </div>
+        </div>
+      )}
       {auth === 'partial' && (
         <button onClick={openHealthSettings} className="mt-2.5 text-[11px] text-text-tertiary underline underline-offset-2">
           Some data types are off. Manage permissions
