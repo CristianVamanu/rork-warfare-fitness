@@ -43,15 +43,13 @@ const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat
 async function resizeFile(file: File, maxDimension: number, quality: number): Promise<string | null> {
   if (typeof createImageBitmap !== 'function') return null;
   try {
-    // Probe the dimensions cheaply, then decode at the reduced size.
-    const probe = await createImageBitmap(file);
-    const scale = Math.min(1, maxDimension / Math.max(probe.width, probe.height));
-    const width = Math.max(1, Math.round(probe.width * scale));
-    const height = Math.max(1, Math.round(probe.height * scale));
-    probe.close();
+    // One decode only. The earlier version decoded the full photo first to
+    // read its size, which on a 50 MP phone camera was the multi-second pause
+    // this function exists to remove. Giving only resizeWidth keeps the aspect
+    // ratio and lets the decoder downscale while decoding; a portrait photo
+    // ends up 1024 wide and a little taller, which is fine for analysis.
     const bitmap = await createImageBitmap(file, {
-      resizeWidth: width,
-      resizeHeight: height,
+      resizeWidth: maxDimension,
       resizeQuality: 'medium',
       imageOrientation: 'from-image',
     });
@@ -112,6 +110,7 @@ function AnalyzeFoodPageInner() {
   const galleryFileRef = useRef<HTMLInputElement>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [preparing, setPreparing] = useState(false);
   const [result, setResult] = useState<NutritionAnalysis | null>(null);
   const [saving, setSaving] = useState(false);
   // Fall back to the time of day rather than a hardcoded 'lunch' — food
@@ -177,9 +176,13 @@ function AnalyzeFoodPageInner() {
   }, [user, tasteAvailable]);
 
   const handleFile = useCallback(async (file: File) => {
+    // Show something the instant the camera hands the photo back; the resize
+    // and upload follow. The gap used to be a blank box.
+    setPreparing(true);
     const fast = await resizeFile(file, 1024, 0.75);
     if (fast) {
       setPreview(fast);
+      setPreparing(false);
       analyzeImage(fast.split(',')[1]);
       return;
     }
@@ -194,6 +197,8 @@ function AnalyzeFoodPageInner() {
         // Fallback to the original if resizing fails for any reason
         setPreview(original);
         analyzeImage(original.split(',')[1]);
+      } finally {
+        setPreparing(false);
       }
     };
     reader.readAsDataURL(file);
@@ -278,7 +283,14 @@ function AnalyzeFoodPageInner() {
             }}
           />
 
-          {preview ? (
+          {preparing && !preview ? (
+            <div className="w-full aspect-square rounded-2xl bg-surface-elevated flex items-center justify-center">
+              <div className="text-center">
+                <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                <p className="text-sm text-white font-medium">Preparing photo…</p>
+              </div>
+            </div>
+          ) : preview ? (
             <div className="relative">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={preview} alt="Food" className="w-full aspect-square object-cover rounded-2xl" />
