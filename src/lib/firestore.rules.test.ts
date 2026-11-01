@@ -290,6 +290,27 @@ describe('user data isolation', () => {
   });
 });
 
+// ── Wearable summaries (native apps) ────────────────────────────────────────
+
+describe('healthDays — wearable summaries written by /api/health/sync', () => {
+  const DAY = { userId: ALICE, date: '2026-11-01', steps: 8400, sleepMinutes: 412, source: 'healthconnect' };
+
+  it('lets the owner read their own day and nobody else', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'healthDays', `${ALICE}_2026-11-01`), DAY); });
+    await assertSucceeds(getDoc(doc(asAlice(), 'healthDays', `${ALICE}_2026-11-01`)));
+    await assertFails(getDoc(doc(asBob(), 'healthDays', `${ALICE}_2026-11-01`)));
+    await assertFails(getDoc(doc(asAnon(), 'healthDays', `${ALICE}_2026-11-01`)));
+  });
+
+  it('refuses every client write, including the owner planting their own numbers', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'healthDays', `${ALICE}_2026-11-02`), { ...DAY, date: '2026-11-02', steps: 99999 }));
+    await seed(async (db) => { await setDoc(doc(db, 'healthDays', `${ALICE}_2026-11-01`), DAY); });
+    await assertFails(updateDoc(doc(asAlice(), 'healthDays', `${ALICE}_2026-11-01`), { steps: 1 }));
+    await assertFails(deleteDoc(doc(asAlice(), 'healthDays', `${ALICE}_2026-11-01`)));
+    await assertFails(setDoc(doc(asBob(), 'healthDays', `${BOB}_2026-11-01`), { ...DAY, userId: BOB }));
+  });
+});
+
 // ── System configuration ────────────────────────────────────────────────────
 
 describe('system/config', () => {

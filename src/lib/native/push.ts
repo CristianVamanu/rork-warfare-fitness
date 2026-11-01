@@ -45,9 +45,17 @@ export async function nativePushEnable(userId: string): Promise<boolean> {
 
   const token = await new Promise<string | null>((resolve) => {
     let settled = false;
-    const done = (t: string | null) => { if (!settled) { settled = true; resolve(t); } };
-    PushNotifications.addListener('registration', (t) => done(t.value)).catch(() => done(null));
-    PushNotifications.addListener('registrationError', () => done(null)).catch(() => done(null));
+    const handles: { remove: () => Promise<void> }[] = [];
+    // Resolve once and drop the listeners, so toggling repeatedly does not
+    // stack registration callbacks.
+    const done = (t: string | null) => {
+      if (settled) return;
+      settled = true;
+      handles.forEach((h) => h.remove().catch(() => {}));
+      resolve(t);
+    };
+    PushNotifications.addListener('registration', (t) => done(t.value)).then((h) => handles.push(h)).catch(() => done(null));
+    PushNotifications.addListener('registrationError', () => done(null)).then((h) => handles.push(h)).catch(() => done(null));
     PushNotifications.register().catch(() => done(null));
     setTimeout(() => done(null), 15_000);
   });

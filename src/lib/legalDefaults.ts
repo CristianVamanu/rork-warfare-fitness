@@ -35,6 +35,12 @@ Essential cookies keep you signed in and are always on. With your consent, given
 ## 6a. AI Features
 Some features use artificial intelligence, including analysis of food photos, barcode matches, meal ideas and generated training suggestions. Photos and text you submit to those features are sent to OpenAI to produce the result and are not used by OpenAI to train its models under our agreement with them. The results are estimates and can be inaccurate.
 
+## 6b. Health and Fitness Data from Your Phone (mobile apps)
+In the Warfare Fitness mobile apps you can choose to connect Apple Health (iOS) or Health Connect (Android). With your permission the app reads steps, sleep, heart rate, resting heart rate, active calories, body weight and workouts recorded by your phone or watch. We keep one summary per day (for example total steps, minutes asleep, average heart rate) to show on your dashboard and to inform your training and nutrition guidance. Individual samples stay on your device. We never sell this data, never use it for advertising and never share it with third parties other than the infrastructure providers that host the platform. You can revoke access at any time in Apple Health or Health Connect settings, and deleting your account deletes the stored summaries.
+
+## 6c. Camera, Photos and Notifications (mobile apps)
+The camera is used only when you choose to scan a barcode or photograph a meal; barcodes are read on your device. Push notifications are optional and can be turned off in Settings or in your phone's notification settings.
+
 ## 7. Changes to This Policy
 We may update this Privacy Policy from time to time. Continued use of the platform after any changes constitutes acceptance.`;
 

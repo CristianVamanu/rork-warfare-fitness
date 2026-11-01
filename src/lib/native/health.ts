@@ -166,7 +166,12 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
 /** Reads the phone's health data and stores the summaries. Returns today's. */
 export async function syncHealth(user: User, days = 3): Promise<HealthDaySummary | null> {
   if (!isNativeApp()) return null;
-  const summaries = await readHealthDays(days);
+  // A native call that never answers (Health Connect mid-update, a provider
+  // crash) must not leave the card spinning forever.
+  const summaries = await Promise.race([
+    readHealthDays(days),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Health data timed out. Try again.')), 25_000)),
+  ]);
   const token = await getIdToken(user);
   const res = await fetch('/api/health/sync', {
     method: 'POST',

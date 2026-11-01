@@ -34,6 +34,9 @@ const USER_FIELD_COLLECTIONS = [
   // of leak as communityActivity: keyed by userId, with userDisplayName/
   // userPhotoURL embedded, publicly readable, and not swept previously.
   'posts',
+  // Wearable day summaries from the native apps (/api/health/sync). Keyed
+  // `${uid}_${date}` with a userId field, like habitLogs.
+  'healthDays',
 ] as const;
 
 /** Docs keyed directly by uid — a straight doc().delete(), no query needed. */

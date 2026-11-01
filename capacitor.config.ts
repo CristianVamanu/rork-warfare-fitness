@@ -19,6 +19,9 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://warfarefitness.com/dashboard?source=native',
     androidScheme: 'https',
+    // Shown instead of the web view's raw error page when the site cannot be
+    // reached (first launch offline, captive portal). Reloads when back online.
+    errorPath: 'offline.html',
     // Google sign-in opens inside the app's web view. No Stripe: the apps do
     // not sell (src/lib/native/billing.ts).
     allowNavigation: ['warfarefitness.com', '*.warfarefitness.com', 'accounts.google.com', '*.firebaseapp.com'],
@@ -27,9 +30,12 @@ const config: CapacitorConfig = {
   // The site's CSP only allows nonce'd scripts, which would block the bridge
   // script Capacitor injects. src/middleware.ts recognises this UA marker and
   // relaxes script-src for the app's own web view only.
+  // No web-view debugging or bridge logging in the shipped builds.
+  loggingBehavior: 'production',
   android: {
     allowMixedContent: false,
     appendUserAgent: 'WarfareFitnessNative',
+    webContentsDebuggingEnabled: false,
   },
   ios: {
     contentInset: 'automatic',

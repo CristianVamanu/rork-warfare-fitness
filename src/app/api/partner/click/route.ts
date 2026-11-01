@@ -15,8 +15,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { recordPartnerClick } from '@/lib/partnersServer';
 import { normalizePartnerCode } from '@/lib/partners';
+import { rateLimit, clientIp } from '@/lib/rateLimit';
 
 export async function POST(req: NextRequest) {
+  // The per-visitor-per-day document id already bounds what a click can
+  // count for; this bounds how much Firestore work a script can cause.
+  const limit = await rateLimit({ scope: 'partner-click', key: clientIp(req), windowMs: 60_000, max: 30 });
+  if (!limit.allowed) return new NextResponse(null, { status: 429 });
   const body = await req.json().catch(() => ({})) as { code?: unknown; landing?: unknown };
   const code = normalizePartnerCode(body.code);
   if (!code) return NextResponse.json({ ok: true, counted: false });
