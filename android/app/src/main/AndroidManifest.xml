@@ -20,6 +20,10 @@
             </intent-filter>
         </activity>
 
+        <!-- ML Kit barcode scanner: download the model with the app install
+             instead of on first scan. -->
+        <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

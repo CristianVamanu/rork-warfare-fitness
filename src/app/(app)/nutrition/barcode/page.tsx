@@ -18,6 +18,7 @@ import { Card } from '@/components/ui/Card';
 import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { localDateHeader } from '@/lib/utils';
+import { nativeScanSupported, nativeScanBarcode } from '@/lib/native/barcode';
 import type { NutritionAnalysis } from '@/types';
 
 import { defaultMealTypeForNow, type MealType } from '@/lib/mealTypes';
@@ -134,6 +135,23 @@ export default function BarcodePage() {
     setCameraError('');
     scannedRef.current = false;
     candidateRef.current = { code: '', hits: 0 };
+
+    // Inside the iOS/Android app: Google's native scanner (autofocus, auto
+    // zoom, its own full-screen UI). The web-view camera below could not lock
+    // onto a product barcode on Android. A null result means cancelled or
+    // unavailable; the page simply returns to idle.
+    if (await nativeScanSupported()) {
+      try {
+        const code = await nativeScanBarcode((pct) => setCameraError(`Downloading scanner… ${pct}%`));
+        setCameraState('idle');
+        setCameraError('');
+        if (code) { scannedRef.current = true; lookupBarcode(code); }
+      } catch (e) {
+        setCameraState('error');
+        setCameraError((e as Error)?.message || 'Scanner failed to open. Use manual entry below.');
+      }
+      return;
+    }
 
     try {
       // Dynamic import keeps ZXing out of the server bundle
