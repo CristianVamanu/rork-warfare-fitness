@@ -12,6 +12,8 @@ import { signOut } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
 import { updateUserDoc, getSystemConfig } from '@/lib/firestore';
 import { subscribeToPush, unsubscribeFromPush, getCurrentSubscription } from '@/lib/pushNotifications';
+import { isNativeApp } from '@/lib/native/health';
+import { nativePushEnabled, nativePushEnable, nativePushDisable } from '@/lib/native/push';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -92,7 +94,8 @@ export default function SettingsPage() {
   const cookieChoiceLabel = cookieChoice === 'accepted' ? 'Accepted' : cookieChoice === 'rejected' ? 'Rejected' : 'Not set';
 
   useEffect(() => {
-    getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
+    if (isNativeApp()) nativePushEnabled().then(setPushSubscribed);
+    else getCurrentSubscription().then(sub => setPushSubscribed(!!sub));
     getSystemConfig().then(cfg => {
       // Two supported places, and the client could only see one of them.
       // Admin → Integrations writes the key into system/secrets (which
@@ -113,6 +116,20 @@ export default function SettingsPage() {
     if (!user) return;
     setPushLoading(true);
     try {
+      // Native app: Firebase Cloud Messaging instead of Web Push. The web
+      // view has no push service, so the VAPID path below can never work there.
+      if (isNativeApp()) {
+        if (pushSubscribed) {
+          await nativePushDisable(user.uid);
+          setPushSubscribed(false);
+          toast.success('Push notifications disabled');
+        } else {
+          const ok = await nativePushEnable(user.uid);
+          if (ok) { setPushSubscribed(true); toast.success('Push notifications enabled!'); }
+          else toast.error('Could not enable notifications. Allow them for Warfare Fitness in your phone settings, then try again.', { duration: 8000 });
+        }
+        return;
+      }
       if (pushSubscribed) {
         await unsubscribeFromPush(user.uid);
         setPushSubscribed(false);

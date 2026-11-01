@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "895905603639",
+    "project_id": "warfare-fitness",
+    "storage_bucket": "warfare-fitness.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:895905603639:android:000ed4d2fa46c380921fb2",
+        "android_client_info": {
+          "package_name": "com.warfarefitness.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDrofMzDBVInAv3Tw-qb6BSu8WIx9nVC8k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

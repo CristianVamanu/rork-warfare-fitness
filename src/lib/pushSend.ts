@@ -1,4 +1,5 @@
 import webpush from 'web-push';
+import { getMessaging } from 'firebase-admin/messaging';
 import type { Firestore } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { getSecret } from '@/lib/secrets';
@@ -51,6 +52,31 @@ export async function sendPushToUsers(db: Firestore, userIds: string[] | null, p
   }
   const body = JSON.stringify(payload);
   const results = await Promise.allSettled(docs.map(async (d) => {
+    // Native app devices (src/lib/native/push.ts) hold an FCM token instead
+    // of a Web Push subscription. Same document shape otherwise, same
+    // pruning rule: a token FCM no longer knows is deleted.
+    const fcmToken = d.data()?.fcmToken as string | undefined;
+    if (fcmToken) {
+      const app = getAdminApp();
+      if (!app) throw new Error('Firebase Admin not configured for FCM');
+      try {
+        await getMessaging(app).send({
+          token: fcmToken,
+          notification: { title: payload.title, body: payload.body },
+          data: payload.url ? { url: payload.url } : {},
+          // No channelId: a channel the app never created would make Android
+          // drop the notification silently. FCM's default channel is used.
+          android: { priority: 'high' },
+          apns: { payload: { aps: { sound: 'default' } } },
+        });
+      } catch (err) {
+        const code = (err as { code?: string })?.code || '';
+        const dead = code.includes('registration-token-not-registered') || code.includes('invalid-registration-token') || code.includes('invalid-argument');
+        if (dead) await d.ref.delete().catch(() => {});
+        throw new Error(`FCM ${code || 'error'}${dead ? ' (token removed)' : ''}`);
+      }
+      return;
+    }
     const sub = d.data()?.subscription;
     if (!sub) return;
     try {

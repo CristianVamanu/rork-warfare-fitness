@@ -16,6 +16,7 @@ import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
 import { AppThemeScope } from '@/contexts/ThemeContext';
 import { AppBackground } from '@/components/ui/AppBackground';
 import { ChatDrawer } from '@/components/chat/ChatDrawer';
+import { NativePushListener } from '@/components/app/NativePushListener';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -144,6 +145,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Inside the app shell: the member's theme preference may show.
             Unmounts on navigation to any public page, which goes dark. */}
         <AppThemeScope />
+        <NativePushListener />
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         {!hideNav && <ChatDrawer />}
         <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
