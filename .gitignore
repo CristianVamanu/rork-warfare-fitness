@@ -82,10 +82,9 @@ public/worker-*.js.map
 *.tsbuildinfo
 .vercel
 
-ios/
-# `android/` used to be ignored wholesale from the Expo days. The Trusted
-# Web Activity project now lives there on purpose; only its build outputs
-# and keys are ignored (see the Android block at the end of this file).
+# `android/` and `ios/` are the Capacitor native shells and are committed;
+# only their build outputs and signing keys are ignored (end of this file,
+# plus each platform's own .gitignore).
 .rork
 .env
 rork-eslint.config.js
@@ -104,14 +103,18 @@ ui-debug.log
 cues-for-review.txt
 .preview/
 
-# Android (Trusted Web Activity) build outputs and signing keys — never commit
-android/*.keystore
-android/*.jks
-android/app/
+# Native app signing keys and build outputs — never commit
+*.keystore
+*.jks
+*.aab
+*.apk
+*.idsig
+*.ipa
+android/.gradle/
 android/build/
-android/gradle/
-android/gradlew*
-android/*.aab
-android/*.apk
-android/*.idsig
-android/store/*.zip
+android/app/build/
+android/local.properties
+ios/App/Pods/
+ios/App/build/
+ios/App/App/public/
+play-store/*.zip

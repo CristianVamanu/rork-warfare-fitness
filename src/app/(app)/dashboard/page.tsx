@@ -22,6 +22,7 @@ import { currentPlan } from '@/lib/nextProgram';
 import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
+import { HealthCard } from '@/components/dashboard/HealthCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
@@ -535,6 +536,9 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
         </motion.div>
+
+        {/* Watch data (steps, sleep, heart rate). Native apps only; null on the web. */}
+        <HealthCard />
 
         {/* The day's tip. Renders nothing when there is none. */}
         <DailyTip />

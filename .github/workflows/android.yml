@@ -1,0 +1,89 @@
+name: Android app
+
+# Builds the Capacitor Android app. Every push to main produces an unsigned
+# debug APK you can sideload; a manual run with the signing secrets present
+# produces the signed release bundle (.aab) for Google Play plus a signed APK.
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (base64 -w0 signing.keystore)
+#   ANDROID_KEYSTORE_PASSWORD keystore password
+#   ANDROID_KEY_ALIAS         key alias
+#   ANDROID_KEY_PASSWORD      key password
+#
+# The site itself is deployed by the VPS webhook, not here. The app loads the
+# live site, so it only needs rebuilding when the native shell changes
+# (icon, name, plugins, permissions, version), never for web changes.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - 'capacitor.config.ts'
+      - 'cap-web/**'
+      - 'package.json'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: 'versionCode (integer, must increase for every Play upload)'
+        required: true
+        default: '1'
+      version_name:
+        description: 'versionName shown to users'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+
+      - run: npm ci --ignore-scripts
+      - run: npx cap sync android
+
+      - name: Set version
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode ${{ github.event.inputs.version_code }}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${{ github.event.inputs.version_name }}\"/" android/app/build.gradle
+
+      - name: Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Release bundle and APK (signed)
+        if: env.KS != ''
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        working-directory: android
+        run: |
+          echo "$KS" | base64 -d > app/upload.keystore
+          cat >> app/build.gradle <<EOF
+          android {
+            signingConfigs { release { storeFile file('upload.keystore'); storePassword '${{ secrets.ANDROID_KEYSTORE_PASSWORD }}'; keyAlias '${{ secrets.ANDROID_KEY_ALIAS }}'; keyPassword '${{ secrets.ANDROID_KEY_PASSWORD }}' } }
+            buildTypes { release { signingConfig signingConfigs.release } }
+          }
+          EOF
+          ./gradlew bundleRelease assembleRelease --no-daemon
+          rm -f app/upload.keystore
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: warfare-fitness-android
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: warn

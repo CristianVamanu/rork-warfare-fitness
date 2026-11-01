@@ -21,6 +21,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1077.0",
     "@aws-sdk/s3-request-presigner": "^3.1077.0",
+    "@capacitor/core": "^8.6.0",
+    "@capgo/capacitor-health": "^8.11.13",
     "@hookform/resolvers": "3.9.0",
     "@stripe/react-stripe-js": "^6.10.0",
     "@stripe/stripe-js": "^9.16.0",
@@ -55,6 +57,9 @@
     "zod": "3.23.8"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/cli": "^8.6.0",
+    "@capacitor/ios": "^8.6.0",
     "@firebase/rules-unit-testing": "^3.0.4",
     "@types/node": "20.14.14",
     "@types/qrcode": "^1.5.5",

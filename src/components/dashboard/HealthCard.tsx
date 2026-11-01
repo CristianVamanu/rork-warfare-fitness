@@ -1,0 +1,133 @@
+'use client';
+
+/**
+ * Steps, sleep and heart rate from the phone's health app.
+ *
+ * Only renders inside the native iOS/Android apps: in a browser there is no
+ * HealthKit / Health Connect to read, so the card returns null and the
+ * dashboard looks exactly as before. First visit shows a "Connect" prompt;
+ * once granted it syncs the last 3 days on every dashboard mount and shows
+ * today's numbers.
+ */
+import { useCallback, useEffect, useState } from 'react';
+import { Footprints, Moon, HeartPulse, RefreshCw, Watch } from 'lucide-react';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
+import { Card } from '@/components/ui/Card';
+import {
+  isNativeApp, nativePlatform, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings, formatSleep,
+  type HealthAuthState, type HealthDaySummary,
+} from '@/lib/native/health';
+
+const todayKey = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export function HealthCard() {
+  const { user } = useAuth();
+  const [native] = useState(() => isNativeApp());
+  const [auth, setAuth] = useState<HealthAuthState | 'unknown'>('unknown');
+  const [today, setToday] = useState<HealthDaySummary | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const sourceName = nativePlatform() === 'ios' ? 'Apple Health' : 'Health Connect';
+
+  const sync = useCallback(async () => {
+    if (!user) return;
+    setBusy(true); setError('');
+    try {
+      const t = await syncHealth(user, 3);
+      if (t) setToday(t);
+    } catch (e) {
+      setError((e as Error)?.message || 'Sync failed');
+    } finally { setBusy(false); }
+  }, [user]);
+
+  // Seed from the stored day so the card is filled on the first frame, then
+  // refresh from the phone.
+  useEffect(() => {
+    if (!native || !user) return;
+    let cancelled = false;
+    (async () => {
+      const state = await checkHealthAuth();
+      if (cancelled) return;
+      setAuth(state);
+      if (state === 'granted' || state === 'partial') {
+        try {
+          const snap = await getDoc(doc(db, 'healthDays', `${user.uid}_${todayKey()}`));
+          if (!cancelled && snap.exists()) setToday(snap.data() as HealthDaySummary);
+        } catch { /* fine, the live sync follows */ }
+        if (!cancelled) await sync();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [native, user, sync]);
+
+  if (!native || auth === 'unknown' || auth === 'unavailable') return null;
+
+  const connect = async () => {
+    setBusy(true);
+    const state = await requestHealthAuth();
+    setAuth(state);
+    setBusy(false);
+    if (state === 'granted' || state === 'partial') await sync();
+  };
+
+  if (auth === 'denied') {
+    return (
+      <Card className="p-4 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-accent-muted flex items-center justify-center flex-shrink-0">
+          <Watch className="w-5 h-5 text-accent" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-white">Connect {sourceName}</p>
+          <p className="text-xs text-text-secondary">Steps, sleep and heart rate from your watch, on this dashboard.</p>
+        </div>
+        <button
+          onClick={connect}
+          disabled={busy}
+          className="px-3 py-2 rounded-lg bg-accent text-black text-xs font-bold disabled:opacity-50 active:scale-95 transition-transform"
+        >
+          {busy ? '…' : 'Connect'}
+        </button>
+      </Card>
+    );
+  }
+
+  const steps = today?.steps, sleep = today?.sleepMinutes, hr = today?.restingHeartRate ?? today?.avgHeartRate;
+  return (
+    <Card className="p-3.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <Watch className="w-3.5 h-3.5 text-accent" />
+          <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">{sourceName} · today</span>
+        </div>
+        <button onClick={sync} disabled={busy} aria-label="Sync now" className="w-7 h-7 rounded-full bg-accent-muted text-accent flex items-center justify-center disabled:opacity-40 active:scale-90 transition-transform">
+          <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Stat icon={<Footprints className="w-3.5 h-3.5 text-green-400" />} label="Steps" value={steps != null ? steps.toLocaleString() : '—'} />
+        <Stat icon={<Moon className="w-3.5 h-3.5 text-indigo-300" />} label="Sleep" value={sleep != null ? formatSleep(sleep) : '—'} />
+        <Stat icon={<HeartPulse className="w-3.5 h-3.5 text-red-400" />} label={today?.restingHeartRate != null ? 'Resting HR' : 'Heart rate'} value={hr != null ? `${hr} bpm` : '—'} />
+      </div>
+      {auth === 'partial' && (
+        <button onClick={openHealthSettings} className="mt-2.5 text-[11px] text-text-tertiary underline underline-offset-2">
+          Some data types are off. Manage permissions
+        </button>
+      )}
+      {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+    </Card>
+  );
+}
+
+function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-surface-elevated px-2.5 py-2">
+      <div className="flex items-center gap-1 mb-1">{icon}<span className="text-[10px] font-semibold text-text-tertiary">{label}</span></div>
+      <p className="text-sm font-black text-white truncate">{value}</p>
+    </div>
+  );
+}

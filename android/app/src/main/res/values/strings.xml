@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Warfare Fitness</string>
+    <string name="title_activity_main">Warfare Fitness</string>
+    <string name="package_name">com.warfarefitness.app</string>
+    <string name="custom_url_scheme">com.warfarefitness.app</string>
+    <!-- Shown when the user taps "Privacy policy" in the Health Connect permission sheet. -->
+    <string name="health_connect_privacy_policy_url">https://warfarefitness.com/privacy</string>
+</resources>

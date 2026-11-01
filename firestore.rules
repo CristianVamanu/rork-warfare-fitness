@@ -751,6 +751,14 @@ service cloud.firestore {
       allow create, update: if false;
     }
 
+    // Per-day wearable summaries (steps, sleep, heart rate, weight, workouts)
+    // synced from Apple Health / Health Connect by the native apps. Written
+    // only by /api/health/sync with the Admin SDK; the owner reads their own.
+    match /healthDays/{dayId} {
+      allow read:   if isAuthed() && notTfaPending() && resource.data.userId == uid();
+      allow create, update, delete: if false;
+    }
+
     match /workoutLogs/{logId} {
       allow read:   if isAuthed() && notTfaPending() && resource.data.userId == uid();
       // workout history is not deletable
