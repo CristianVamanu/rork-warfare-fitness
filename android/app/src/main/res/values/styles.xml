@@ -24,5 +24,12 @@
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <!-- MainActivity keeps this theme after the splash, so the bar colours
+             must be set here as well, not only on AppTheme.NoActionBar. -->
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
+        <item name="android:statusBarColor">@color/brandBlack</item>
+        <item name="android:navigationBarColor">@color/brandBlack</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="windowSplashScreenBackground">@color/brandBlack</item>
     </style>
 </resources>
