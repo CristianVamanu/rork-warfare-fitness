@@ -45,6 +45,13 @@ export function middleware(request: NextRequest) {
   // (the app's own binary chooses what it loads), so this does not reopen
   // the browser-side inline-script hole the nonce was added to close.
   const nativeApp = (request.headers.get('user-agent') || '').includes('WarfareFitnessNative');
+  // The native apps sell nothing (store billing rules, see
+  // src/lib/native/billing.ts): the marketing landing page with its offer
+  // and the checkout page are never shown inside them.
+  if (nativeApp) {
+    if (pathname === '/') return NextResponse.redirect(new URL('/dashboard?source=native', request.url));
+    if (pathname === '/checkout' || pathname.startsWith('/checkout/')) return NextResponse.redirect(new URL('/membership', request.url));
+  }
   const scriptSelf = nativeApp ? "'self' 'unsafe-inline'" : `'self' 'nonce-${nonce}' 'strict-dynamic'`;
   const csp = [
     "default-src 'self'",

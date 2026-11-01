@@ -13,6 +13,8 @@ import { Button } from './Button';
 import { VerifyEmailNotice } from './VerifyEmailNotice';
 import type { MembershipConfig, MembershipPlan, PlanBillingPeriodMonths } from '@/types';
 import { clearSubscribedParam } from '@/lib/purchaseNotice';
+import { nativeBillingBlocked } from '@/lib/native/billing';
+import { NativeMembershipNotice } from './NativeMembershipNotice';
 
 // Pages that are always accessible regardless of membership — account
 // management, not "the product" itself. /dashboard is deliberately NOT
@@ -240,6 +242,7 @@ export function MembershipGuard({ pathname, children }: Props) {
     // is the entire funnel the mode exists to create.
     const freePaths = trialIsStripeManaged(config) ? ALWAYS_FREE_PATHS : [...ALWAYS_FREE_PATHS, '/dashboard'];
     const isFree = freePaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+    if (!isFree && nativeBillingBlocked()) return <NativeMembershipNotice />;
     if (!isFree) return <LockedScreen trialDays={trialDays} paidTrialEnabled={!!config.paidTrialEnabled} cardUpFrontTrial={!!config.cardUpFrontTrial} trialPriceCents={config.trialPriceCents} discountPercent={getActiveDiscountPercent(config)} alreadyUsedTrial={!!profile?.trialUsedAt} />;
   }
 

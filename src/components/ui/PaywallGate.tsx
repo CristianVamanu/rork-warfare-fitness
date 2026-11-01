@@ -10,6 +10,8 @@ import { Card } from './Card';
 import { Button } from './Button';
 import toast from 'react-hot-toast';
 import type { MembershipPlan } from '@/types';
+import { nativeBillingBlocked } from '@/lib/native/billing';
+import { NativeMembershipNotice } from './NativeMembershipNotice';
 import { pruneFeatureAccess } from '@/lib/gatedFeatures';
 
 /** Does this plan's featureAccess actually cover what's currently locked?
@@ -77,6 +79,13 @@ export function PaywallGate({ feature, programId, children, noTaste }: Props) {
     );
   }
   if (!config || !config.enabled || inTrial) return <>{children}</>;
+
+  // Native apps: never an offer, only the neutral notice (store billing rules).
+  if (nativeBillingBlocked()) {
+    if (!isLocked) return <>{children}</>;
+    if (!hasMembership && tasteAvailable && !noTaste) return <>{children}</>;
+    return <NativeMembershipNotice title={hasMembership ? 'Not in your plan' : 'Members only'} feature={hasMembership ? feature : undefined} />;
+  }
 
   if (hasMembership) {
     if (!isLocked) return <>{children}</>;

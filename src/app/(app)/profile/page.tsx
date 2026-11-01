@@ -13,6 +13,7 @@ import {
   submitCoachingApplication, getUserCoachingApplication,
 } from '@/lib/firestore';
 import { startCoachingCheckout, startPlanCheckout, openBillingPortal, confirmAndChangePlan } from '@/lib/checkout';
+import { nativeBillingBlocked } from '@/lib/native/billing';
 import { trackEvent } from '@/lib/analytics';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
@@ -145,8 +146,11 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!user) return;
     getMembershipConfig().then(setMembershipConfig).catch(() => {});
-    getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
-    getMembershipPlans().then(plans => setMembershipPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load membership plans:', err));
+    // Native apps show no plans or prices (store billing rules).
+    if (!nativeBillingBlocked()) {
+      getCoachingPlans().then(plans => setCoachingPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load coaching plans:', err));
+      getMembershipPlans().then(plans => setMembershipPlans(plans.filter(p => p.active))).catch((err) => console.error('[Profile] Failed to load membership plans:', err));
+    }
     refreshCoachingApplication();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -893,7 +897,7 @@ export default function ProfilePage() {
                   : 'Today'}
               </p>
             </div>
-            {isActive && (
+            {isActive && !nativeBillingBlocked() && (
               <button
                 onClick={handleManageBilling}
                 disabled={openingPortal}

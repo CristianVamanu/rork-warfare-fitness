@@ -19,8 +19,9 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://warfarefitness.com/dashboard?source=native',
     androidScheme: 'https',
-    // Stripe Checkout and Google sign-in open inside the app's web view.
-    allowNavigation: ['warfarefitness.com', '*.warfarefitness.com', 'checkout.stripe.com', 'accounts.google.com', '*.firebaseapp.com'],
+    // Google sign-in opens inside the app's web view. No Stripe: the apps do
+    // not sell (src/lib/native/billing.ts).
+    allowNavigation: ['warfarefitness.com', '*.warfarefitness.com', 'accounts.google.com', '*.firebaseapp.com'],
   },
   backgroundColor: '#0A0A0A',
   // The site's CSP only allows nonce'd scripts, which would block the bridge

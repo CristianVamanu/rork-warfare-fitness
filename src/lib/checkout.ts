@@ -1,6 +1,7 @@
 import type { User } from 'firebase/auth';
 import { getIdToken } from 'firebase/auth';
 import { checkoutPagePath } from './checkoutMode';
+import { redirectToNativeMembershipNotice } from './native/billing';
 
 /** Starts checkout for a membership plan tier + billing term (1/3/6/12
  * months — defaults to monthly). Navigates to /checkout, where Stripe's
@@ -9,6 +10,8 @@ import { checkoutPagePath } from './checkoutMode';
  * error string otherwise. Errors the server can raise (inactive plan,
  * already a member) surface on that page, with a way back. */
 export async function startPlanCheckout(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
+  // Native apps sell nothing (store billing rules): send to the notice instead.
+  if (redirectToNativeMembershipNotice()) return null;
   if (!user) return 'Sign in to continue';
   if (!planId) return 'No plan selected';
   window.location.href = checkoutPagePath(planId, periodMonths);
@@ -20,6 +23,8 @@ export async function startPlanCheckout(user: User, planId: string, periodMonths
  * key configured, script blocked): identical session, identical prices,
  * just on Stripe's page. Redirects on success. */
 export async function startHostedPlanCheckout(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1): Promise<string | null> {
+  // Native apps sell nothing (store billing rules): send to the notice instead.
+  if (redirectToNativeMembershipNotice()) return null;
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/plan-checkout', {
@@ -45,6 +50,8 @@ export async function startHostedPlanCheckout(user: User, planId: string, period
  * active membership", so an active member always needs this instead.
  * Redirects on success; returns an error string on failure. */
 export async function openBillingPortal(user: User): Promise<string | null> {
+  // Native apps sell nothing (store billing rules): send to the notice instead.
+  if (redirectToNativeMembershipNotice()) return null;
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/create-portal-session', {
@@ -141,6 +148,8 @@ export async function confirmAndChangePlan(user: User, planId: string, planName:
  * confirmAndChangePlan) rather than "now". Returns an error string on
  * failure, null on success (caller should refresh the member's profile). */
 export async function changePlan(user: User, planId: string, periodMonths: 1 | 3 | 6 | 12 = 1, prorationDate?: number): Promise<string | null> {
+  // Native apps sell nothing (store billing rules): send to the notice instead.
+  if (redirectToNativeMembershipNotice()) return null;
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/change-plan', {
@@ -158,6 +167,8 @@ export async function changePlan(user: User, planId: string, periodMonths: 1 | 3
 
 /** Opens Stripe Checkout for a specific 1:1 coaching plan. Redirects on success. */
 export async function startCoachingCheckout(user: User, planId: string): Promise<string | null> {
+  // Native apps sell nothing (store billing rules): send to the notice instead.
+  if (redirectToNativeMembershipNotice()) return null;
   try {
     const token = await getIdToken(user);
     const res = await fetch('/api/stripe/coaching-checkout', {
