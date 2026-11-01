@@ -32,6 +32,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Barcode scanner and meal photos use the camera from the web page
+         (getUserMedia / <input capture>). Without this declaration Android
+         auto-denies the web view's request with no prompt. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Push notifications on Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Health Connect: read more than the default 30 days of history. The
          per-type READ_* permissions come from the health plugin's manifest. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />

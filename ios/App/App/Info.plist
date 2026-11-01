@@ -22,6 +22,10 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Warfare Fitness uses the camera to scan food barcodes and photograph meals for nutrition analysis.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Warfare Fitness lets you pick a meal photo from your library for nutrition analysis.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Warfare Fitness reads your steps, sleep, heart rate, weight and workouts from Apple Health to show them on your dashboard and adjust your training and nutrition targets.</string>
 	<key>NSHealthUpdateUsageDescription</key>
