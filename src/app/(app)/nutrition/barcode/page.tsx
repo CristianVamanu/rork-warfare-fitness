@@ -159,23 +159,31 @@ export default function BarcodePage() {
       const reader = new BrowserMultiFormatReader(hints);
       readerRef.current = reader;
 
-      // List available cameras; prefer the back/environment camera
-      let deviceId: string | undefined;
-      try {
-        const devices = await BrowserMultiFormatReader.listVideoInputDevices();
-        const back = devices.find((d) =>
-          /back|rear|environment|0/i.test(d.label)
-        );
-        deviceId = back?.deviceId ?? devices[0]?.deviceId;
-      } catch {
-        // listVideoInputDevices can fail before permissions granted — that's fine
-        deviceId = undefined;
-      }
+      // Ask for the rear camera by facing mode rather than picking a device by
+      // its label. Android phones expose several rear cameras (main, ultra-wide,
+      // macro, depth) and a label match such as /back|0/ landed on whichever
+      // came first — often a lens that cannot focus on a barcode a few inches
+      // away, so the scanner sat on "searching" forever. `ideal` constraints
+      // let the browser choose the main rear lens, and fall back to any camera
+      // (laptops, iOS edge cases) instead of throwing OverconstrainedError.
+      // The 1280×720 request matters too: the default 640×480 stream leaves
+      // EAN bars only a couple of pixels wide at arm's length.
+      const constraints: MediaStreamConstraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          // Continuous autofocus is not in the TS lib's MediaTrackConstraints
+          // yet; Chrome on Android honours it, others ignore it.
+          ...({ focusMode: 'continuous' } as Record<string, unknown>),
+        },
+      };
 
       setCameraState('scanning');
 
-      controlsRef.current = await reader.decodeFromVideoDevice(
-        deviceId,
+      controlsRef.current = await reader.decodeFromConstraints(
+        constraints,
         videoRef.current,
         (scanResult, err) => {
           if (scanResult && !scannedRef.current) {

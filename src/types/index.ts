@@ -1269,4 +1269,8 @@ export interface NutritionAnalysis {
   fiber?: number;
   sugar?: number;
   salt?: number;
+  /** Photo analysis only: what the estimate covers, e.g. "500 ml bottle". */
+  portion?: string;
+  /** Photo analysis only: a labelled product, where the barcode scan is more accurate. */
+  packaged?: boolean;
 }

@@ -18,6 +18,12 @@ const NutritionEstimate = z.object({
   protein: grams,
   carbs: grams,
   fat: grams,
+  // The portion the estimate covers, e.g. "500 ml bottle" or "1 plate (~350 g)".
+  // Shown next to the calories so the user can see what the number is for.
+  portion: z.string().trim().min(1).max(60).catch('1 serving'),
+  // True for a labelled product (bottle, can, wrapper, box), so the page can
+  // point at the barcode scanner, which returns the label's exact values.
+  packaged: z.coerce.boolean().catch(false),
 }).strip();
 
 const DEFAULT_DAILY_ANALYSIS_LIMIT = 20;
@@ -102,6 +108,13 @@ export async function POST(req: NextRequest) {
     const response = await openai.chat.completions.create({
       model,
       max_tokens: 500,
+      // Deterministic. At the default temperature the same photo of the same
+      // bottle came back three times with three different portion guesses
+      // (100 ml, ~350 ml, 500 ml). The nutrition per 100 ml was consistent
+      // every time; only the assumed amount wandered. With temperature 0 and a
+      // seed the same photo gives the same answer.
+      temperature: 0,
+      seed: 7,
       messages: [
         {
           role: 'user',
@@ -112,6 +125,8 @@ export async function POST(req: NextRequest) {
 Return ONLY valid JSON with this exact structure:
 {
   "name": "food name",
+  "portion": "what the numbers cover, e.g. '500 ml bottle', '1 plate (~350 g)', '2 slices'",
+  "packaged": true or false,
   "calories": number,
   "protein": number,
   "carbs": number,
@@ -119,7 +134,11 @@ Return ONLY valid JSON with this exact structure:
   "fiber": number,
   "sugar": number
 }
-All values should be in grams (except calories in kcal). Estimate for a typical serving size.`,
+Rules:
+- Decide the portion FIRST, then give the totals for that whole portion. Nutrient values in grams, calories in kcal.
+- Packaged product (bottle, can, wrapper, box, pouch): set "packaged": true and use the ENTIRE package as the portion (e.g. the full 500 ml bottle), never a 100 g/100 ml figure. If a nutrition label or size is readable in the photo, use those exact numbers.
+- Plated or loose food: set "packaged": false and use everything visible on the plate as the portion.
+- Be consistent: the same food at the same size must always get the same portion and the same numbers.`,
             },
             {
               type: 'image_url',

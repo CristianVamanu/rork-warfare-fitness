@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic';
 import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Camera, Upload, Flame, Beef, Wheat, AlertCircle, AlertTriangle, ScanBarcode } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +31,43 @@ const DEFAULT_GOALS: UserGoals = { calories: 2200, protein: 160, carbs: 250, fat
  * OpenAI's vision "low detail" mode only uses ~512px of the image anyway, so
  * this loses no real analysis quality.
  */
+/**
+ * Fast path: let the browser's image decoder downscale while it decodes.
+ * `resizeImage` below reads the whole data URL into an <img>, which on an
+ * Android phone means decoding a 12–50 MP JPEG at full size into memory before
+ * a single pixel is drawn — the multi-second pause between the shutter and the
+ * preview. `createImageBitmap` with a target size decodes straight to the small
+ * bitmap and honours EXIF orientation, so it is both quicker and upright.
+ * Returns null wherever it is unsupported so the caller can fall back.
+ */
+async function resizeFile(file: File, maxDimension: number, quality: number): Promise<string | null> {
+  if (typeof createImageBitmap !== 'function') return null;
+  try {
+    // Probe the dimensions cheaply, then decode at the reduced size.
+    const probe = await createImageBitmap(file);
+    const scale = Math.min(1, maxDimension / Math.max(probe.width, probe.height));
+    const width = Math.max(1, Math.round(probe.width * scale));
+    const height = Math.max(1, Math.round(probe.height * scale));
+    probe.close();
+    const bitmap = await createImageBitmap(file, {
+      resizeWidth: width,
+      resizeHeight: height,
+      resizeQuality: 'medium',
+      imageOrientation: 'from-image',
+    });
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) { bitmap.close(); return null; }
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', quality);
+  } catch {
+    return null;
+  }
+}
+
 function resizeImage(dataUrl: string, maxDimension: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
@@ -139,7 +176,13 @@ function AnalyzeFoodPageInner() {
     }
   }, [user, tasteAvailable]);
 
-  const handleFile = useCallback((file: File) => {
+  const handleFile = useCallback(async (file: File) => {
+    const fast = await resizeFile(file, 1024, 0.75);
+    if (fast) {
+      setPreview(fast);
+      analyzeImage(fast.split(',')[1]);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async (e) => {
       const original = e.target?.result as string;
@@ -293,6 +336,12 @@ function AnalyzeFoodPageInner() {
                           the correction the user actually has. */}
                       <span className="ml-2 align-middle text-[10px] font-semibold uppercase tracking-wider text-text-tertiary border border-white/10 rounded px-1.5 py-0.5">AI estimate</span>
                     </p>
+                    {result.portion && (
+                      <p className="text-xs text-white/80 mt-1">
+                        For: <span className="font-semibold">{result.portion}</span>
+                        {portionPct !== 100 && <span className="text-text-secondary"> × {portionPct}%</span>}
+                      </p>
+                    )}
                     <p className="text-xs text-text-secondary mt-0.5">
                       Today: {todayCalories} → {caloriesAfter} / {goals.calories} kcal
                     </p>
@@ -324,6 +373,19 @@ function AnalyzeFoodPageInner() {
                     ))}
                   </div>
                 </div>
+
+                {result.packaged && (
+                  <button
+                    type="button"
+                    onClick={() => router.push('/nutrition/barcode')}
+                    className="w-full flex items-center gap-2 bg-accent-muted rounded-xl p-3 text-left"
+                  >
+                    <ScanBarcode className="w-4 h-4 text-accent flex-shrink-0" />
+                    <p className="text-xs text-text-secondary">
+                      Packaged product? <span className="text-accent font-semibold">Scan the barcode</span> for the label&apos;s exact values.
+                    </p>
+                  </button>
+                )}
 
                 {willExceed && (
                   <div className="flex items-center gap-2 bg-red-400/10 rounded-xl p-3">
