@@ -38,6 +38,10 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    env:
+      # Job-level so the signed step's `if` can see it (a step's own env is
+      # not visible to its `if`, and the secrets context is not allowed there).
+      KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -66,10 +70,7 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon
 
       - name: Release bundle and APK (signed)
-        # A step's own `env` is not visible to its `if`; the secrets context is.
-        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-        env:
-          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        if: env.KS != ''
         working-directory: android
         run: |
           echo "$KS" | base64 -d > app/upload.keystore
