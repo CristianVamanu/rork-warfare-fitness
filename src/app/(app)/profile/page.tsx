@@ -908,6 +908,32 @@ export default function ProfilePage() {
             )}
           </Card>
         </motion.div>
+
+        {/* Native apps: status and cancel only. The stores forbid selling
+            outside their billing inside an app, but cancelling an existing
+            subscription is not a sale, and an easy cancel keeps members out
+            of the "can't cancel" complaints. No prices, plan changes or
+            resume here; those stay on the website. */}
+        {nativeBillingBlocked() && isActive && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
+            <Card className="p-4 space-y-3">
+              <div>
+                <p className="text-xs text-text-secondary mb-0.5">Membership</p>
+                <p className="text-sm font-medium text-white">
+                  {profile?.membership?.cancelAtPeriodEnd
+                    ? `Cancelled. Access continues until ${expiresAt ? expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'the end of your billing period'}.`
+                    : expiresAt ? `Active · renews ${expiresAt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}` : 'Active'}
+                </p>
+              </div>
+              {!profile?.membership?.cancelAtPeriodEnd && (
+                <Button size="sm" variant="ghost" fullWidth onClick={() => handleCancelSubscription('membership')} loading={cancelling}>
+                  Cancel Membership
+                </Button>
+              )}
+              <p className="text-[11px] text-text-tertiary text-center">Billing details and receipts are on warfarefitness.com.</p>
+            </Card>
+          </motion.div>
+        )}
       </div>
 
       {/* Edit Modal */}
