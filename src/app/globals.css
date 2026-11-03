@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800;9..40,900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800;900&display=swap');
 
 /* ── Dark theme (default) ── */
 :root {
@@ -122,7 +122,9 @@ body {
    nav's safe-area padding with no visible gap on notch/home-indicator
    devices. */
 .above-bottom-nav {
-  bottom: calc(4rem + 10px + env(safe-area-inset-bottom, 0px));
+  /* The floating nav is 68px plus an 8px gap, and its raised centre
+     button rises about 34px above it. */
+  bottom: calc(110px + env(safe-area-inset-bottom, 0px));
 }
 
 /* App background — subtle tech-grid + drifting glow orbs, rendered behind
@@ -718,7 +720,6 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
    glow at the top of the dark theme, and room for the floating nav. */
 html:not(.light) body {
   background-image: radial-gradient(120% 50% at 50% -5%, rgba(245, 166, 35, 0.10) 0%, transparent 65%);
-  background-attachment: fixed;
 }
 html body {
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;

@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { easedSets } from '@/lib/recoveryEase';
+import { ExerciseProgressCard } from '@/components/workout/ExerciseProgressCard';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -2035,6 +2036,13 @@ function WorkoutSessionPageInner() {
                 </div>
                 <ExerciseInfoButton videoUrl={currentEx.videoUrl} poster={currentEx.videoUrl ? posters[currentEx.videoUrl] : undefined} tip={currentEx.notes} name={currentEx.name} />
               </div>
+
+              {/* The member's own line for this lift: heaviest set from each
+                  recent session. Hidden for cardio/HIIT and until there are
+                  two sessions to compare. */}
+              {!currentEx.isCardio && !currentEx.isHiit && (
+                <ExerciseProgressCard userId={user?.uid} exerciseName={currentEx.name} unit={weightUnit === 'lbs' ? 'lb' : 'kg'} />
+              )}
 
               {/* Set rows */}
               <div className="space-y-2 mt-3">

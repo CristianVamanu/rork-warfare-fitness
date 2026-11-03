@@ -14,6 +14,11 @@ import { getChallenges } from '@/lib/challenges';
 import { bucket } from '@/components/community/challengeFormat';
 import type { Challenge } from '@/types';
 
+// The banner only changes when an admin flips it, so one read per five
+// minutes is plenty; returning to Home must not wait on Firestore again.
+let cached: { at: number; c: Challenge | null } | null = null;
+const TTL = 5 * 60_000;
+
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 function weekDates(now = new Date()) {
@@ -24,11 +29,16 @@ function weekDates(now = new Date()) {
 export function HomeHero({ name, photoURL, greeting, badges }: {
   name: string; photoURL?: string | null; greeting: string; badges?: React.ReactNode;
 }) {
-  const [challenge, setChallenge] = useState<Challenge | null>(null);
+  const [challenge, setChallenge] = useState<Challenge | null>(cached?.c ?? null);
   useEffect(() => {
+    if (cached && Date.now() - cached.at < TTL) return;
     let alive = true;
     getChallenges()
-      .then((list) => { if (alive) setChallenge(list.find((c) => c.featuredOnHome && bucket(c) === 'live') ?? null); })
+      .then((list) => {
+        const c = list.find((x) => x.featuredOnHome && bucket(x) === 'live') ?? null;
+        cached = { at: Date.now(), c };
+        if (alive) setChallenge(c);
+      })
       .catch(() => { /* no banner */ });
     return () => { alive = false; };
   }, []);
