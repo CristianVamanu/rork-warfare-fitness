@@ -12,7 +12,8 @@ import {
   Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info, Lock, Crown,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { resolveProgram, getLastExercisePerformance, getMembershipConfig, getExerciseVideos } from '@/lib/firestore';
+import { resolveProgram, getExerciseSessions, getMembershipConfig, getExerciseVideos } from '@/lib/firestore';
+import { suggest } from '@/lib/progression';
 import { getProgramDayForDow } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
@@ -41,7 +42,7 @@ interface SetState {
   // silently change what actually gets saved. `lastWeight`/`lastReps` are
   // what was actually logged last time; `weight`/`reps` are the suggested
   // next attempt (bumped up if the target reps were hit last time).
-  suggestion?: { weight: number; reps: number; lastWeight: number; lastReps: number };
+  suggestion?: { weight: number; reps: number; lastWeight: number; lastReps: number; reason?: string; kind?: 'increase' | 'repeat' | 'deload' | 'hold' };
   // Distance-mode logging (ruck marches, timed runs) — the actual distance
   // covered (defaults to the exercise's target, editable) and the elapsed
   // time from the in-session stopwatch. Pace is derived from these, never
@@ -1073,11 +1074,16 @@ function SetRow({
           still untouched; tapping it fills the slider, it never fills itself. */}
       {state.suggestion && state.weight === 0 && (
         <div className="mx-4 mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-accent/10 border border-accent/20">
-          <p className="text-xs text-text-secondary">
-            Last time: <span className="text-white font-semibold">{state.suggestion.lastWeight}{weightUnit} × {state.suggestion.lastReps}</span>
-            {' → '}
-            <span className="text-accent font-bold">Try {state.suggestion.weight}{weightUnit} × {state.suggestion.reps}</span>
-          </p>
+          <div className="min-w-0">
+            <p className="text-xs text-text-secondary">
+              Last time: <span className="text-white font-semibold">{state.suggestion.lastWeight}{weightUnit} × {state.suggestion.lastReps}</span>
+              {' → '}
+              <span className="text-accent font-bold">Today {state.suggestion.weight}{weightUnit} × {state.suggestion.reps}</span>
+              {state.suggestion.kind === 'increase' && <span className="ml-1 text-success font-bold">▲</span>}
+              {state.suggestion.kind === 'deload' && <span className="ml-1 text-text-tertiary font-bold">▼</span>}
+            </p>
+            {state.suggestion.reason && <p className="text-[11px] text-text-tertiary mt-0.5 leading-snug">{state.suggestion.reason}</p>}
+          </div>
           <button
             onClick={() => onApplySuggestion(state.suggestion!.weight, state.suggestion!.reps)}
             className="flex-shrink-0 px-2.5 py-1 rounded-lg bg-accent text-black text-xs font-bold hover:bg-amber-400 transition-colors"
@@ -1501,40 +1507,33 @@ function WorkoutSessionPageInner() {
     if (!user || exStates.length === 0 || suggestionsFetched.current) return;
     suggestionsFetched.current = true;
 
-    const weightIncrement = weightUnit === 'lbs' ? 5 : 2.5;
+    const unit = weightUnit === 'lbs' ? 'lbs' : 'kg';
 
     (async () => {
       const names = Array.from(new Set(
         exStates.filter((ex) => !ex.isCardio && !ex.isHiit).map((ex) => ex.name)
       ));
+      // Last two sessions per exercise: enough to tell a bad day from a
+      // stall. One suggestion per exercise, applied to every set.
       const entries = await Promise.all(
-        names.map(async (name) => [name, await getLastExercisePerformance(user.uid, name).catch(() => null)] as const)
+        names.map(async (name) => [name, await getExerciseSessions(user.uid, name, 2).catch(() => [])] as const)
       );
-      const perfByName = new Map(entries);
+      const sessionsByName = new Map(entries);
 
       setExStates((prev) => prev.map((ex) => {
-        const lastSets = perfByName.get(ex.name);
-        if (!lastSets || lastSets.length === 0) return ex;
+        const sessions = sessionsByName.get(ex.name);
+        const sug = sessions ? suggest(ex.name, ex.targetReps, sessions, unit, { recovery: eased }) : null;
+        if (!sug) return ex;
         return {
           ...ex,
-          sets: ex.sets.map((s, i) => {
-            if (s.weight !== 0) return s; // already has a value — don't override
-            const last = lastSets[Math.min(i, lastSets.length - 1)];
-            const hitTarget = last.reps >= ex.targetReps;
-            return {
-              ...s,
-              suggestion: {
-                weight: hitTarget ? Math.round((last.weight + weightIncrement) * 2) / 2 : last.weight,
-                reps: ex.targetReps,
-                lastWeight: last.weight,
-                lastReps: last.reps,
-              },
-            };
-          }),
+          sets: ex.sets.map((s) => (s.weight !== 0 ? s : {
+            ...s,
+            suggestion: { weight: sug.weight, reps: sug.reps, lastWeight: sug.lastWeight, lastReps: sug.lastReps, reason: sug.reason, kind: sug.kind },
+          })),
         };
       }));
     })();
-  }, [user, exStates, weightUnit]);
+  }, [user, exStates, weightUnit, eased]);
 
   const startedTrackedRef = useRef(false);
   useEffect(() => {

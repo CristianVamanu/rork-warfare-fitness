@@ -849,6 +849,25 @@ export async function getLastExercisePerformance(userId: string, exerciseName: s
   return null;
 }
 
+/**
+ * The completed, weighted sets of the last `n` sessions that included this
+ * exercise, newest first. Feeds the progression engine (lib/progression).
+ */
+export async function getExerciseSessions(userId: string, exerciseName: string, n = 2): Promise<{ weight: number; reps: number }[][]> {
+  const target = exerciseName.trim().toLowerCase();
+  if (!target) return [];
+  const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
+  const out: { weight: number; reps: number }[][] = [];
+  for (const w of workouts) {
+    const match = (w.exercises ?? []).find((ex) => String(ex.name ?? '').trim().toLowerCase() === target);
+    if (!match) continue;
+    const done = (match.sets ?? []).filter((s) => s.completed && s.weight > 0).map((s) => ({ weight: s.weight, reps: s.reps }));
+    if (done.length) out.push(done);
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Programs — scoped by trainerId when provided
 // ---------------------------------------------------------------------------
