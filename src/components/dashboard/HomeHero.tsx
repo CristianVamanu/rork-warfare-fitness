@@ -1,8 +1,9 @@
 'use client';
 
 /**
- * Top of the home screen: avatar and greeting, the live challenge as a big
- * accent banner with a START button, and this week as a date strip with
+ * Top of the home screen: avatar and greeting, the challenge the admin put
+ * on the home screen (Admin → Challenges → Show on home, only while it is
+ * live) as a big accent banner with a START button, and this week as a date strip with
  * today ringed. Same on web, PWA and the apps.
  */
 import { useEffect, useState } from 'react';
@@ -27,7 +28,7 @@ export function HomeHero({ name, photoURL, greeting, badges }: {
   useEffect(() => {
     let alive = true;
     getChallenges()
-      .then((list) => { if (alive) setChallenge(list.find((c) => bucket(c) === 'live') ?? null); })
+      .then((list) => { if (alive) setChallenge(list.find((c) => c.featuredOnHome && bucket(c) === 'live') ?? null); })
       .catch(() => { /* no banner */ });
     return () => { alive = false; };
   }, []);

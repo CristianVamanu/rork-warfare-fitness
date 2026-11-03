@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Plus, Edit2, Trash2, ShieldCheck, XCircle, RotateCcw, Users, CheckCircle2, ExternalLink, Clock } from 'lucide-react';
+import { ChevronLeft, Plus, Edit2, Trash2, ShieldCheck, XCircle, RotateCcw, Users, CheckCircle2, ExternalLink, Clock, Home } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -68,6 +68,16 @@ export default function AdminChallengesPage() {
     if (!confirm(`Delete "${c.title}"? Entries and posts are lost. Closing it keeps the board.`)) return;
     try { await deleteChallenge(c.id); toast.success('Deleted'); load(); } catch { toast.error('Failed to delete'); }
   };
+  // One home banner at a time: featuring a challenge clears the flag on
+  // every other one.
+  const setFeatured = async (c: Challenge, on: boolean) => {
+    try {
+      if (on) await Promise.all(list.filter((x) => x.id !== c.id && x.featuredOnHome).map((x) => updateChallenge(x.id, { featuredOnHome: false })));
+      await updateChallenge(c.id, { featuredOnHome: on });
+      toast.success(on ? (c.status === 'live' ? 'On the home screen now' : 'Will show on the home screen once it is live') : 'Removed from the home screen');
+      load();
+    } catch { toast.error('Failed to update'); }
+  };
   const setStatus = async (c: Challenge, status: ChallengeStatus) => {
     try {
       await updateChallenge(c.id, { status });
@@ -116,6 +126,7 @@ export default function AdminChallengesPage() {
                         <p className="text-sm font-bold text-white">{c.title}</p>
                         <span className={`text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded ${c.status === 'live' ? 'bg-accent text-black' : c.status === 'closed' ? 'bg-white/10 text-text-secondary' : 'bg-amber-400/20 text-amber-300'}`}>{c.status}</span>
                         {state !== c.status && state !== 'draft' && <span className="text-[10px] text-text-tertiary">({state})</span>}
+                        {c.featuredOnHome && <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent-muted text-accent">On home</span>}
                       </div>
                       <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{c.brief}</p>
                       <div className="flex gap-3 text-xs text-text-tertiary mt-1.5 flex-wrap">
@@ -132,6 +143,9 @@ export default function AdminChallengesPage() {
                     <Button size="sm" variant="secondary" onClick={() => setEditing(c)}><Edit2 className="w-3.5 h-3.5" /> Edit</Button>
                     {c.status !== 'live' && <Button size="sm" onClick={() => setStatus(c, 'live')}>Set live</Button>}
                     {c.status === 'live' && <Button size="sm" variant="secondary" onClick={() => setStatus(c, 'closed')}>Close</Button>}
+                    <Button size="sm" variant={c.featuredOnHome ? 'primary' : 'secondary'} onClick={() => setFeatured(c, !c.featuredOnHome)}>
+                      <Home className="w-3.5 h-3.5" /> {c.featuredOnHome ? 'On home · remove' : 'Show on home'}
+                    </Button>
                     <button onClick={() => router.push(`/community/challenges/${c.id}`)} className="p-2 rounded-lg text-text-tertiary hover:text-white hover:bg-white/5" title="Open as a member"><ExternalLink className="w-4 h-4" /></button>
                     <button onClick={() => remove(c)} className="p-2 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 ml-auto" title="Delete"><Trash2 className="w-4 h-4" /></button>
                   </div>

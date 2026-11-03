@@ -672,6 +672,9 @@ export interface Challenge {
   /** XP a verified finisher receives. Set per challenge by the admin;
    *  DEFAULT_CHALLENGE_XP when absent. Awarded server-side on verification. */
   xpReward?: number;
+  /** Shown as the banner at the top of every member's home screen while
+   *  live. At most one challenge carries it; the admin list sets it. */
+  featuredOnHome?: boolean;
   createdBy: string;
   createdAt: unknown;
   updatedAt?: unknown;
