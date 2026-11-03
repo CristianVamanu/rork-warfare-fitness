@@ -5,8 +5,6 @@ import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { LayoutGrid, Activity, Leaf, MessagesSquare, CircleUserRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useEffect, useState } from 'react';
-import { isNativeApp } from '@/lib/native/health';
 
 // One icon family, thin strokes, no literal objects (a house, a dumbbell,
 // an apple read as clip-art). Active state fills the glyph.
@@ -18,14 +16,17 @@ const navItems = [
   { href: '/profile', icon: CircleUserRound, label: 'Profile' },
 ];
 
-// The phone apps: a floating pill with Training as the raised centre button.
+// A floating pill with Training as the raised centre button.
 const appItems = [navItems[0], navItems[2], navItems[1], navItems[3], navItems[4]];
 
 export function BottomNav() {
   const pathname = usePathname();
-  const [native, setNative] = useState(false);
-  useEffect(() => { setNative(isNativeApp()); }, []);
-  if (native) return <AppNav pathname={pathname} />;
+  return <AppNav pathname={pathname} />;
+}
+
+/** The previous flat bar, kept for reference while the new nav settles. */
+export function LegacyBottomNav() {
+  const pathname = usePathname();
 
   return (
     <nav

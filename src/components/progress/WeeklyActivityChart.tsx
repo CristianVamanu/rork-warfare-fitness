@@ -13,7 +13,7 @@ export default function WeeklyActivityChart({ data }: { data: { date: string; mi
           labelStyle={{ color: '#94a3b8' }}
           formatter={(v: number) => [`${v} min`, 'Training']}
         />
-        <Bar dataKey="minutes" fill="#F5A623" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="minutes" fill="#B8F23A" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

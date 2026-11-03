@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800;9..40,900&family=Inter:wght@400;500;600;700;800;900&display=swap');
 
 /* ── Dark theme (default) ── */
 :root {
@@ -712,13 +712,11 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
   .wf-icon-tile { transition: none; }
 }
 
-/* ── App theme: the phone apps only ────────────────────────────────────────
-   html.wf-native is set before first paint by the root layout when the
-   native shell's UA marker is present. The website is untouched. Dark only:
-   a member who picked light mode keeps the existing light theme.
-   Look: near-black with a deep green glow, neon lime accent, big soft
-   cards, DM Sans. */
-html.wf-native.dark {
+/* ── Brand look (web, PWA and the phone apps) ───────────────────────────────
+   Near-black with a deep green glow, neon lime accent, big soft cards,
+   DM Sans. Overrides the token defaults above. Light mode keeps its own
+   palette with a darker lime so text on white stays readable. */
+html:not(.light) {
   --background: #070907;
   --surface: #121512;
   --surface-elevated: #1A1E1A;
@@ -737,25 +735,31 @@ html.wf-native.dark {
   --header-bg: rgba(7, 9, 7, 0.88);
   --progress-track: rgba(255, 255, 255, 0.08);
 }
-html.wf-native.dark body {
+html:not(.light) body {
   background-color: #070907;
   background-image: radial-gradient(120% 55% at 50% -5%, rgba(64, 120, 28, 0.42) 0%, rgba(20, 40, 12, 0.18) 45%, transparent 70%);
   background-attachment: fixed;
 }
-html.wf-native body {
+html body {
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
 }
-html.wf-native h1,
-html.wf-native h2,
-html.wf-native h3 {
+html h1,
+html h2,
+html h3 {
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
   letter-spacing: -0.01em;
 }
 /* Bigger, softer cards and pill buttons, like the rest of the app look. */
-html.wf-native .rounded-2xl { border-radius: 1.4rem; }
-html.wf-native .rounded-xl { border-radius: 1rem; }
-html.wf-native .bg-gradient-accent { background-image: linear-gradient(135deg, #C6FA4A 0%, #9FDC1E 100%); }
+html .rounded-2xl { border-radius: 1.4rem; }
+html .rounded-xl { border-radius: 1rem; }
+html .bg-gradient-accent { background-image: linear-gradient(135deg, #C6FA4A 0%, #9FDC1E 100%); }
 /* Floor for the many 10px labels: readable at arm's length in a gym. */
-html.wf-native .text-\[10px\] { font-size: 11px; }
+html .text-\[10px\] { font-size: 11px; }
 /* Room for the floating nav and its raised centre button. */
-html.wf-native main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+html main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+html.light {
+  --accent: #4F7D00;
+  --accent-hover: #426900;
+  --accent-muted: rgba(79, 125, 0, 0.12);
+  --accent-rgb: 79 125 0;
+}

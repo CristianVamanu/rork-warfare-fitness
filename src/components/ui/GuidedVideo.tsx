@@ -123,7 +123,7 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
               </span>
             </span>
             <span className="absolute left-4 right-4 bottom-3">
-              <span className="block text-[10px] font-semibold tracking-[0.28em] uppercase" style={{ color: '#F5A623' }}>Guided · with audio</span>
+              <span className="block text-[10px] font-semibold tracking-[0.28em] uppercase" style={{ color: '#B8F23A' }}>Guided · with audio</span>
               <span className="block text-sm font-bold text-white mt-0.5">{title}</span>
             </span>
           </button>
@@ -134,9 +134,9 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
             <button type="button" onClick={toggle} aria-label={playing ? 'Pause' : 'Play'} className="absolute inset-0 w-full h-full bg-transparent" />
             {!ready && (
               <span className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#F5A623' }} />
+                <Loader2 className="w-7 h-7 animate-spin" style={{ color: '#B8F23A' }} />
                 {stuck && (
-                  <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold underline" style={{ color: '#F5A623' }}>
+                  <a href={`https://www.youtube.com/watch?v=${videoId}`} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold underline" style={{ color: '#B8F23A' }}>
                     Taking a while. Open on YouTube instead
                   </a>
                 )}
@@ -170,7 +170,7 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
           />
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1">
-              <button type="button" onClick={toggle} className="w-9 h-9 rounded-lg border flex items-center justify-center" style={{ borderColor: 'rgba(245,166,35,.45)', background: 'rgba(245,166,35,.15)', color: '#F5A623' }} aria-label={playing ? 'Pause' : 'Play'}>
+              <button type="button" onClick={toggle} className="w-9 h-9 rounded-lg border flex items-center justify-center" style={{ borderColor: 'rgba(184,242,58,.45)', background: 'rgba(184,242,58,.15)', color: '#B8F23A' }} aria-label={playing ? 'Pause' : 'Play'}>
                 {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
               </button>
               <button type="button" onClick={() => seek(0)} className="w-9 h-9 rounded-lg border border-white/15 text-white/75 flex items-center justify-center hover:text-white" aria-label="Restart">

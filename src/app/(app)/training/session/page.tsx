@@ -211,7 +211,7 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
               <circle cx={26} cy={26} r={22} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={4} />
               <motion.circle
                 cx={26} cy={26} r={22} fill="none"
-                stroke="#F5A623" strokeWidth={4}
+                stroke="#B8F23A" strokeWidth={4}
                 strokeLinecap="round"
                 strokeDasharray={2 * Math.PI * 22}
                 strokeDashoffset={2 * Math.PI * 22 * (1 - pct)}
@@ -409,7 +409,7 @@ function CardioTimerRow({
             <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
             <motion.circle
               cx={36} cy={36} r={30} fill="none"
-              stroke="#F5A623" strokeWidth={5}
+              stroke="#B8F23A" strokeWidth={5}
               strokeLinecap="round"
               strokeDasharray={2 * Math.PI * 30}
               strokeDashoffset={2 * Math.PI * 30 * pct}
@@ -877,7 +877,7 @@ function HiitTimerRow({
             <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
             <motion.circle
               cx={36} cy={36} r={30} fill="none"
-              stroke={phase === 'work' ? '#F5A623' : '#60A5FA'} strokeWidth={5}
+              stroke={phase === 'work' ? '#B8F23A' : '#60A5FA'} strokeWidth={5}
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={circumference * (1 - pct)}

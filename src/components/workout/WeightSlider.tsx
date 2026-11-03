@@ -119,7 +119,7 @@ export function WeightSlider({
             disabled={disabled}
             onChange={(e) => handleSlide(parseFloat(e.target.value))}
             className="w-full weight-slider-input"
-            style={{ accentColor: '#F5A623' }}
+            style={{ accentColor: '#B8F23A' }}
           />
           <div className="flex justify-between text-[10px] text-text-tertiary mt-0.5">
             <span>0</span>

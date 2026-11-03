@@ -333,13 +333,13 @@ export default function BreathingPage() {
               onClick={() => { setMethod(m); setMinutes((m.minutes ?? DEFAULT_MINUTES)[0]); setRepeats(1); setStep('setup'); }}
               className="w-full text-left"
             >
-              <div className={`relative rounded-3xl border p-4 flex items-center gap-4 transition-colors ${m.featured ? 'border-[#F5A623]/40 bg-[#F5A623]/[0.06] shadow-[0_0_60px_rgba(245,166,35,0.10)]' : 'border-white/10 bg-white/[0.03] hover:border-[#F5A623]/30'}`}>
+              <div className={`relative rounded-3xl border p-4 flex items-center gap-4 transition-colors ${m.featured ? 'border-[#B8F23A]/40 bg-[#B8F23A]/[0.06] shadow-[0_0_60px_rgba(184,242,58,0.10)]' : 'border-white/10 bg-white/[0.03] hover:border-[#B8F23A]/30'}`}>
                 <MiniRing featured={!!m.featured} ice={m.kind === 'rounds'} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-white tracking-wide">{m.name}</p>
                     <span className="text-[10px] tracking-[0.2em] text-[#FFE2B4]/70 border border-[#FFE2B4]/20 px-1.5 py-0.5 rounded">{m.pattern}</span>
-                    {m.featured && <span className="text-[10px] tracking-[0.2em] text-black bg-[#F5A623] px-1.5 py-0.5 rounded font-bold">NEW</span>}
+                    {m.featured && <span className="text-[10px] tracking-[0.2em] text-black bg-[#B8F23A] px-1.5 py-0.5 rounded font-bold">NEW</span>}
                   </div>
                   <p className="text-xs text-white/50 mt-1 leading-relaxed">{m.description}</p>
                 </div>
@@ -403,7 +403,7 @@ export default function BreathingPage() {
                 <p className="text-sm text-white/85">Music</p>
                 <p className="text-[11px] text-white/40">{music.enabled ? track.title : 'Off'}</p>
               </div>
-              <button type="button" onClick={() => music.toggle()} className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${music.enabled ? 'border-[#F5A623]/50 bg-[#F5A623]/15 text-[#F5A623]' : 'border-white/15 text-white/50'}`} aria-label={music.enabled ? 'Music on' : 'Music off'}>
+              <button type="button" onClick={() => music.toggle()} className={`w-11 h-11 rounded-xl border flex items-center justify-center transition-colors ${music.enabled ? 'border-[#B8F23A]/50 bg-[#B8F23A]/15 text-[#B8F23A]' : 'border-white/15 text-white/50'}`} aria-label={music.enabled ? 'Music on' : 'Music off'}>
                 {music.enabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
               </button>
             </div>
@@ -412,7 +412,7 @@ export default function BreathingPage() {
                 {tracks.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
                     {tracks.map((t) => (
-                      <button key={t.id} type="button" onClick={() => pickTrack(t.id)} className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-colors ${t.id === track.id ? 'border-[#F5A623]/60 bg-[#F5A623]/10' : 'border-white/10 bg-white/[0.02]'}`}>
+                      <button key={t.id} type="button" onClick={() => pickTrack(t.id)} className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-colors ${t.id === track.id ? 'border-[#B8F23A]/60 bg-[#B8F23A]/10' : 'border-white/10 bg-white/[0.02]'}`}>
                         <p className={`text-xs font-semibold ${t.id === track.id ? 'text-[#FFE2B4]' : 'text-white/75'}`}>{t.title}</p>
                         {t.durationSeconds ? <p className="text-[10px] text-white/35 tabular-nums">{fmt(t.durationSeconds)}</p> : null}
                       </button>
@@ -421,7 +421,7 @@ export default function BreathingPage() {
                 )}
                 <div className="flex items-center gap-3">
                   <VolumeX className="w-4 h-4 text-white/35 flex-shrink-0" />
-                  <input type="range" min={0} max={100} step={1} value={Math.round(music.volume * 100)} onChange={(e) => music.setVolume(Number(e.target.value) / 100)} aria-label="Volume" className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer accent-[#F5A623]" style={{ background: `linear-gradient(90deg, #F5A623 ${music.volume * 100}%, rgba(255,255,255,.12) ${music.volume * 100}%)` }} />
+                  <input type="range" min={0} max={100} step={1} value={Math.round(music.volume * 100)} onChange={(e) => music.setVolume(Number(e.target.value) / 100)} aria-label="Volume" className="flex-1 h-1.5 appearance-none rounded-full cursor-pointer accent-[#B8F23A]" style={{ background: `linear-gradient(90deg, #B8F23A ${music.volume * 100}%, rgba(255,255,255,.12) ${music.volume * 100}%)` }} />
                   <Volume2 className="w-4 h-4 text-white/35 flex-shrink-0" />
                 </div>
               </>
@@ -523,7 +523,7 @@ function CalmBackdrop({ breath = 0.4 }: { breath?: number }) {
 }
 
 function MiniRing({ featured, ice }: { featured: boolean; ice: boolean }) {
-  const c = ice ? '#BFE3FF' : '#FFD9A0'; const g = ice ? '56,189,248' : '245,166,35';
+  const c = ice ? '#BFE3FF' : '#FFD9A0'; const g = ice ? '56,189,248' : '184,242,58';
   return (
     <div className="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
       <span className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, rgba(${g},.35), transparent 70%)`, opacity: featured ? 1 : 0.6 }} />
@@ -535,7 +535,7 @@ function MiniRing({ featured, ice }: { featured: boolean; ice: boolean }) {
 
 function Pick({ active, onClick, big, small }: { active: boolean; onClick: () => void; big: string; small: string }) {
   return (
-    <button type="button" onClick={onClick} className={`rounded-2xl border px-3 py-4 text-center transition-colors ${active ? 'border-[#F5A623]/60 bg-[#F5A623]/10 shadow-[0_0_30px_rgba(245,166,35,0.15)]' : 'border-white/10 bg-white/[0.03] hover:border-white/20'}`}>
+    <button type="button" onClick={onClick} className={`rounded-2xl border px-3 py-4 text-center transition-colors ${active ? 'border-[#B8F23A]/60 bg-[#B8F23A]/10 shadow-[0_0_30px_rgba(184,242,58,0.15)]' : 'border-white/10 bg-white/[0.03] hover:border-white/20'}`}>
       <p className={`text-2xl font-semibold tabular-nums ${active ? 'text-[#FFE2B4]' : 'text-white/80'}`}>{big}</p>
       <p className="text-[10px] tracking-[0.3em] pl-[0.3em] text-white/40 mt-1 tabular-nums">{small}</p>
     </button>

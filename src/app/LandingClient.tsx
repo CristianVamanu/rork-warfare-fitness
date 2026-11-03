@@ -180,7 +180,7 @@ function TacticalStripe() {
     <div
       className="h-2 w-full opacity-40"
       style={{
-        backgroundImage: 'repeating-linear-gradient(-45deg, var(--accent, #F5A623) 0 10px, transparent 10px 20px)',
+        backgroundImage: 'repeating-linear-gradient(-45deg, var(--accent, #B8F23A) 0 10px, transparent 10px 20px)',
       }}
       aria-hidden="true"
     />
@@ -988,7 +988,7 @@ export default function LandingPage({
       <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
         <Link
           href="/standards"
-          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
+          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(184,242,58,0.55)]"
         >
           {/* Instrument grid, fading toward the readout on the right. */}
           <div

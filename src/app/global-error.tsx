@@ -15,7 +15,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
           <p style={{ color: '#999', marginBottom: 20, fontSize: 14 }}>Try reloading the page.</p>
           <button
             onClick={() => reset()}
-            style={{ background: '#F5A623', color: '#000', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 600, cursor: 'pointer' }}
+            style={{ background: '#B8F23A', color: '#000', border: 'none', borderRadius: 10, padding: '10px 20px', fontWeight: 600, cursor: 'pointer' }}
           >
             Reload
           </button>
