@@ -711,3 +711,38 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .wf-icon-tile { transition: none; }
 }
+
+/* ── Tactical HUD: the phone apps only ─────────────────────────────────────
+   html.wf-native is set before first paint by the root layout when the
+   native shell's UA marker is present. The website is untouched. Dark only:
+   a member who picked light mode keeps the existing light theme. */
+html.wf-native.dark {
+  --background: #07090B;
+  --surface: #0E1216;
+  --surface-elevated: #151B21;
+  --background-rgb: 7 9 11;
+  --surface-rgb: 14 18 22;
+  --card-glass-bg: #0E1216;
+  --card-glass-border: #1C232A;
+  --border-subtle: #1C232A;
+  --text-secondary: #8A96A1;
+  --text-tertiary: #6B7781;
+  --nav-bg: rgba(10, 13, 16, 0.92);
+  --header-bg: rgba(7, 9, 11, 0.92);
+  --progress-track: #1C232A;
+}
+html.wf-native body {
+  font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+}
+html.wf-native h1,
+html.wf-native h2,
+html.wf-native h3 {
+  font-family: 'Chakra Petch', 'Inter', system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+/* Numbers read like instruments. */
+html.wf-native .tabular-nums {
+  font-family: 'Chakra Petch', 'Inter', system-ui, sans-serif;
+}
+/* Floor for the many 10px labels: readable at arm's length in a gym. */
+html.wf-native .text-\[10px\] { font-size: 11px; }

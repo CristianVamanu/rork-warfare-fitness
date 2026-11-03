@@ -23,7 +23,7 @@ export const HUD = {
 export const HUD_DISPLAY = "'Chakra Petch', 'Inter', system-ui, sans-serif";
 export const HUD_MONO = "'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace";
 
-const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap';
+const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap';
 
 /** Loads the two HUD faces once, only on screens that use them. */
 export function useHudFonts() {

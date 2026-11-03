@@ -386,6 +386,10 @@ export default function DashboardPage() {
           </div>
         </motion.div>
 
+        {/* Watch data: readiness first, it decides how today goes. Native apps
+            only; null on the web, so the website dashboard is unchanged. */}
+        <HealthCard />
+
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
@@ -537,9 +541,6 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
         </motion.div>
-
-        {/* Watch data (steps, sleep, heart rate). Native apps only; null on the web. */}
-        <HealthCard />
 
         {/* Store buttons on the web once the listings are live; null in the apps. */}
         <GetTheAppCard />
