@@ -712,32 +712,12 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
   .wf-icon-tile { transition: none; }
 }
 
-/* ── Brand look (web, PWA and the phone apps) ───────────────────────────────
-   Near-black with a deep green glow, neon lime accent, big soft cards,
-   DM Sans. Overrides the token defaults above. Light mode keeps its own
-   palette with a darker lime so text on white stays readable. */
-html:not(.light) {
-  --background: #070907;
-  --surface: #121512;
-  --surface-elevated: #1A1E1A;
-  --background-rgb: 7 9 7;
-  --surface-rgb: 18 21 18;
-  --accent: #B8F23A;
-  --accent-hover: #A5DD22;
-  --accent-muted: rgba(184, 242, 58, 0.14);
-  --accent-rgb: 184 242 58;
-  --card-glass-bg: rgba(26, 30, 26, 0.78);
-  --card-glass-border: rgba(255, 255, 255, 0.06);
-  --border-subtle: rgba(255, 255, 255, 0.07);
-  --text-secondary: rgba(255, 255, 255, 0.62);
-  --text-tertiary: rgba(255, 255, 255, 0.42);
-  --nav-bg: rgba(18, 21, 18, 0.94);
-  --header-bg: rgba(7, 9, 7, 0.88);
-  --progress-track: rgba(255, 255, 255, 0.08);
-}
+/* ── Shape and type (web, PWA and the phone apps) ──────────────────────────
+   The brand colours stay as defined above (black and amber). This only
+   adds the newer layout feel: DM Sans, bigger soft cards, a faint amber
+   glow at the top of the dark theme, and room for the floating nav. */
 html:not(.light) body {
-  background-color: #070907;
-  background-image: radial-gradient(120% 55% at 50% -5%, rgba(64, 120, 28, 0.42) 0%, rgba(20, 40, 12, 0.18) 45%, transparent 70%);
+  background-image: radial-gradient(120% 50% at 50% -5%, rgba(245, 166, 35, 0.10) 0%, transparent 65%);
   background-attachment: fixed;
 }
 html body {
@@ -749,17 +729,9 @@ html h3 {
   font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
   letter-spacing: -0.01em;
 }
-/* Bigger, softer cards and pill buttons, like the rest of the app look. */
 html .rounded-2xl { border-radius: 1.4rem; }
 html .rounded-xl { border-radius: 1rem; }
-html .bg-gradient-accent { background-image: linear-gradient(135deg, #C6FA4A 0%, #9FDC1E 100%); }
 /* Floor for the many 10px labels: readable at arm's length in a gym. */
 html .text-\[10px\] { font-size: 11px; }
 /* Room for the floating nav and its raised centre button. */
 html main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
-html.light {
-  --accent: #4F7D00;
-  --accent-hover: #426900;
-  --accent-muted: rgba(79, 125, 0, 0.12);
-  --accent-rgb: 79 125 0;
-}

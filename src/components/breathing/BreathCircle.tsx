@@ -48,8 +48,8 @@ export function BreathCircle({ size, word, hint, sessionProgress, phaseProgress,
   const vis = Math.max(0, Math.min(1, visible));
   const gold = tone === 'ice';
   const line = gold ? '#BFE3FF' : '#FFD9A0';
-  const glow = gold ? '#38BDF8' : '#B8F23A';
-  const glowRgb = gold ? '56,189,248' : '184,242,58';
+  const glow = gold ? '#38BDF8' : '#F5A623';
+  const glowRgb = gold ? '56,189,248' : '245,166,35';
 
   const ticks = useMemo(() => Array.from({ length: 72 }, (_, i) => {
     const a = (i / 72) * Math.PI * 2; const L = i % 6 === 0;

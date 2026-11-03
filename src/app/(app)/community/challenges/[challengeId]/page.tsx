@@ -282,7 +282,10 @@ function Board({ board, challenge, meUid }: { board: ChallengeEntry[]; challenge
     return <Card className="p-8 text-center"><p className="text-white font-bold">Board is empty</p><p className="text-text-secondary text-sm mt-1">First verified result takes the top.</p></Card>;
   }
   let rank = 0;
+  const top = board.filter((e) => e.status === 'verified').slice(0, 3);
   return (
+    <div className="space-y-3">
+    {top.length > 0 && <Podium top={top} meUid={meUid} />}
     <Card className="divide-y divide-white/6">
       {board.map((e) => {
         const verified = e.status === 'verified';
@@ -304,6 +307,39 @@ function Board({ board, challenge, meUid }: { board: ChallengeEntry[]; challenge
         );
       })}
     </Card>
+    </div>
+  );
+}
+
+/**
+ * The top three verified results on a podium: 2nd left, 1st centre and
+ * tallest, 3rd right. Only people who entered the challenge and had a
+ * result verified appear here, the same people the list below shows.
+ */
+function Podium({ top, meUid }: { top: ChallengeEntry[]; meUid?: string }) {
+  const order = [1, 0, 2].map((i) => ({ e: top[i], place: i + 1 })).filter((x) => x.e);
+  const h: Record<number, string> = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl px-3 pt-6"
+      style={{ background: 'radial-gradient(90% 80% at 50% 0%, rgba(var(--accent-rgb) / 0.22), transparent 70%), var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}
+      aria-label="Top three"
+    >
+      <div className="flex items-end justify-center gap-2">
+        {order.map(({ e, place }) => (
+          <div key={e.id} className="flex-1 max-w-[120px] flex flex-col items-center gap-1.5 min-w-0">
+            <div className={`rounded-full p-[3px] ${place === 1 ? 'bg-accent' : 'bg-white/15'}`}>
+              <Avatar name={e.displayName} src={e.photoURL} size={place === 1 ? 'lg' : 'md'} />
+            </div>
+            <p className="text-xs font-bold text-white truncate max-w-full text-center">{e.displayName}{e.userId === meUid ? ' (you)' : ''}</p>
+            <p className="text-[11px] font-semibold text-text-secondary tabular-nums">{e.result}</p>
+            <div className={`w-full ${h[place]} rounded-t-xl flex items-start justify-center pt-2 ${place === 1 ? 'bg-accent text-black' : 'bg-accent/70 text-black'}`}>
+              <span className="text-2xl font-black tabular-nums">{place}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

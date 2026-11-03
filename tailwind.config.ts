@@ -39,7 +39,7 @@ const config: Config = {
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-accent': 'linear-gradient(135deg, #C6FA4A 0%, #9FDC1E 100%)',
+        'gradient-accent': 'linear-gradient(135deg, #F5A623 0%, #E8941A 100%)',
       },
       animation: {
         'fade-in': 'fadeIn 0.3s ease-out',
@@ -58,8 +58,8 @@ const config: Config = {
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         pulseGlow: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(184,242,58,0.3)' },
-          '50%': { boxShadow: '0 0 40px rgba(184,242,58,0.6)' },
+          '0%, 100%': { boxShadow: '0 0 20px rgba(245,166,35,0.3)' },
+          '50%': { boxShadow: '0 0 40px rgba(245,166,35,0.6)' },
         },
         // A single light sweep across a card, left to right, then a pause.
         shimmer: {
@@ -68,8 +68,8 @@ const config: Config = {
         },
       },
       boxShadow: {
-        'glow-accent': '0 0 30px rgba(184,242,58,0.3)',
-        'glow-sm': '0 0 15px rgba(184,242,58,0.2)',
+        'glow-accent': '0 0 30px rgba(245,166,35,0.3)',
+        'glow-sm': '0 0 15px rgba(245,166,35,0.2)',
       },
     },
   },

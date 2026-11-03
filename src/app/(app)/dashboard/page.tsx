@@ -23,6 +23,7 @@ import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
+import { HomeHero } from '@/components/dashboard/HomeHero';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -375,16 +376,19 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Greeting */}
-        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="pt-1">
-          <div className="min-w-0">
-            <p className="text-text-secondary text-sm">{greeting}</p>
-            <h1 className="text-[26px] font-black text-white tracking-tight leading-tight truncate">{firstName}</h1>
-            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-              {streak > 0 && <Badge variant="muted">🔥 {streak} day streak</Badge>}
-              <Badge variant="muted"><span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}</Badge>
-            </div>
-          </div>
+        {/* Greeting, live challenge banner and the week strip */}
+        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
+          <HomeHero
+            name={firstName}
+            photoURL={profile?.photoURL}
+            greeting={greeting}
+            badges={(
+              <div className="flex items-center gap-1.5 flex-wrap -mt-1">
+                {streak > 0 && <Badge variant="muted">🔥 {streak} day streak</Badge>}
+                <Badge variant="muted"><span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}</Badge>
+              </div>
+            )}
+          />
         </motion.div>
 
         {/* Watch data: readiness first, it decides how today goes. Native apps

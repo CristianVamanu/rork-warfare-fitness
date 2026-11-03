@@ -8,14 +8,14 @@
 import { useEffect } from 'react';
 
 export const HUD = {
-  ground: '#070907',
-  panel: '#121512',
-  line: '#232823',
+  ground: '#0A0A0A',
+  panel: '#111111',
+  line: '#222222',
   fg: '#E9EEF2',
   dim: '#8A96A1',
   faint: '#56616B',
-  amber: '#B8F23A',
-  signal: '#6EE7A0',
+  amber: '#F5A623',
+  signal: '#4FE3C1',
   alert: '#FF6B5B',
   ok: '#7BE07B',
 } as const;

@@ -18,7 +18,7 @@ export default function WeightHistoryChart({ data, unit }: { data: { date: strin
           labelStyle={{ color: '#94a3b8' }}
           formatter={(v: number) => [`${v} ${unit}`, 'Weight']}
         />
-        <Line type="monotone" dataKey="weight" stroke="#B8F23A" strokeWidth={2.5} dot={{ fill: '#B8F23A', r: 3 }} />
+        <Line type="monotone" dataKey="weight" stroke="#F5A623" strokeWidth={2.5} dot={{ fill: '#F5A623', r: 3 }} />
       </LineChart>
     </ResponsiveContainer>
   );
