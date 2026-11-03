@@ -14,7 +14,7 @@ import { Watch } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import {
-  isNativeApp, nativePlatform, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings,
+  isNativeApp, nativePlatform, lastHealthDiag, lastHealthAuth, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings,
   healthAvailability, openHealthConnectInstall,
   type HealthAuthState, type HealthDaySummary,
 } from '@/lib/native/health';
@@ -175,6 +175,15 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
             </button>
           )}
           {error && <p className="text-xs" style={{ color: HUD.alert }}>{error}</p>}
+          <details className="text-[11px]" style={{ color: HUD.dim }}>
+            <summary className="cursor-pointer select-none">Details</summary>
+            <div className="mt-1.5 space-y-0.5 font-mono break-words">
+              <p>Allowed: {lastHealthAuth.allowed ?? '?'}</p>
+              <p>Not allowed: {lastHealthAuth.denied ?? '?'}</p>
+              {Object.entries(lastHealthDiag).map(([k, v]) => <p key={k}>{k}: {v}</p>)}
+              {Object.keys(lastHealthDiag).length === 0 && <p>No read has run yet. Tap sync.</p>}
+            </div>
+          </details>
         </>
       )}
     />

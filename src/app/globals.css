@@ -734,4 +734,4 @@ html .rounded-xl { border-radius: 1rem; }
 /* Floor for the many 10px labels: readable at arm's length in a gym. */
 html .text-\[10px\] { font-size: 11px; }
 /* Room for the floating nav and its raised centre button. */
-html main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+html main.wf-app-main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }

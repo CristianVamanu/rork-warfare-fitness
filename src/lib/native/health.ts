@@ -80,10 +80,21 @@ export function openHealthConnectInstall(): void {
 
 export type HealthAuthState = 'unavailable' | 'granted' | 'partial' | 'denied';
 
+/**
+ * What the last read got back from the phone, per data type: a sample
+ * count or the error message. Shown behind "Details" on the dashboard card
+ * so a "connected but empty" report can be diagnosed from a screenshot.
+ */
+export const lastHealthDiag: Record<string, string> = {};
+/** The permission check's own answer, for the same Details view. */
+export const lastHealthAuth: { allowed?: string; denied?: string } = {};
+
 export async function checkHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
     const s = await (await load()).H.checkAuthorization({ read: [...HEALTH_READ_TYPES] });
+    lastHealthAuth.allowed = s.readAuthorized.join(', ') || 'none';
+    lastHealthAuth.denied = s.readDenied.join(', ') || 'none';
     if (s.readAuthorized.length === 0) return 'denied';
     return s.readDenied.length === 0 ? 'granted' : 'partial';
   } catch { return 'denied'; }
@@ -111,6 +122,13 @@ export async function openHealthSettings(): Promise<void> {
  * whole sync.
  */
 export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
+  for (const k of Object.keys(lastHealthDiag)) delete lastHealthDiag[k];
+  lastHealthDiag.sleep = '0 records';
+  lastHealthDiag.workouts = '0 records';
+  const note = (k: string) => ({
+    ok: (n: number) => { lastHealthDiag[k] = `${n} ${n === 1 ? 'record' : 'records'}`; },
+    fail: (e: unknown) => { lastHealthDiag[k] = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); },
+  });
   const { H: Health } = await load();
   const source: HealthDaySummary['source'] = nativePlatform() === 'ios' ? 'healthkit' : 'healthconnect';
   const now = new Date();
@@ -123,28 +141,51 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
   const day = (iso: string) => byDate.get(localDate(new Date(iso)));
   const range = { startDate: from.toISOString(), endDate: now.toISOString() };
 
+  async function sumByDay(
+    dataType: 'steps' | 'calories',
+    key: 'steps' | 'activeKcal',
+    round: (n: number) => number,
+    n: { ok: (c: number) => void; fail: (e: unknown) => void },
+  ) {
+    let aggErr: unknown = null;
+    try {
+      const r = await Health.queryAggregated({ dataType, ...range, bucket: 'day', aggregation: 'sum' });
+      let got = 0;
+      r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) { x[key] = round(s.value); got++; } });
+      if (got > 0) { n.ok(got); return; }
+    } catch (e) { aggErr = e; }
+    try {
+      const r = await Health.readSamples({ dataType, ...range, limit: 5000, ascending: true });
+      const sums = new Map<HealthDaySummary, number>();
+      r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) sums.set(x, (sums.get(x) ?? 0) + s.value); });
+      sums.forEach((v, x) => { x[key] = round(v); });
+      n.ok(r.samples.length);
+      if (aggErr) lastHealthDiag[dataType] += ' (aggregate failed, used samples)';
+    } catch (e) { n.fail(aggErr ?? e); }
+  }
+
   // Steps and active calories: daily sums straight from the platform, which
   // already de-duplicates overlapping sources (phone + watch).
   await Promise.all([
-    Health.queryAggregated({ dataType: 'steps', ...range, bucket: 'day', aggregation: 'sum' })
-      .then(r => r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.steps = Math.round(s.value); }))
-      .catch(() => {}),
-    Health.queryAggregated({ dataType: 'calories', ...range, bucket: 'day', aggregation: 'sum' })
-      .then(r => r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.activeKcal = Math.round(s.value); }))
-      .catch(() => {}),
+    // Daily sums from the platform (de-duplicates phone + watch). If the
+    // aggregate query fails or comes back empty, fall back to summing the
+    // raw samples per day, so one broken query path can't blank the card.
+    sumByDay('steps', 'steps', Math.round, note('steps')),
+    sumByDay('calories', 'activeKcal', Math.round, note('calories')),
     Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: 'average' })
-      .then(r => r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.avgHeartRate = Math.round(s.value); }))
-      .catch(() => {}),
-    Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 50, ascending: true })
-      .then(r => r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.restingHeartRate = Math.round(s.value); }))
-      .catch(() => {}),
-    Health.readSamples({ dataType: 'weight', ...range, limit: 50, ascending: true })
-      .then(r => r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.weightKg = Math.round(s.value * 10) / 10; }))
-      .catch(() => {}),
+      .then(r => { note('heartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.avgHeartRate = Math.round(s.value); }); })
+      .catch(note('heartRate').fail),
+    Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 200, ascending: true })
+      .then(r => { note('restingHeartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.restingHeartRate = Math.round(s.value); }); })
+      .catch(note('restingHeartRate').fail),
+    Health.readSamples({ dataType: 'weight', ...range, limit: 200, ascending: true })
+      .then(r => { note('weight').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.weightKg = Math.round(s.value * 10) / 10; }); })
+      .catch(note('weight').fail),
     // Sleep: a night is credited to the day you wake up, so a session is
     // filed under its END date. Only time actually asleep counts.
     Health.readSamples({ dataType: 'sleep', startDate: new Date(from.getTime() - 12 * 3600_000).toISOString(), endDate: now.toISOString(), limit: 200, ascending: true })
-      .then(r => r.samples.forEach(s => {
+      .then(r => r.samples.forEach((s, i, all) => {
+        if (i === 0) note('sleep').ok(all.length);
         const x = day(s.endDate); if (!x) return;
         const asleepStates = new Set(['asleep', 'light', 'deep', 'rem']);
         let mins = 0;
@@ -152,13 +193,14 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
         else if (!s.sleepState || asleepStates.has(s.sleepState)) mins = s.value;
         if (mins > 0) x.sleepMinutes = (x.sleepMinutes ?? 0) + Math.round(mins);
       }))
-      .catch(() => {}),
+      .catch(note('sleep').fail),
     Health.queryWorkouts({ ...range, limit: 50, ascending: true })
-      .then(r => r.workouts.forEach(w => {
+      .then(r => r.workouts.forEach((w, i, all) => {
+        if (i === 0) note('workouts').ok(all.length);
         const x = day(w.startDate); if (!x) return;
         (x.workouts ??= []).push({ type: w.workoutType, minutes: Math.round(w.duration / 60), ...(w.totalEnergyBurned ? { kcal: Math.round(w.totalEnergyBurned) } : {}), ...(w.sourceName ? { source: w.sourceName } : {}) });
       }))
-      .catch(() => {}),
+      .catch(note('workouts').fail),
   ]);
   return [...byDate.values()];
 }

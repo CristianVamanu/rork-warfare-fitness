@@ -148,7 +148,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <NativePushListener />
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         {!hideNav && <ChatDrawer />}
-        <main className="pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
+        <main className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           {/* The warm wash behind every screen's header. Painted once here
               rather than per page, so a page cannot forget it or double it. */}
           <div
@@ -165,7 +165,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           who already has access, and mounting it inside would tie it to
           whichever page happens to be rendered. */}
       <WelcomeVideo />
-      {!hideNav && <BottomNav />}
+      {/* The workout session has its own fixed action bar; the nav's raised
+          centre button would sit on top of it. */}
+      {!hideNav && !pathname.startsWith('/training/session') && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>
   );
