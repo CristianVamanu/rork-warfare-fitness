@@ -6,11 +6,60 @@
  * the person's own usual. Links to /body for the 30-day view.
  */
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { todaysEaseChoice, setEaseChoice } from '@/lib/recoveryEase';
 import { RefreshCw, ChevronRight } from 'lucide-react';
-import { readiness, brief, lastDays, series, mean, fmtMinutes, type DayMap } from '@/lib/healthTrends';
+import { readiness, brief, lastDays, series, mean, fmtMinutes, dayKey, type DayMap } from '@/lib/healthTrends';
 import { HUD, HUD_DISPLAY, HUD_MONO, Ring, Bars, Line, Meter, HudLabel } from './HudCharts';
 
 export const STEP_GOAL = 10_000;
+
+/** Today's program session, offered in a lighter version on a low day. */
+export interface LighterOffer { href: string; before: number; after: number }
+
+/**
+ * The offer itself. Nothing changes unless the member taps "Use lighter
+ * session"; "Keep as planned" hides it for the day. Once chosen, the
+ * dashboard's Start button opens the lighter version too, and the member
+ * can switch back to full here at any time.
+ */
+function LighterSession({ offer }: { offer: LighterOffer }) {
+  const router = useRouter();
+  const today = dayKey(new Date());
+  const [choice, setChoice] = useState<'ease' | 'keep' | null | 'loading'>('loading');
+  useEffect(() => { setChoice(todaysEaseChoice(today)); }, [today]);
+  if (choice === 'loading' || choice === 'keep' || offer.after >= offer.before) return null;
+  const box = { background: HUD.panel, border: `1px solid ${HUD.amber}55` };
+  if (choice === 'ease') {
+    return (
+      <div className="rounded-2xl p-3.5 flex items-center justify-between gap-3" style={box}>
+        <div className="min-w-0">
+          <HudLabel color={HUD.amber}>Lighter session on</HudLabel>
+          <p className="text-[13px]" style={{ color: HUD.fg }}>{offer.before} sets → {offer.after} today</p>
+        </div>
+        <div className="flex gap-1.5 flex-shrink-0">
+          <button onClick={() => { setEaseChoice(today, 'keep'); setChoice('keep'); }} className="px-3 py-2 rounded-lg text-xs font-bold" style={{ background: HUD.line, color: HUD.fg }}>Back to full</button>
+          <button onClick={() => router.push(`${offer.href}&ease=1`)} className="px-3 py-2 rounded-lg text-xs font-bold" style={{ background: HUD.amber, color: HUD.ground }}>Start</button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl p-3.5 flex flex-col gap-2.5" style={box}>
+      <div>
+        <HudLabel color={HUD.amber}>Suggested · recovery day</HudLabel>
+        <p className="text-[13px] leading-snug mt-1" style={{ color: HUD.fg }}>
+          Do today&apos;s session with fewer sets: <b className="tabular-nums">{offer.before} → {offer.after}</b>. Same exercises, reps and weights. Your program is not changed.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <button onClick={() => { setEaseChoice(today, 'ease'); router.push(`${offer.href}&ease=1`); }} className="flex-1 py-2.5 rounded-lg text-sm font-bold active:scale-[.98] transition-transform" style={{ background: HUD.amber, color: HUD.ground }}>Use lighter session</button>
+        <button onClick={() => { setEaseChoice(today, 'keep'); setChoice('keep'); }} className="flex-1 py-2.5 rounded-lg text-sm font-bold active:scale-[.98] transition-transform" style={{ background: HUD.line, color: HUD.fg }}>Keep as planned</button>
+      </div>
+    </div>
+  );
+}
 
 export function levelColor(level: string) {
   return level === 'high' ? HUD.ok : level === 'low' ? HUD.alert : HUD.amber;
@@ -33,8 +82,8 @@ function Tile({ label, value, unit, chart, note, noteColor }: {
 
 const hhmm = (m: number) => `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')}`;
 
-export function WatchHud({ days, sourceName, busy, onSync, footer }: {
-  days: DayMap; sourceName: string; busy: boolean; onSync: () => void; footer?: React.ReactNode;
+export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
+  days: DayMap; sourceName: string; busy: boolean; onSync: () => void; footer?: React.ReactNode; lighter?: LighterOffer | null;
 }) {
   const week = lastDays(7);
   const prior14 = lastDays(15).slice(0, -1);
@@ -69,6 +118,8 @@ export function WatchHud({ days, sourceName, busy, onSync, footer }: {
           <p className="text-[13px] leading-snug" style={{ color: HUD.fg }}>{brief(r)}</p>
         </div>
       </div>
+
+      {r.level === 'low' && lighter && <LighterSession offer={lighter} />}
 
       <div className="grid grid-cols-2 gap-2.5">
         <Tile

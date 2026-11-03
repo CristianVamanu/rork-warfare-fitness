@@ -21,10 +21,10 @@ import {
 import { useHealthHistory, syncWindow, markBackfilled } from '@/lib/useHealthHistory';
 import { dayKey } from '@/lib/healthTrends';
 import { HUD, useHudFonts } from '@/components/hud/HudCharts';
-import { WatchHud } from '@/components/hud/WatchHud';
+import { WatchHud, type LighterOffer } from '@/components/hud/WatchHud';
 
 
-export function HealthCard() {
+export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) {
   const { user } = useAuth();
   const [native] = useState(() => isNativeApp());
   const [auth, setAuth] = useState<HealthAuthState | 'unknown'>('unknown');
@@ -150,6 +150,7 @@ export function HealthCard() {
       sourceName={sourceName}
       busy={busy}
       onSync={sync}
+      lighter={lighter ?? null}
       footer={(
         <>
           {empty && !busy && (

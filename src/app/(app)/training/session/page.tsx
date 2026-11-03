@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { easedSets } from '@/lib/recoveryEase';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -1325,7 +1326,11 @@ function WorkoutSessionPageInner() {
   // (set by the scan-go results screen) rather than a programId/dow pair.
   const isScanGo = searchParams.get('source') === 'scan-go';
 
-  const sessionKey = `workout_session_${isScanGo ? 'scan-go' : (programId ?? 'free')}_${dow ?? 'x'}`;
+  // Lighter session the member accepted on a low-readiness day (dashboard
+  // watch panel). Only ever set by that explicit choice. Part of the draft
+  // key so a full-volume draft and a lighter one never overwrite each other.
+  const eased = searchParams.get('ease') === '1' && !isScanGo;
+  const sessionKey = `workout_session_${isScanGo ? 'scan-go' : (programId ?? 'free')}_${dow ?? 'x'}${eased ? '_ease' : ''}`;
 
   // Defense-in-depth: the training/[id] detail page already prevents
   // navigating here for a day beyond the trial's day limit, but this route
@@ -1474,12 +1479,15 @@ function WorkoutSessionPageInner() {
         return;
       }
 
+      if (eased) {
+        exercises = exercises.map((ex) => (isCardioExercise(ex) || ex.isHiit ? ex : { ...ex, sets: easedSets(ex.sets) }));
+      }
       setExStates(buildExState(exercises));
       setLoadingProgram(false);
     };
 
     resolveExercises();
-  }, [programId, dow, sessionKey]);
+  }, [programId, dow, sessionKey, eased]);
 
   // ── Progressive-overload suggestions ────────────────────────────────────
   // Fetched once per fresh session (skipped on sessionStorage restore, since
@@ -1962,6 +1970,7 @@ function WorkoutSessionPageInner() {
                   {currentEx.name}
                 </motion.p>
               </AnimatePresence>
+              {eased && <p className="text-[10px] font-bold uppercase tracking-wider text-accent">Lighter session · fewer sets</p>}
               <p className="text-[10px] text-text-tertiary mt-0.5">
                 Exercise {currentExIdx + 1} of {exStates.length}
                 {currentEx.muscleGroup && ` · ${currentEx.muscleGroup}`}

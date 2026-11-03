@@ -23,6 +23,7 @@ import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
+import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
@@ -388,7 +389,11 @@ export default function DashboardPage() {
 
         {/* Watch data: readiness first, it decides how today goes. Native apps
             only; null on the web, so the website dashboard is unchanged. */}
-        <HealthCard />
+        <HealthCard
+          lighter={activeProgram?.programId && !isRestToday && !programDone && todayDay?.exercises?.length
+            ? { href: `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`, ...easeSummary(todayDay.exercises) }
+            : null}
+        />
 
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
@@ -666,7 +671,7 @@ export default function DashboardPage() {
                     {/* Nothing left to start once the program is finished —
                         the button would point at a day past the end. */}
                     {!isRestToday && !programDone && (
-                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`)}>
+                      <Button size="sm" onClick={() => router.push(`/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}${todaysEaseChoice(localDateStr) === 'ease' ? '&ease=1' : ''}`)}>
                         <Play className="w-4 h-4" /> Start
                       </Button>
                     )}
