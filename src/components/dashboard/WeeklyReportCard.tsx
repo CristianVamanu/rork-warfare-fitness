@@ -15,6 +15,8 @@ import { dayKey } from '@/lib/healthTrends';
 import type { WeeklyReport } from '@/lib/weeklyReport';
 
 const HIDE_KEY = 'wf-weekly-report-hidden';
+// One fetch per week per session: the report for a past week never changes.
+let cache: { key: string; report: WeeklyReport | null } | null = null;
 
 export function WeeklyReportCard() {
   const { user, profile } = useAuth();
@@ -25,15 +27,21 @@ export function WeeklyReportCard() {
   useEffect(() => {
     if (!user) return;
     let alive = true;
+    const key = `${user.uid}:${dayKey(new Date())}`;
+    const show = (r: WeeklyReport | null) => {
+      if (!alive || !r) return;
+      try { if (localStorage.getItem(HIDE_KEY) === r.week) setHidden(true); } catch { /* storage blocked */ }
+      setReport(r);
+    };
+    if (cache?.key === key) { show(cache.report); return () => { alive = false; }; }
     (async () => {
       try {
         const token = await getIdToken(user);
         const res = await fetch(`/api/ai/weekly-report?today=${dayKey(new Date())}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const json = await res.json() as { report: WeeklyReport | null };
-        if (!alive || !json.report) return;
-        try { if (localStorage.getItem(HIDE_KEY) === json.report.week) setHidden(true); } catch { /* storage blocked */ }
-        setReport(json.report);
+        cache = { key, report: json.report };
+        show(json.report);
       } catch { /* no card */ }
     })();
     return () => { alive = false; };

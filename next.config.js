@@ -57,7 +57,10 @@ const withPWA = require('next-pwa')({
       handler: 'NetworkFirst',
       options: {
         cacheName: 'app-pages',
-        networkTimeoutSeconds: 6,
+        // Long enough that a slow connection still gets the fresh page (a
+        // cached copy from an older deploy can reference removed chunks);
+        // short enough that a dead basement connection falls back.
+        networkTimeoutSeconds: 12,
         expiration: { maxEntries: 40, maxAgeSeconds: 14 * 24 * 60 * 60 },
         cacheableResponse: { statuses: [200] },
         plugins: [

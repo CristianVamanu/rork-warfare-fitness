@@ -38,7 +38,10 @@ export async function GET(req: NextRequest) {
   const week = reportWeek(today);
   const ref = db.doc(`weeklyReports/${auth.uid}_${week}`);
   const existing = await ref.get();
-  if (existing.exists) return NextResponse.json({ report: existing.data(), cached: true });
+  if (existing.exists) {
+    const d = existing.data() ?? {};
+    return d.quiet ? NextResponse.json({ report: null, reason: 'quiet', week }) : NextResponse.json({ report: d, cached: true });
+  }
 
   const start = new Date(`${week}T00:00:00Z`).getTime();
   const [userSnap, eventsSnap, healthSnaps] = await Promise.all([
@@ -62,7 +65,12 @@ export async function GET(req: NextRequest) {
     programName: ap?.programName ?? null,
     programPct: ap?.totalWorkouts ? Math.round(((ap.completedWorkouts ?? 0) / ap.totalWorkouts) * 100) : null,
   });
-  if (quietWeek(stats)) return NextResponse.json({ report: null, reason: 'quiet', week });
+  if (quietWeek(stats)) {
+    // Remembered, so the next visits that week do not recompute it. The
+    // week is over, so nothing logged later can change it.
+    await ref.set({ week, quiet: true, userId: auth.uid, createdAt: Timestamp.now() });
+    return NextResponse.json({ report: null, reason: 'quiet', week });
+  }
 
   let words = rulesReport(stats);
   let generatedBy: WeeklyReport['generatedBy'] = 'rules';

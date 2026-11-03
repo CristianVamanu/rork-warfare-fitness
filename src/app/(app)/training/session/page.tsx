@@ -1938,7 +1938,7 @@ function WorkoutSessionPageInner() {
         queueWorkout(queued);
         draftStore.remove(sessionKey);
         setSaved(true);
-        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: 0, newQuests: [] });
+        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: profile?.powerLevel ?? 0, newQuests: [] });
         toast.success('No connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
         return;
       }
@@ -1953,7 +1953,7 @@ function WorkoutSessionPageInner() {
         queueWorkout(queued);
         draftStore.remove(sessionKey);
         setSaved(true);
-        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: 0, newQuests: [] });
+        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: profile?.powerLevel ?? 0, newQuests: [] });
         toast.success('Weak connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
         return;
       }
