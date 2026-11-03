@@ -8,22 +8,22 @@
 import { useEffect } from 'react';
 
 export const HUD = {
-  ground: '#07090B',
-  panel: '#0E1216',
-  line: '#1C232A',
+  ground: '#070907',
+  panel: '#121512',
+  line: '#232823',
   fg: '#E9EEF2',
   dim: '#8A96A1',
   faint: '#56616B',
-  amber: '#F5A623',
-  signal: '#4FE3C1',
+  amber: '#B8F23A',
+  signal: '#6EE7A0',
   alert: '#FF6B5B',
   ok: '#7BE07B',
 } as const;
 
-export const HUD_DISPLAY = "'Chakra Petch', 'Inter', system-ui, sans-serif";
+export const HUD_DISPLAY = "'DM Sans', 'Inter', system-ui, sans-serif";
 export const HUD_MONO = "'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace";
 
-const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap';
+const FONT_HREF = 'https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=IBM+Plex+Mono:wght@400;500&display=swap';
 
 /** Loads the two HUD faces once, only on screens that use them. */
 export function useHudFonts() {

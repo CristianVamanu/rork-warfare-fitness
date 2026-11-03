@@ -712,37 +712,50 @@ html[data-wf-session="1"] [data-landing-body] { visibility: hidden; }
   .wf-icon-tile { transition: none; }
 }
 
-/* ── Tactical HUD: the phone apps only ─────────────────────────────────────
+/* ── App theme: the phone apps only ────────────────────────────────────────
    html.wf-native is set before first paint by the root layout when the
    native shell's UA marker is present. The website is untouched. Dark only:
-   a member who picked light mode keeps the existing light theme. */
+   a member who picked light mode keeps the existing light theme.
+   Look: near-black with a deep green glow, neon lime accent, big soft
+   cards, DM Sans. */
 html.wf-native.dark {
-  --background: #07090B;
-  --surface: #0E1216;
-  --surface-elevated: #151B21;
-  --background-rgb: 7 9 11;
-  --surface-rgb: 14 18 22;
-  --card-glass-bg: #0E1216;
-  --card-glass-border: #1C232A;
-  --border-subtle: #1C232A;
-  --text-secondary: #8A96A1;
-  --text-tertiary: #6B7781;
-  --nav-bg: rgba(10, 13, 16, 0.92);
-  --header-bg: rgba(7, 9, 11, 0.92);
-  --progress-track: #1C232A;
+  --background: #070907;
+  --surface: #121512;
+  --surface-elevated: #1A1E1A;
+  --background-rgb: 7 9 7;
+  --surface-rgb: 18 21 18;
+  --accent: #B8F23A;
+  --accent-hover: #A5DD22;
+  --accent-muted: rgba(184, 242, 58, 0.14);
+  --accent-rgb: 184 242 58;
+  --card-glass-bg: rgba(26, 30, 26, 0.78);
+  --card-glass-border: rgba(255, 255, 255, 0.06);
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --text-secondary: rgba(255, 255, 255, 0.62);
+  --text-tertiary: rgba(255, 255, 255, 0.42);
+  --nav-bg: rgba(18, 21, 18, 0.94);
+  --header-bg: rgba(7, 9, 7, 0.88);
+  --progress-track: rgba(255, 255, 255, 0.08);
+}
+html.wf-native.dark body {
+  background-color: #070907;
+  background-image: radial-gradient(120% 55% at 50% -5%, rgba(64, 120, 28, 0.42) 0%, rgba(20, 40, 12, 0.18) 45%, transparent 70%);
+  background-attachment: fixed;
 }
 html.wf-native body {
-  font-family: 'IBM Plex Sans', 'Inter', system-ui, sans-serif;
+  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
 }
 html.wf-native h1,
 html.wf-native h2,
 html.wf-native h3 {
-  font-family: 'Chakra Petch', 'Inter', system-ui, sans-serif;
-  letter-spacing: 0.01em;
+  font-family: 'DM Sans', 'Inter', system-ui, sans-serif;
+  letter-spacing: -0.01em;
 }
-/* Numbers read like instruments. */
-html.wf-native .tabular-nums {
-  font-family: 'Chakra Petch', 'Inter', system-ui, sans-serif;
-}
+/* Bigger, softer cards and pill buttons, like the rest of the app look. */
+html.wf-native .rounded-2xl { border-radius: 1.4rem; }
+html.wf-native .rounded-xl { border-radius: 1rem; }
+html.wf-native .bg-gradient-accent { background-image: linear-gradient(135deg, #C6FA4A 0%, #9FDC1E 100%); }
 /* Floor for the many 10px labels: readable at arm's length in a gym. */
 html.wf-native .text-\[10px\] { font-size: 11px; }
+/* Room for the floating nav and its raised centre button. */
+html.wf-native main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
