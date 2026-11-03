@@ -3565,7 +3565,7 @@ function AdminPageInner() {
                 {[
                   { id: 'missed_workout', label: 'Missed Workout', desc: 'Remind members on a program who have stopped training. Backs off rather than nagging: day 1, then 2, 4 and 7 days apart, different words each time, and stops after 8. Resets when they train.', icon: Dumbbell, color: 'text-yellow-400' },
                   { id: 'streak_reminder', label: 'Streak Celebration', desc: 'Remind users with an active streak to keep going', icon: Flame, color: 'text-orange-400' },
-                  { id: 'weekly_recap', label: 'Weekly Recap', desc: 'Sunday digest of the week\'s workouts, volume, and streak — sent only to users who trained that week', icon: TrendingUp, color: 'text-blue-400' },
+                  { id: 'weekly_recap', label: 'Weekly Recap', desc: 'Monday push announcing the weekly coach report (workouts, volume, streak) — sent only to users who trained that week', icon: TrendingUp, color: 'text-blue-400' },
                 ].map(({ id, label, desc, icon: Icon, color }) => (
                   <div key={id} className="flex items-start gap-3 py-1">
                     <div className="w-8 h-8 rounded-lg bg-surface-elevated flex items-center justify-center flex-shrink-0 mt-0.5">

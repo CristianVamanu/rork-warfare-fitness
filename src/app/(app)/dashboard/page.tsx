@@ -24,6 +24,7 @@ import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
 import { HomeHero } from '@/components/dashboard/HomeHero';
+import { WeeklyReportCard } from '@/components/dashboard/WeeklyReportCard';
 import { precachePage } from '@/lib/offlinePages';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
@@ -401,6 +402,9 @@ export default function DashboardPage() {
             )}
           />
         </motion.div>
+
+        {/* Weekly coach report: from Sunday, last week's review and this week's targets. */}
+        <WeeklyReportCard />
 
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">

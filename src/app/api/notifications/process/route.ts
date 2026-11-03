@@ -323,7 +323,9 @@ export async function POST(req: NextRequest) {
         return new Date().getUTCDay();
       }
     };
-    const WEEKLY_RECAP_DAY = 0; // Sunday
+    // Monday: the coach report (/api/ai/weekly-report) covers the full
+    // Monday-Sunday week just ended, and this push announces it.
+    const WEEKLY_RECAP_DAY = 1; // Monday
 
     // Identity-based framing — onboarding captures the user's actual goal
     // and it's never referenced again anywhere after that. Quoting it back
@@ -545,7 +547,7 @@ export async function POST(req: NextRequest) {
             const title = `📊 Your week: ${weekWorkouts.length} session${weekWorkouts.length !== 1 ? 's' : ''} down`;
             const volumePhrase = weekVolume > 0 ? `, ${Math.round(weekVolume).toLocaleString()}kg moved` : '';
             const streakPhrase = streak > 0 ? `, ${streak}-day streak held` : '';
-            const body = `${weekWorkouts.length} workout${weekWorkouts.length !== 1 ? 's' : ''}${volumePhrase}${streakPhrase}. Keep it up this week, ${u.displayName ?? 'champ'}.`;
+            const body = `${weekWorkouts.length} workout${weekWorkouts.length !== 1 ? 's' : ''}${volumePhrase}${streakPhrase}. Your coach report is ready: open the app to see what to change this week.`;
             await db.collection('notifications').add({
               userId: u.id, trainerId: u.trainerId ?? null,
               title, body, type: 'auto_weekly_recap', read: false, createdAt: Timestamp.now(),
