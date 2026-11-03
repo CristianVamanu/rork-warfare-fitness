@@ -8,6 +8,7 @@
 import {
   doc,
   getDoc,
+  getDocFromServer,
   setDoc,
   updateDoc,
   increment,
@@ -110,9 +111,10 @@ async function emit(
   userId: string,
   trainerId: string,
   payload: Record<string, unknown>,
-  createdAt?: Date
+  createdAt?: Date,
+  id?: string,
 ): Promise<string> {
-  return createEvent({ type, userId, trainerId, payload, createdAt });
+  return createEvent({ type, userId, trainerId, payload, createdAt, id });
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +154,21 @@ export async function completeWorkout(
   // this going forward; it can't retroactively fix totals already
   // accumulated from past lbs-unit workouts without a data migration.
   weightUnit: 'kg' | 'lbs' = 'kg',
+  // Set when a workout finished offline is uploaded later from the outbox
+  // (lib/workoutOutbox): the event keeps its real finish time, and a fixed
+  // id means a retry after a half-finished upload never counts it twice.
+  opts: { eventId?: string; completedAt?: Date } = {},
 ): Promise<WorkoutResult> {
+  // An earlier upload of this same workout may have got part of the way
+  // (the event write is queued by Firestore itself while offline). Skip
+  // what already happened: the event if it exists, and the XP step if the
+  // user doc records this event id as already awarded (lastXpEventId).
+  let eventExists = false;
+  if (opts.eventId) {
+    const existing = await getDocFromServer(doc(db, 'events', opts.eventId)).catch(() => null);
+    eventExists = !!existing?.exists();
+  }
+  let alreadyAwarded = false;
   const trainerId = await getTrainerId(userId);
 
   const completedSets = exercises.reduce(
@@ -169,7 +185,7 @@ export async function completeWorkout(
   const calories = Math.round(duration * 8);
   const xpEarned = calcWorkoutXP(duration, completedSets, totalWeightLifted);
 
-  await emit('WORKOUT_COMPLETED', userId, trainerId, {
+  if (!eventExists) await emit('WORKOUT_COMPLETED', userId, trainerId, {
     programId: programId ?? null,
     exerciseCount: exercises.length,
     exercises,
@@ -177,7 +193,7 @@ export async function completeWorkout(
     duration,
     calories,
     xpEarned,
-  });
+  }, opts.completedAt, opts.eventId);
 
   // The recent-workout list this user just changed is now stale — drop it so
   // the dashboard's next read reflects the workout that was just finished
@@ -220,6 +236,7 @@ export async function completeWorkout(
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(userRef);
       const data = snap.data() ?? {};
+      if (opts.eventId && data.lastXpEventId === opts.eventId) { alreadyAwarded = true; return; }
       const prevXP = (data.xp as number) ?? 0;
       totalXP = prevXP + xpEarned;
       newPowerLevel = xpToPowerLevel(totalXP);
@@ -246,6 +263,7 @@ export async function completeWorkout(
         xp: totalXP,
         powerLevel: newPowerLevel,
         lastActive: serverTimestamp(),
+        ...(opts.eventId ? { lastXpEventId: opts.eventId } : {}),
         // streak and totalWorkouts deliberately NOT written here —
         // recomputeStatsCache (already triggered by emit()/createEvent()
         // above) independently derives both from the actual event history
@@ -269,6 +287,7 @@ export async function completeWorkout(
         },
       }, { merge: true });
     });
+    if (alreadyAwarded) return { xpEarned: 0, newAchievements: [], newPowerLevel, newQuests: [] };
 
     // Mirror the leaderboard-relevant subset onto the public, field-limited
     // doc other users are actually allowed to read (see firestore.rules —

@@ -42,6 +42,34 @@ const withPWA = require('next-pwa')({
   // static assets (JS/CSS/images/fonts) keep their normal caching, this
   // only affects the HTML document request itself.
   runtimeCaching: [
+    // Offline workouts: the member app's training screens and Home are kept
+    // as a fallback copy, so a gym with no signal can still open today's
+    // session (its data comes from Firestore's on-device cache, and the
+    // dashboard pre-caches the exact URL of the next session; see
+    // lib/offlinePages). The cache is keyed by full URL, query included,
+    // because the session page reads programId/dow from it.
+    // finished workout from lib/workoutOutbox). Network first with a short
+    // timeout: online members always get the fresh page. The HTML is the
+    // same app shell for everyone (auth is client-side), so a cached copy
+    // holds no one's data.
+    {
+      urlPattern: ({ request, url }) => request.mode === 'navigate' && /^\/(dashboard|training)(\/|$)/.test(url.pathname),
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'app-pages',
+        networkTimeoutSeconds: 6,
+        expiration: { maxEntries: 40, maxAgeSeconds: 14 * 24 * 60 * 60 },
+        cacheableResponse: { statuses: [200] },
+        plugins: [
+          {
+            handlerDidError: async () => new Response(
+              '<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:3rem 1rem;color:#666;background:#0A0A0A"><p>You\'re offline and this screen has not been opened on this phone before. Connect once and it will work offline next time.</p></body></html>',
+              { status: 503, headers: { 'Content-Type': 'text/html' } }
+            ),
+          },
+        ],
+      },
+    },
     {
       urlPattern: ({ request }) => request.mode === 'navigate',
       handler: 'NetworkOnly',

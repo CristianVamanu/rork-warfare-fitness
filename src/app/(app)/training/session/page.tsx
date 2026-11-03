@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { easedSets } from '@/lib/recoveryEase';
+import { newWorkoutEventId, queueWorkout, isOfflineError } from '@/lib/workoutOutbox';
 import { ExerciseProgressCard } from '@/components/workout/ExerciseProgressCard';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1889,7 +1890,35 @@ function WorkoutSessionPageInner() {
           } : {}),
         })),
       }));
-      const result = await completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, weightUnit === 'lbs' ? 'lbs' : 'kg');
+      const unit = weightUnit === 'lbs' ? 'lbs' : 'kg';
+      const eventId = newWorkoutEventId();
+      const queued = { eventId, uid: user.uid, logs, duration, programId, dayIndex: dow ?? undefined, unit, finishedAt: Date.now() } as const;
+      // No signal (basement gyms): keep the finished workout on the phone and
+      // let the outbox upload it later, instead of failing the save. Also
+      // used when the save hangs or fails for lack of a connection.
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        queueWorkout(queued);
+        draftStore.remove(sessionKey);
+        setSaved(true);
+        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: 0, newQuests: [] });
+        toast.success('No connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
+        return;
+      }
+      let result;
+      try {
+        result = await Promise.race([
+          completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, unit, { eventId }),
+          new Promise<never>((_, reject) => setTimeout(() => reject(Object.assign(new Error('Save timed out'), { name: 'OfflineTimeout' })), 20_000)),
+        ]);
+      } catch (err) {
+        if (!isOfflineError(err)) throw err;
+        queueWorkout(queued);
+        draftStore.remove(sessionKey);
+        setSaved(true);
+        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: 0, newQuests: [] });
+        toast.success('Weak connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
+        return;
+      }
       draftStore.remove(sessionKey);
       trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0) });
       setSaved(true);

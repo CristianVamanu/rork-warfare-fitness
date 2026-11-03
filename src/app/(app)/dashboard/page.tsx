@@ -24,6 +24,7 @@ import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
 import { HomeHero } from '@/components/dashboard/HomeHero';
+import { precachePage } from '@/lib/offlinePages';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -272,6 +273,16 @@ export default function DashboardPage() {
   // After a skipped rest day the pointer sits on a rest slot — "Repeat" must
   // open the last real session, not that.
   const repeatIdx = programSource ? getLastTrainingSlotIndex(programSource, lastCompleted) : null;
+  // Offline gyms: keep the next session's page (and the lighter version)
+  // on the phone so Start works without signal.
+  useEffect(() => {
+    if (!activeProgram?.programId || isRestToday) return;
+    const base = `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`;
+    precachePage(base);
+    precachePage(`${base}&ease=1`);
+    precachePage('/dashboard');
+    precachePage('/dashboard?source=native'); // the app shell's start URL
+  }, [activeProgram?.programId, nextAbsIdx, isRestToday]);
   const [skippingRest, setSkippingRest] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;

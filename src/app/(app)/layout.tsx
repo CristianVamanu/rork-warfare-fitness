@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getMembershipConfig } from '@/lib/firestore';
 import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { WorkoutOutboxFlusher } from '@/components/workout/WorkoutOutboxFlusher';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
@@ -147,6 +148,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppThemeScope />
         <NativePushListener />
         {!hideNav && <VerifyEmailNotice variant="banner" />}
+        <WorkoutOutboxFlusher />
         {!hideNav && <ChatDrawer />}
         <main className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           {/* The warm wash behind every screen's header. Painted once here

@@ -36,9 +36,12 @@ export async function createEvent(data: {
   // "log this meal for yesterday") — omit for the normal case of logging
   // something that just happened, which always uses the server clock.
   createdAt?: Date;
+  /** A fixed id chosen by the caller, so a queued workout uploaded later
+   *  (offline outbox) can tell whether its event already reached the server. */
+  id?: string;
 }): Promise<string> {
   let lastErr: unknown;
-  const { createdAt: backdatedAt, ...rest } = data;
+  const { createdAt: backdatedAt, id: fixedId, ...rest } = data;
 
   // A fixed, client-generated ID (no network round-trip to allocate one) —
   // written with setDoc instead of addDoc so the retry below is idempotent.
@@ -49,7 +52,7 @@ export async function createEvent(data: {
   // completion counted as 2 in recomputeStatsCache's totalWorkouts, which
   // just counts WORKOUT_COMPLETED docs. Retrying a setDoc to the same ID
   // just overwrites identical data instead of duplicating it.
-  const ref = doc(collection(db, 'events'));
+  const ref = fixedId ? doc(db, 'events', fixedId) : doc(collection(db, 'events'));
 
   for (let attempt = 0; attempt <= 1; attempt++) {
     try {
