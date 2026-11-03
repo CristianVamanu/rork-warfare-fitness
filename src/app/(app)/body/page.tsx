@@ -12,19 +12,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHealthHistory } from '@/lib/useHealthHistory';
 import { lastDays, series, mean, fmtMinutes } from '@/lib/healthTrends';
 import { kgToLbs } from '@/lib/utils';
-import { HUD, HUD_DISPLAY, HUD_MONO, Bars, Line, HudLabel, useHudFonts } from '@/components/hud/HudCharts';
+import { HUD, HUD_DISPLAY, HUD_MONO, Bars, Line, HudLabel } from '@/components/hud/HudCharts';
+import { Card } from '@/components/ui/Card';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 
 function Panel({ title, value, note, noteColor, children }: { title: string; value?: string; note?: string; noteColor?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: HUD.panel, border: `1px solid ${HUD.line}` }}>
+    <Card className="p-4 flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <HudLabel>{title}</HudLabel>
         {value && <span className="tabular-nums" style={{ fontFamily: HUD_DISPLAY, fontWeight: 700, fontSize: 22, color: HUD.fg }}>{value}</span>}
       </div>
       {children}
-      {note && <span className="text-xs" style={{ fontFamily: HUD_MONO, color: noteColor ?? HUD.dim }}>{note}</span>}
-    </section>
+      {note && <span className="text-xs" style={{ color: noteColor ?? HUD.dim }}>{note}</span>}
+    </Card>
   );
 }
 
@@ -32,7 +33,6 @@ const avgNote = (v: number | null, f: (n: number) => string) => (v == null ? 'No
 
 export default function BodyPage() {
   const { user, profile } = useAuth();
-  useHudFonts();
   const { days, loaded } = useHealthHistory(user?.uid, 30);
   const dates = lastDays(30);
   const lbs = profile?.weightUnit === 'lbs';
@@ -50,18 +50,18 @@ export default function BodyPage() {
   const hasAny = days.size > 0;
 
   return (
-    <div className="min-h-screen" style={{ background: HUD.ground }}>
+    <div className="min-h-screen">
       <Header title="Body" showBack />
       <div className="px-4 py-4 max-w-lg md:max-w-2xl mx-auto flex flex-col gap-3">
         <HudLabel color={HUD.signal}>Last 30 days · from your watch</HudLabel>
 
         {loaded && !hasAny && (
-          <section className="rounded-2xl p-4 flex flex-col gap-2" style={{ background: HUD.panel, border: `1px solid ${HUD.line}` }}>
+          <Card className="p-4 flex flex-col gap-2">
             <p className="text-sm font-semibold" style={{ color: HUD.fg }}>No watch data on your account yet</p>
             <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. Your trends then show here on every device.</p>
             <GetTheAppCard />
             <Link href="/dashboard" className="text-sm underline underline-offset-2" style={{ color: HUD.amber }}>Back to dashboard</Link>
-          </section>
+          </Card>
         )}
 
         {hasAny && (

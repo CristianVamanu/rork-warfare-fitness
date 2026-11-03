@@ -20,7 +20,7 @@ import {
 } from '@/lib/native/health';
 import { useHealthHistory, syncWindow, markBackfilled } from '@/lib/useHealthHistory';
 import { dayKey } from '@/lib/healthTrends';
-import { HUD, useHudFonts } from '@/components/hud/HudCharts';
+import { HUD } from '@/components/hud/HudCharts';
 import { WatchHud, type LighterOffer } from '@/components/hud/WatchHud';
 
 
@@ -33,7 +33,6 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
   const { days, reload } = useHealthHistory(user?.uid);
-  useHudFonts();
   // Today from the live sync if it has run, else from the stored month.
   const storedToday = days.get(dayKey(new Date()));
   const today = liveToday ?? storedToday ?? null;

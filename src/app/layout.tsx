@@ -135,9 +135,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           nonce={nonce}
           dangerouslySetInnerHTML={{
             __html: "try{if(localStorage.getItem('wf:session')==='1')document.documentElement.setAttribute('data-wf-session','1')}catch(e){}"
-              // The phone apps get their own look (globals.css, html.wf-native).
+              // The phone apps are marked with html.wf-native (for app-only tweaks).
               // The shell's UA marker is there before any script, so no flash.
-              + "try{if(navigator.userAgent.indexOf('WarfareFitnessNative')>-1){document.documentElement.classList.add('wf-native');var l=document.createElement('link');l.rel='stylesheet';l.dataset.hudFonts='1';l.href='https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&family=IBM+Plex+Mono:wght@400;500&display=swap';document.head.appendChild(l)}}catch(e){}",
+              + "try{if(navigator.userAgent.indexOf('WarfareFitnessNative')>-1){document.documentElement.classList.add('wf-native')}}catch(e){}",
           }}
         />
         {/* Light mode, early, on app-shell paths only — so a signed-in

@@ -391,14 +391,6 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Watch data: readiness first, it decides how today goes. Native apps
-            only; null on the web, so the website dashboard is unchanged. */}
-        <HealthCard
-          lighter={activeProgram?.programId && !isRestToday && !programDone && todayDay?.exercises?.length
-            ? { href: `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`, ...easeSummary(todayDay.exercises) }
-            : null}
-        />
-
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
@@ -550,6 +542,14 @@ export default function DashboardPage() {
             </Card>
           </motion.div>
         </motion.div>
+
+        {/* Watch data, in the same card style as the tiles above. Native apps
+            only; null on the web. */}
+        <HealthCard
+          lighter={activeProgram?.programId && !isRestToday && !programDone && todayDay?.exercises?.length
+            ? { href: `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}`, ...easeSummary(todayDay.exercises) }
+            : null}
+        />
 
         {/* Store buttons on the web once the listings are live; null in the apps. */}
         <GetTheAppCard />
