@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { RotateCcw, AlertTriangle } from 'lucide-react';
 import { reportIssue } from '@/lib/reportIssue';
+import { isChunkLoadError, reloadOnceForChunkError } from '@/components/ui/ChunkErrorReloader';
 
 /**
  * Catches a render error on any page and keeps the shell around it.
@@ -20,6 +21,10 @@ import { reportIssue } from '@/lib/reportIssue';
  */
 export default function PageError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
+    // A stale tab after a deploy asks for a chunk that no longer exists. The
+    // boundary catches it before the window listener can, so reload here too
+    // and only report if the reload already happened and it still fails.
+    if (isChunkLoadError(error) && reloadOnceForChunkError()) return;
     console.error('[PageError]', error);
     // The digest is Next's fingerprint for the server-side error, and the
     // only thing that ties a client report to a server log line.

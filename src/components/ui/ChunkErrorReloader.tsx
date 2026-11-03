@@ -13,18 +13,24 @@ import { useEffect } from 'react';
 // someone forever.
 const RELOAD_FLAG = 'wf-chunk-reload';
 
-function isChunkLoadError(reason: unknown): boolean {
+export function isChunkLoadError(reason: unknown): boolean {
   const msg = reason instanceof Error ? `${reason.name} ${reason.message}` : String(reason ?? '');
   return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/i.test(msg);
 }
 
+/** Reloads once per session; returns false when it already tried (so the caller shows/reports the error). */
+export function reloadOnceForChunkError(): boolean {
+  try {
+    if (sessionStorage.getItem(RELOAD_FLAG)) return false; // already tried once this session — avoid a loop
+    sessionStorage.setItem(RELOAD_FLAG, '1');
+  } catch { /* storage blocked: still try one reload */ }
+  window.location.reload();
+  return true;
+}
+
 export function ChunkErrorReloader() {
   useEffect(() => {
-    const reloadOnce = () => {
-      if (sessionStorage.getItem(RELOAD_FLAG)) return; // already tried once this session — avoid a loop
-      sessionStorage.setItem(RELOAD_FLAG, '1');
-      window.location.reload();
-    };
+    const reloadOnce = () => { reloadOnceForChunkError(); };
 
     const onError = (e: ErrorEvent) => { if (isChunkLoadError(e.error)) reloadOnce(); };
     const onRejection = (e: PromiseRejectionEvent) => { if (isChunkLoadError(e.reason)) reloadOnce(); };
