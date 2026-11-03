@@ -55,7 +55,7 @@ export function resolveTheme(input: {
  * route must be listed here or explicitly excused below.
  */
 export const APP_SHELL_PREFIXES: readonly string[] = [
-  '/achievements', '/banned', '/breathing', '/community', '/dashboard', '/goals', '/habits',
+  '/achievements', '/banned', '/body', '/breathing', '/community', '/dashboard', '/goals', '/habits',
   '/messages', '/notifications', '/nutrition', '/profile', '/progress', '/pt-test', '/quests',
   '/settings', '/support', '/training', '/verify-2fa',
   '/admin',

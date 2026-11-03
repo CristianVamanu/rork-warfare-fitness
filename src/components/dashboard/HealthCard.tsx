@@ -10,42 +10,48 @@
  * today's numbers.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { Footprints, Moon, HeartPulse, RefreshCw, Watch } from 'lucide-react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { Watch } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import {
-  isNativeApp, nativePlatform, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings, formatSleep,
+  isNativeApp, nativePlatform, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings,
   healthAvailability, openHealthConnectInstall,
   type HealthAuthState, type HealthDaySummary,
 } from '@/lib/native/health';
+import { useHealthHistory, syncWindow, markBackfilled } from '@/lib/useHealthHistory';
+import { dayKey } from '@/lib/healthTrends';
+import { HUD, useHudFonts } from '@/components/hud/HudCharts';
+import { WatchHud } from '@/components/hud/WatchHud';
 
-const todayKey = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
 
 export function HealthCard() {
   const { user } = useAuth();
   const [native] = useState(() => isNativeApp());
   const [auth, setAuth] = useState<HealthAuthState | 'unknown'>('unknown');
-  const [today, setToday] = useState<HealthDaySummary | null>(null);
+  const [liveToday, setToday] = useState<HealthDaySummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
+  const { days, reload } = useHealthHistory(user?.uid);
+  useHudFonts();
+  // Today from the live sync if it has run, else from the stored month.
+  const storedToday = days.get(dayKey(new Date()));
+  const today = liveToday ?? storedToday ?? null;
   const sourceName = nativePlatform() === 'ios' ? 'Apple Health' : 'Health Connect';
 
   const sync = useCallback(async () => {
     if (!user) return;
     setBusy(true); setError('');
     try {
-      const t = await syncHealth(user, 3);
+      const n = syncWindow();
+      const t = await syncHealth(user, n);
+      if (n > 3) markBackfilled();
       if (t) setToday(t);
+      await reload();
     } catch (e) {
       setError((e as Error)?.message || 'Sync failed');
     } finally { setBusy(false); }
-  }, [user]);
+  }, [user, reload]);
 
   // Seed from the stored day so the card is filled on the first frame, then
   // refresh from the phone.
@@ -60,10 +66,6 @@ export function HealthCard() {
       if (cancelled) return;
       setAuth(state);
       if (state === 'granted' || state === 'partial') {
-        try {
-          const snap = await getDoc(doc(db, 'healthDays', `${user.uid}_${todayKey()}`));
-          if (!cancelled && snap.exists()) setToday(snap.data() as HealthDaySummary);
-        } catch { /* fine, the live sync follows */ }
         if (!cancelled) await sync();
       }
     })();
@@ -141,55 +143,40 @@ export function HealthCard() {
     );
   }
 
-  const steps = today?.steps, sleep = today?.sleepMinutes, hr = today?.restingHeartRate ?? today?.avgHeartRate;
+  const empty = today?.steps == null && today?.sleepMinutes == null && (today?.restingHeartRate ?? today?.avgHeartRate) == null;
   return (
-    <Card className="p-3.5">
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-1.5">
-          <Watch className="w-3.5 h-3.5 text-accent" />
-          <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">{sourceName} · today</span>
-        </div>
-        <button onClick={sync} disabled={busy} aria-label="Sync now" className="w-7 h-7 rounded-full bg-accent-muted text-accent flex items-center justify-center disabled:opacity-40 active:scale-90 transition-transform">
-          <RefreshCw className={`w-3.5 h-3.5 ${busy ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Stat icon={<Footprints className="w-3.5 h-3.5 text-green-400" />} label="Steps" value={steps != null ? steps.toLocaleString() : '—'} />
-        <Stat icon={<Moon className="w-3.5 h-3.5 text-indigo-300" />} label="Sleep" value={sleep != null ? formatSleep(sleep) : '—'} />
-        <Stat icon={<HeartPulse className="w-3.5 h-3.5 text-red-400" />} label={today?.restingHeartRate != null ? 'Resting HR' : 'Heart rate'} value={hr != null ? `${hr} bpm` : '—'} />
-      </div>
-      {steps == null && sleep == null && hr == null && !busy && (
-        // Granted on paper, nothing came back: permissions were never actually
-        // shown (a fresh install can report a type as readable before the
-        // sheet has been seen), or the health app isn't syncing to Health
-        // Connect yet. Give both fixes a button instead of a row of dashes.
-        <div className="mt-2.5 flex items-center justify-between gap-2">
-          <p className="text-[11px] text-text-tertiary">
-            Nothing from {sourceName} yet.{nativePlatform() === 'android' ? ' Check Samsung Health → Settings → Health Connect is syncing.' : ''}
-          </p>
-          <div className="flex gap-1.5 flex-shrink-0">
-            <button onClick={connect} className="px-2.5 py-1.5 rounded-lg bg-accent text-black text-[11px] font-bold active:scale-95 transition-transform">Allow access</button>
-            {nativePlatform() === 'android' && (
-              <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg bg-surface-elevated text-white text-[11px] font-bold active:scale-95 transition-transform">Open</button>
-            )}
-          </div>
-        </div>
+    <WatchHud
+      days={days}
+      sourceName={sourceName}
+      busy={busy}
+      onSync={sync}
+      footer={(
+        <>
+          {empty && !busy && (
+            // Granted on paper, nothing came back: permissions were never actually
+            // shown (a fresh install can report a type as readable before the
+            // sheet has been seen), or the health app isn't syncing to Health
+            // Connect yet. Give both fixes a button instead of a row of dashes.
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs" style={{ color: HUD.dim }}>
+                Nothing from {sourceName} today yet.{nativePlatform() === 'android' ? ' Check Samsung Health → Settings → Health Connect is syncing.' : ''}
+              </p>
+              <div className="flex gap-1.5 flex-shrink-0">
+                <button onClick={connect} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.amber, color: HUD.ground }}>Allow access</button>
+                {nativePlatform() === 'android' && (
+                  <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.line, color: HUD.fg }}>Open</button>
+                )}
+              </div>
+            </div>
+          )}
+          {auth === 'partial' && (
+            <button onClick={openHealthSettings} className="text-xs underline underline-offset-2 text-left" style={{ color: HUD.dim }}>
+              Some data types are off. Manage permissions
+            </button>
+          )}
+          {error && <p className="text-xs" style={{ color: HUD.alert }}>{error}</p>}
+        </>
       )}
-      {auth === 'partial' && (
-        <button onClick={openHealthSettings} className="mt-2.5 text-[11px] text-text-tertiary underline underline-offset-2">
-          Some data types are off. Manage permissions
-        </button>
-      )}
-      {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
-    </Card>
-  );
-}
-
-function Stat({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-surface-elevated px-2.5 py-2">
-      <div className="flex items-center gap-1 mb-1">{icon}<span className="text-[10px] font-semibold text-text-tertiary">{label}</span></div>
-      <p className="text-sm font-black text-white truncate">{value}</p>
-    </div>
+    />
   );
 }
