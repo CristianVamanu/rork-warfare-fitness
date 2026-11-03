@@ -9,11 +9,12 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, CheckCircle, Timer, AlertTriangle, ChevronLeft, ChevronRight,
-  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info, Lock, Crown,
+  Copy, SkipForward, Plus, Minus, Dumbbell, Zap, Play, Pause, RotateCcw, Info, Lock, Crown, ArrowLeftRight,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveProgram, getExerciseSessions, getMembershipConfig, getExerciseVideos } from '@/lib/firestore';
 import { suggest } from '@/lib/progression';
+import { swapOptions } from '@/lib/exerciseSwap';
 import { getProgramDayForDow } from '@/lib/programs';
 import { getProgramDayLimit } from '@/lib/membership';
 import { completeWorkout } from '@/lib/actions';
@@ -26,7 +27,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { WeightSlider } from '@/components/workout/WeightSlider';
 import { useDoubleTap } from '@/lib/useDoubleTap';
 import { PlateCalculatorButton } from '@/components/workout/PlateCalculator';
-import type { Exercise, Program } from '@/types';
+import type { Exercise, Program, ExerciseVideo } from '@/types';
 import { parseDistance, type DistanceUnit } from '@/lib/distance';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -52,6 +53,8 @@ interface SetState {
 }
 
 interface ExState {
+  /** Original exercise name when the member swapped it for today. */
+  swappedFrom?: string;
   id: string;
   name: string;
   targetSets: number;
@@ -1639,6 +1642,7 @@ function WorkoutSessionPageInner() {
   // per session; the workout's exercises only carry the video URL, the
   // thumbnail lives on the library entry.
   const [posters, setPosters] = useState<Record<string, string>>({});
+  const [library, setLibrary] = useState<ExerciseVideo[]>([]);
   useEffect(() => {
     let alive = true;
     getExerciseVideos().then((lib) => {
@@ -1646,9 +1650,44 @@ function WorkoutSessionPageInner() {
       const map: Record<string, string> = {};
       for (const v of lib) if (v.videoUrl && v.thumbnailUrl) map[v.videoUrl] = v.thumbnailUrl;
       setPosters(map);
+      setLibrary(lib);
     }).catch(() => {});
     return () => { alive = false; };
   }, []);
+
+  // ── Swap exercise ───────────────────────────────────────────────────────
+  // Machine taken, no kit, something hurts: replace the current exercise
+  // for today only. Sets, reps and rest stay; the program is not changed.
+  // Only before any set of it is logged, so its history stays clean.
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapCustom, setSwapCustom] = useState('');
+  const swapTo = async (name: string, videoUrl?: string) => {
+    const clean = name.trim();
+    if (!clean) return;
+    const idx = currentExIdx;
+    const from = exStates[idx]?.name;
+    setExStates((prev) => prev.map((ex, i) => (i !== idx ? ex : {
+      ...ex,
+      name: clean,
+      videoUrl,
+      notes: undefined,
+      swappedFrom: ex.swappedFrom ?? from,
+      sets: ex.sets.map((st) => ({ ...st, suggestion: undefined })),
+    })));
+    setSwapOpen(false);
+    setSwapCustom('');
+    toast.success(`Swapped to ${clean} for today`);
+    // Fresh weight suggestion for the new lift.
+    if (!user) return;
+    const sessions = await getExerciseSessions(user.uid, clean, 2).catch(() => []);
+    const target = exStates[idx];
+    const sug = target ? suggest(clean, target.targetReps, sessions, weightUnit === 'lbs' ? 'lbs' : 'kg', { recovery: eased }) : null;
+    if (!sug) return;
+    setExStates((prev) => prev.map((ex, i) => (i !== idx || ex.name !== clean ? ex : {
+      ...ex,
+      sets: ex.sets.map((st) => (st.weight !== 0 ? st : { ...st, suggestion: { weight: sug.weight, reps: sug.reps, lastWeight: sug.lastWeight, lastReps: sug.lastReps, reason: sug.reason, kind: sug.kind } })),
+    })));
+  };
 
   const totalSets = exStates.reduce((s, e) => s + e.targetSets, 0);
   const completedSets = exStates.reduce(
@@ -2062,8 +2101,18 @@ function WorkoutSessionPageInner() {
                     {currentEx.videoUrl ? 'Tap the clip for the demo and form cue' : 'Tap ⓘ for the form cue'}
                   </p>
                 </div>
-                <ExerciseInfoButton videoUrl={currentEx.videoUrl} poster={currentEx.videoUrl ? posters[currentEx.videoUrl] : undefined} tip={currentEx.notes} name={currentEx.name} />
+                <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                  <ExerciseInfoButton videoUrl={currentEx.videoUrl} poster={currentEx.videoUrl ? posters[currentEx.videoUrl] : undefined} tip={currentEx.notes} name={currentEx.name} />
+                  {!currentEx.isCardio && !currentEx.isHiit && !currentEx.sets.some((st) => st.status === 'completed') && (
+                    <button onClick={() => setSwapOpen(true)} className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-text-secondary hover:text-white" style={{ backgroundColor: 'var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}>
+                      <ArrowLeftRight className="w-3 h-3" /> Swap
+                    </button>
+                  )}
+                </div>
               </div>
+              {currentEx.swappedFrom && (
+                <p className="text-[11px] text-text-tertiary mt-1">Swapped from {currentEx.swappedFrom} for today</p>
+              )}
 
               {/* The member's own line for this lift: heaviest set from each
                   recent session. Hidden for cardio/HIIT and until there are
@@ -2227,6 +2276,30 @@ function WorkoutSessionPageInner() {
       </AnimatePresence>
 
       {/* ── Quit Modal ────────────────────────────────────────────────── */}
+      <Modal open={swapOpen} onClose={() => setSwapOpen(false)} title="Swap exercise">
+        {currentEx && (
+          <div className="space-y-3">
+            <p className="text-sm text-text-secondary">Replace <span className="text-white font-semibold">{currentEx.name}</span> for today. Same sets, reps and rest. Your program stays as it is.</p>
+            <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+              {swapOptions({ name: currentEx.name, muscleGroup: currentEx.muscleGroup }, library).map((o) => (
+                <button key={o.name} onClick={() => swapTo(o.name, o.videoUrl)} className="w-full text-left rounded-xl px-3.5 py-3 flex items-center justify-between gap-3 hover:bg-white/5" style={{ backgroundColor: 'var(--card-glass-bg)', border: '1px solid var(--card-glass-border)' }}>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold text-white truncate">{o.name}</span>
+                    <span className="block text-[11px] text-text-tertiary">{o.note}{o.videoUrl ? ' · has demo video' : ''}</span>
+                  </span>
+                  <ArrowLeftRight className="w-4 h-4 text-accent flex-shrink-0" />
+                </button>
+              ))}
+            </div>
+            <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); swapTo(swapCustom); }}>
+              <input id="swap-custom" value={swapCustom} onChange={(e) => setSwapCustom(e.target.value)} placeholder="Or type another exercise" maxLength={60}
+                className="flex-1 min-w-0 rounded-xl px-3 py-2.5 text-sm bg-surface-elevated text-white placeholder:text-text-tertiary border border-white/10 focus:outline-none focus:border-accent/60" />
+              <Button size="sm" type="submit" disabled={!swapCustom.trim()}>Use</Button>
+            </form>
+          </div>
+        )}
+      </Modal>
+
       <Modal open={quitModal} onClose={() => setQuitModal(false)} title="Quit Workout?">
         <div className="space-y-4">
           <div className="flex items-start gap-3 p-3 bg-danger/10 border border-danger/20 rounded-xl">

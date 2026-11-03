@@ -10,6 +10,7 @@
  *   - All new writes go through actions.ts → createEvent().
  */
 
+import { exerciseKey } from './exerciseName';
 import {
   doc,
   getDoc,
@@ -812,13 +813,13 @@ export interface PersonalBest {
 
 /** Scans logged set history for the heaviest completed set of a given exercise. */
 export async function getPersonalBest(userId: string, exerciseName: string): Promise<PersonalBest | null> {
-  const target = exerciseName.trim().toLowerCase();
+  const target = exerciseKey(exerciseName);
   if (!target) return null;
   const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
   let best: PersonalBest | null = null;
   for (const w of workouts) {
     for (const ex of w.exercises ?? []) {
-      if (String(ex.name ?? '').trim().toLowerCase() !== target) continue;
+      if (exerciseKey(ex.name) !== target) continue;
       for (const s of ex.sets ?? []) {
         if (!s.completed || !s.weight) continue;
         if (!best || s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps)) {
@@ -837,11 +838,11 @@ export async function getPersonalBest(userId: string, exerciseName: string): Pro
  * if the exercise has never been logged before.
  */
 export async function getLastExercisePerformance(userId: string, exerciseName: string): Promise<{ weight: number; reps: number }[] | null> {
-  const target = exerciseName.trim().toLowerCase();
+  const target = exerciseKey(exerciseName);
   if (!target) return null;
   const workouts = await getUserWorkouts(userId, 15) as unknown as UserWorkoutRecord[];
   for (const w of workouts) {
-    const match = (w.exercises ?? []).find((ex) => String(ex.name ?? '').trim().toLowerCase() === target);
+    const match = (w.exercises ?? []).find((ex) => exerciseKey(ex.name) === target);
     if (!match) continue;
     const completedSets = (match.sets ?? []).filter((s) => s.completed && s.weight > 0);
     if (completedSets.length > 0) return completedSets.map((s) => ({ weight: s.weight, reps: s.reps }));
@@ -854,12 +855,12 @@ export async function getLastExercisePerformance(userId: string, exerciseName: s
  * exercise, newest first. Feeds the progression engine (lib/progression).
  */
 export async function getExerciseSessions(userId: string, exerciseName: string, n = 2): Promise<{ weight: number; reps: number }[][]> {
-  const target = exerciseName.trim().toLowerCase();
+  const target = exerciseKey(exerciseName);
   if (!target) return [];
   const workouts = await getUserWorkouts(userId, 30) as unknown as UserWorkoutRecord[];
   const out: { weight: number; reps: number }[][] = [];
   for (const w of workouts) {
-    const match = (w.exercises ?? []).find((ex) => String(ex.name ?? '').trim().toLowerCase() === target);
+    const match = (w.exercises ?? []).find((ex) => exerciseKey(ex.name) === target);
     if (!match) continue;
     const done = (match.sets ?? []).filter((s) => s.completed && s.weight > 0).map((s) => ({ weight: s.weight, reps: s.reps }));
     if (done.length) out.push(done);

@@ -1,3 +1,4 @@
+import { exerciseKey } from './exerciseName';
 /**
  * Per-exercise progress from the member's logged workouts: for each past
  * session that included the exercise, the heaviest completed set. Weights
@@ -22,13 +23,13 @@ const toDate = (v: unknown): Date | null => {
 
 /** Oldest first, at most `max` points. */
 export function exerciseProgress(workouts: LoggedWorkout[], exerciseName: string, max = 10): ProgressPoint[] {
-  const target = exerciseName.trim().toLowerCase();
+  const target = exerciseKey(exerciseName);
   if (!target) return [];
   const out: ProgressPoint[] = [];
   for (const w of workouts) {
     const date = toDate(w.completedAt);
     if (!date) continue;
-    const ex = (w.exercises ?? []).find(e => String(e.name ?? '').trim().toLowerCase() === target);
+    const ex = (w.exercises ?? []).find(e => exerciseKey(e.name) === target);
     if (!ex) continue;
     let best: { weight: number; reps: number } | null = null;
     for (const s of ex.sets ?? []) {
