@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import { easedSets } from '@/lib/recoveryEase';
+import { maybeAskForReview } from '@/lib/native/review';
 import { newWorkoutEventId, queueWorkout, isOfflineError } from '@/lib/workoutOutbox';
 import { ExerciseProgressCard } from '@/components/workout/ExerciseProgressCard';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
@@ -1961,6 +1962,10 @@ function WorkoutSessionPageInner() {
       trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0) });
       setSaved(true);
       setWorkoutResult({ duration, ...result });
+      // A good moment to ask for a store rating: a workout just finished.
+      // Delayed so the summary card shows first.
+      const total = (profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0) + 1;
+      setTimeout(() => { maybeAskForReview(total).catch(() => {}); }, 2500);
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       toast.error(`Failed to save: ${e?.message || String(err)}`, { duration: 8000 });

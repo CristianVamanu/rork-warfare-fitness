@@ -81,6 +81,15 @@ async function runQuery<T>(label: string, fn: () => Promise<T>): Promise<T> {
 // ---------------------------------------------------------------------------
 // Safe event query — falls back to userId-only when composite index is missing
 // ---------------------------------------------------------------------------
+/** Recent events of one type for the signed-in member, newest first. */
+export async function getRecentEvents(userId: string, type: string, days: number, limitN = 400) {
+  const snap = await safeGetEvents(userId, type, Timestamp.fromMillis(Date.now() - days * 86_400_000), undefined, limitN);
+  return snap.docs.map((d) => {
+    const data = d.data() as { payload?: Record<string, unknown>; createdAt?: { toMillis?: () => number } };
+    return { at: data.createdAt?.toMillis?.() ?? 0, payload: data.payload ?? {} };
+  });
+}
+
 async function safeGetEvents(
   userId: string,
   type: string,

@@ -26,6 +26,7 @@ import { HealthCard } from '@/components/dashboard/HealthCard';
 import { HomeHero } from '@/components/dashboard/HomeHero';
 import { WeeklyReportCard } from '@/components/dashboard/WeeklyReportCard';
 import { precachePage } from '@/lib/offlinePages';
+import { updateWidget } from '@/lib/native/widget';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -284,6 +285,13 @@ export default function DashboardPage() {
     precachePage('/dashboard');
     precachePage('/dashboard?source=native'); // the app shell's start URL
   }, [activeProgram?.programId, nextAbsIdx, isRestToday]);
+  // Home-screen widget (Android app): streak and what is next.
+  useEffect(() => {
+    if (!profile) return;
+    const title = !activeProgram ? 'Pick a program' : isRestToday ? 'Rest day' : todayDay ? stripWeekdayPrefix(todayDay.label) : 'Next session';
+    const subtitle = !activeProgram ? 'Open the app to choose your plan' : isRestToday ? 'Recover today. Back at it tomorrow.' : `${activeProgram.programName ?? 'Your program'} · tap to start`;
+    updateWidget({ streak: streakView.streak ?? 0, title, subtitle });
+  }, [profile, activeProgram, isRestToday, todayDay, streakView.streak]);
   const [skippingRest, setSkippingRest] = useState(false);
   const handleSkipRest = async () => {
     if (!user || !activeProgram?.programId || !nextSession?.isRestToday) return;

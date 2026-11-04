@@ -6,4 +6,5 @@
     <string name="custom_url_scheme">com.warfarefitness.app</string>
     <!-- Shown when the user taps "Privacy policy" in the Health Connect permission sheet. -->
     <string name="health_connect_privacy_policy_url">https://warfarefitness.com/privacy</string>
+    <string name="wf_widget_description">Your streak and next workout</string>
 </resources>

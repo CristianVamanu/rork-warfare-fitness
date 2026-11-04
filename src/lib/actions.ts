@@ -413,6 +413,14 @@ export async function logWaterAction(userId: string, amountMl: number): Promise<
 // Body weight
 // ---------------------------------------------------------------------------
 
+/** Body measurements in centimetres (waist, chest, hips, arm, thigh). */
+export async function recordMeasurements(userId: string, cm: Partial<Record<'waist' | 'chest' | 'hips' | 'arm' | 'thigh', number>>): Promise<void> {
+  const clean = Object.fromEntries(Object.entries(cm).filter(([, v]) => typeof v === 'number' && v > 10 && v < 300).map(([k, v]) => [k, Math.round((v as number) * 10) / 10]));
+  if (!Object.keys(clean).length) throw new Error('Enter at least one measurement');
+  const trainerId = await getTrainerId(userId);
+  await emit('MEASUREMENTS_RECORDED', userId, trainerId, clean);
+}
+
 export async function recordWeight(userId: string, weightKg: number): Promise<void> {
   const trainerId = await getTrainerId(userId);
   await emit('WEIGHT_RECORDED', userId, trainerId, { weightKg });
@@ -427,6 +435,9 @@ export async function recordWeight(userId: string, weightKg: number): Promise<vo
   // no matter how long they keep logging weigh-ins.
   try {
     const snap = await getDoc(doc(db, 'users', userId));
+    // A member who applied adaptive calories (lib/adaptiveCalories) keeps
+    // that target: re-running the formula here would silently undo it.
+    if (snap.data()?.nutritionTargetMode === 'adaptive') return;
     const inputs = nutritionInputsFromProfile(snap.data(), weightKg);
     if (inputs) {
       const targets = estimateNutritionTargets(inputs.goal, inputs.experience, inputs.trainingDays, inputs.biometrics);

@@ -56,3 +56,27 @@ describe('healthTrends', () => {
     expect(fmtMinutes(45)).toBe('45m');
   });
 });
+
+describe('readiness fallbacks', () => {
+  const NOW2 = new Date(2026, 10, 3, 9, 0);
+  const mk = (prior: Partial<Record<string, number>>, today: Partial<Record<string, number>>) => {
+    const dates = lastDays(15, NOW2);
+    const m: DayMap = new Map();
+    dates.slice(0, -1).forEach(d => m.set(d, { date: d, source: 'healthconnect', ...prior }));
+    m.set(dates[14], { date: dates[14], source: 'healthconnect', ...today });
+    return m;
+  };
+  it('uses the lowest heart rate when the watch writes no resting HR', () => {
+    const r = readiness(mk({ sleepMinutes: 420, minHeartRate: 50 }, { sleepMinutes: 420, minHeartRate: 56 }), NOW2);
+    expect(r.hrSource).toBe('lowest');
+    expect(r.rhrDelta).toBe(6);
+    expect(r.level).toBe('low');
+    expect(brief(r)).toMatch(/Lowest HR \+6 bpm/);
+  });
+  it('counts a clear HRV drop against readiness', () => {
+    const base = readiness(mk({ sleepMinutes: 420, hrvMs: 60 }, { sleepMinutes: 420, hrvMs: 60 }), NOW2).score!;
+    const low = readiness(mk({ sleepMinutes: 420, hrvMs: 60 }, { sleepMinutes: 420, hrvMs: 36 }), NOW2);
+    expect(low.hrvDeltaPct).toBe(-40);
+    expect(low.score!).toBeLessThan(base - 10);
+  });
+});

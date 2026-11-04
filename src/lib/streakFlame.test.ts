@@ -46,16 +46,23 @@ describe('the flame', () => {
     expect(streakCaption(v)).toBe('Flickering — train today to keep it lit');
   });
 
-  it('goes out after two missed days with no freeze', () => {
-    // Last trained on the 18th: the 19th was the grace day and it passed.
-    const v = on({ lastWorkoutDate: '2026-09-18', cachedStreak: 5, completedWorkouts: 12 });
+  it('survives two rest days between sessions', () => {
+    // Trained the 17th; 18th and 19th were rest days; today (20th) is open.
+    const v = on({ lastWorkoutDate: '2026-09-17', cachedStreak: 5, completedWorkouts: 12 });
+    expect(v.flameState).toBe('flickering');
+    expect(v.streak).toBe(5);
+  });
+
+  it('goes out after three missed days with no freeze', () => {
+    // Last trained on the 16th: 17th-19th all missed, more than two rest days.
+    const v = on({ lastWorkoutDate: '2026-09-16', cachedStreak: 5, completedWorkouts: 12 });
     expect(v.flameState).toBe('out');
     expect(v.streak).toBe(0);
     expect(streakCaption(v)).toBe("Flame's out — start a new streak today");
   });
 
   it('a freeze buys exactly one more day, and says so', () => {
-    const missedTwo = { lastWorkoutDate: '2026-09-18', cachedStreak: 5, completedWorkouts: 12 };
+    const missedTwo = { lastWorkoutDate: '2026-09-16', cachedStreak: 5, completedWorkouts: 12 };
     expect(on({ ...missedTwo, freezeAvailable: false }).flameState).toBe('out');
 
     const saved = on({ ...missedTwo, freezeAvailable: true });
@@ -65,8 +72,8 @@ describe('the flame', () => {
     expect(streakCaption(saved)).toBe('🧊 Freeze saved your streak — train today to keep it');
   });
 
-  it('a freeze does not save a third missed day', () => {
-    const v = on({ lastWorkoutDate: '2026-09-17', cachedStreak: 5, completedWorkouts: 12, freezeAvailable: true });
+  it('a freeze does not save a fourth missed day', () => {
+    const v = on({ lastWorkoutDate: '2026-09-15', cachedStreak: 5, completedWorkouts: 12, freezeAvailable: true });
     expect(v.flameState).toBe('out');
     expect(v.streak).toBe(0);
   });

@@ -9,6 +9,7 @@ import { TrendingUp, Award, Dumbbell, Scale, Zap, Plus, Target, Camera, Lock, Tr
 import { useAuth } from '@/contexts/AuthContext';
 import { getUserWorkouts, getWeightHistory, getSystemConfig, subscribeProgressPhotos, createProgressPhoto, deleteProgressPhoto, getWeeklySummary, type WeeklySummary } from '@/lib/firestore';
 import { recordWeight } from '@/lib/actions';
+import { MeasurementsCard } from '@/components/progress/MeasurementsCard';
 import { lbsToKg, kgToLbs, formatBodyWeight } from '@/lib/utils';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { getLevelTier, xpToNextLevel } from '@/lib/xp';
@@ -486,6 +487,8 @@ export default function ProgressPage() {
             </div>
           </div>
         )}
+        {/* Waist, chest, hips, arm, thigh over time */}
+        <MeasurementsCard />
       </div>
 
       {/* Log Weight Modal */}

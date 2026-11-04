@@ -24,6 +24,7 @@ export type EventType =
   | 'MEAL_LOGGED'
   | 'WATER_LOGGED'
   | 'WEIGHT_RECORDED'
+  | 'MEASUREMENTS_RECORDED'
   | 'CHECKIN_SUBMITTED';
 
 export interface AppEvent {

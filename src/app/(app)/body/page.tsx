@@ -38,14 +38,22 @@ export default function BodyPage() {
   const lbs = profile?.weightUnit === 'lbs';
 
   const sleep = series(days, dates, 'sleepMinutes');
-  const rhr = series(days, dates, 'restingHeartRate');
+  const rhrReal = series(days, dates, 'restingHeartRate');
+  const rhrIsLowest = !rhrReal.some((v) => v != null);
+  const rhr = rhrIsLowest ? series(days, dates, 'minHeartRate') : rhrReal;
   const steps = series(days, dates, 'steps');
-  const kcal = series(days, dates, 'activeKcal');
+  const kcalActive = series(days, dates, 'activeKcal');
+  const kcalIsTotal = !kcalActive.some((v) => v != null);
+  const kcal = kcalIsTotal ? series(days, dates, 'totalKcal') : kcalActive;
   const weight = series(days, dates, 'weightKg').map(v => (v == null ? null : lbs ? kgToLbs(v) : v));
   const wNums = weight.filter((v): v is number => v != null);
   const wDelta = wNums.length >= 2 ? Math.round((wNums[wNums.length - 1] - wNums[0]) * 10) / 10 : null;
   const unit = lbs ? 'lb' : 'kg';
 
+  const hrv = series(days, dates, 'hrvMs');
+  const stageNights = dates.filter((d) => (days.get(d)?.deepMinutes ?? 0) + (days.get(d)?.remMinutes ?? 0) + (days.get(d)?.lightMinutes ?? 0) > 0);
+  const maxStage = Math.max(1, ...stageNights.map((d) => { const n = days.get(d)!; return (n.deepMinutes ?? 0) + (n.remMinutes ?? 0) + (n.lightMinutes ?? 0); }));
+  const avgStage = (k: 'deepMinutes' | 'remMinutes' | 'lightMinutes') => Math.round(stageNights.reduce((a, d) => a + (days.get(d)?.[k] ?? 0), 0) / Math.max(1, stageNights.length));
   const workouts = dates.slice().reverse().flatMap(d => (days.get(d)?.workouts ?? []).map(w => ({ ...w, date: d }))).slice(0, 20);
   const hasAny = days.size > 0;
 
@@ -69,13 +77,43 @@ export default function BodyPage() {
             <Panel title="Sleep" value={sleep[29] != null ? fmtMinutes(sleep[29]!) : undefined} note={avgNote(mean(sleep, 3), fmtMinutes)}>
               <Bars values={sleep} refValue={mean(sleep, 3)} height={72} label="Sleep, last 30 nights" />
             </Panel>
-            <Panel title="Resting heart rate" value={rhr[29] != null ? `${rhr[29]} bpm` : undefined} note={avgNote(mean(rhr, 3), n => `${Math.round(n)} bpm`)}>
+            {stageNights.length > 0 && (
+              <Panel title="Sleep stages" note={`Average: deep ${fmtMinutes(avgStage('deepMinutes'))} · REM ${fmtMinutes(avgStage('remMinutes'))} · light ${fmtMinutes(avgStage('lightMinutes'))}`}>
+                <div className="flex items-end gap-[3px] h-[72px]" role="img" aria-label="Sleep stages per night, last 30 nights">
+                  {dates.map((d) => {
+                    const n = days.get(d);
+                    const deep = n?.deepMinutes ?? 0, rem = n?.remMinutes ?? 0, light = n?.lightMinutes ?? 0, total = deep + rem + light;
+                    const h = (v: number) => `${(v / maxStage) * 100}%`;
+                    return (
+                      <div key={d} className="flex-1 h-full flex flex-col justify-end rounded-sm overflow-hidden" title={total ? `${d}: deep ${deep}m, REM ${rem}m, light ${light}m` : d}>
+                        {total ? (<>
+                          <div style={{ height: h(light), background: '#C7D2FE' }} />
+                          <div style={{ height: h(rem), background: '#818CF8' }} />
+                          <div style={{ height: h(deep), background: '#4338CA' }} />
+                        </>) : <div style={{ height: 2, background: 'var(--progress-track)' }} />}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-3 text-[11px] text-text-tertiary">
+                  <span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: '#4338CA' }} />Deep</span>
+                  <span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: '#818CF8' }} />REM</span>
+                  <span><i className="inline-block w-2 h-2 rounded-sm mr-1" style={{ background: '#C7D2FE' }} />Light</span>
+                </div>
+              </Panel>
+            )}
+            {hrv.some((v) => v != null) && (
+              <Panel title="Heart rate variability" value={hrv[29] != null ? `${hrv[29]} ms` : undefined} note={avgNote(mean(hrv, 3), n => `${Math.round(n)} ms · higher is usually better recovered`)}>
+                <Line values={hrv} height={64} fill label="Heart rate variability, last 30 days" />
+              </Panel>
+            )}
+            <Panel title={rhrIsLowest ? 'Lowest heart rate' : 'Resting heart rate'} value={rhr[29] != null ? `${rhr[29]} bpm` : undefined} note={avgNote(mean(rhr, 3), n => `${Math.round(n)} bpm`)}>
               <Line values={rhr} height={72} fill label="Resting heart rate, last 30 days" />
             </Panel>
             <Panel title="Steps" value={steps[29] != null ? steps[29]!.toLocaleString() : undefined} note={avgNote(mean(steps, 3), n => Math.round(n).toLocaleString())}>
               <Bars values={steps} refValue={10_000} height={60} label="Steps, last 30 days, dashed line at 10,000" />
             </Panel>
-            <Panel title="Active calories" value={kcal[29] != null ? `${kcal[29]} kcal` : undefined} note={avgNote(mean(kcal, 3), n => `${Math.round(n)} kcal`)}>
+            <Panel title={kcalIsTotal ? 'Calories burned (total)' : 'Active calories'} value={kcal[29] != null ? `${kcal[29]} kcal` : undefined} note={avgNote(mean(kcal, 3), n => `${Math.round(n)} kcal`)}>
               <Bars values={kcal} refValue={mean(kcal, 3)} height={60} label="Active calories, last 30 days" />
             </Panel>
             <Panel

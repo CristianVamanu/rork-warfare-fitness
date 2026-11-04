@@ -33,6 +33,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Home-screen widget: streak and next workout (WarfareWidgetProvider). -->
+        <receiver
+            android:name=".WarfareWidgetProvider"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/wf_widget_info" />
+        </receiver>
+
         <!-- ML Kit barcode scanner: download the model with the app install
              instead of on first scan. -->
         <meta-data android:name="com.google.mlkit.vision.DEPENDENCIES" android:value="barcode_ui" />
@@ -60,8 +70,9 @@
          per-type READ_* permissions come from the health plugin's manifest. -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <!-- The health plugin declares every Health Connect type it supports,
-         read and write. The app only READS these seven: steps, sleep, heart
-         rate, resting heart rate, weight, active calories and exercise
+         read and write. The app only READS these nine: steps, sleep, heart
+         rate, resting heart rate, heart rate variability, weight, active
+         calories, total calories and exercise
          (src/lib/native/health.ts HEALTH_READ_TYPES). Google Play rejects
          apps that declare health permissions they do not use, so the rest
          are stripped from the merged manifest here. Add one back here AND
@@ -75,14 +86,12 @@
     <uses-permission android:name="android.permission.health.READ_BODY_TEMPERATURE" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_DISTANCE" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_FLOORS_CLIMBED" tools:node="remove" />
-    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_HEIGHT" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_HYDRATION" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_MINDFULNESS" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_NUTRITION" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" tools:node="remove" />
-    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_VO2_MAX" tools:node="remove" />
     <uses-permission android:name="android.permission.health.WRITE_ACTIVE_CALORIES_BURNED" tools:node="remove" />
     <uses-permission android:name="android.permission.health.WRITE_BASAL_BODY_TEMPERATURE" tools:node="remove" />

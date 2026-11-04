@@ -217,33 +217,45 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   return statsCache;
 }
 
-function computeStreak(
+/**
+ * Rest days that do not break a streak. Programs train 3-5 days a week, so
+ * counting only back-to-back days made every rest day "put the flame out".
+ * The streak counts TRAINING days; up to REST_DAYS missed days in a row are
+ * fine; the freeze absorbs one more. Mirrored in lib/streakFlame.
+ */
+export const STREAK_REST_DAYS = 2;
+
+export function computeStreak(
   workoutDays: Set<string>,
-  freezeAvailable: boolean
+  freezeAvailable: boolean,
+  from: Date = new Date(),
 ): { streak: number; freezeConsumed: boolean } {
-  const checkDate = new Date();
+  const checkDate = new Date(from);
   checkDate.setHours(0, 0, 0, 0);
+  // Today is still open: no session yet today is not a missed day.
   const todayKey = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
-
-  if (!workoutDays.has(todayKey)) {
-    checkDate.setDate(checkDate.getDate() - 1);
-  }
-
+  if (!workoutDays.has(todayKey)) checkDate.setDate(checkDate.getDate() - 1);
   let streak = 0;
   let freezeConsumed = false;
-  for (let i = 0; i < 60; i++) {
+  let missedRun = 0;
+  for (let i = 0; i < 120; i++) {
     const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
     if (workoutDays.has(key)) {
       streak++;
-      checkDate.setDate(checkDate.getDate() - 1);
-    } else if (freezeAvailable && !freezeConsumed && streak > 0) {
-      // Only spends the freeze mid-streak (streak > 0) — an unused freeze
-      // shouldn't fabricate a streak out of zero consecutive days.
-      freezeConsumed = true;
-      checkDate.setDate(checkDate.getDate() - 1);
+      missedRun = 0;
     } else {
-      break;
+      missedRun++;
+      if (missedRun > STREAK_REST_DAYS) {
+        if (freezeAvailable && !freezeConsumed && missedRun === STREAK_REST_DAYS + 1) {
+          freezeConsumed = true;
+        } else {
+          break;
+        }
+      }
     }
+    checkDate.setDate(checkDate.getDate() - 1);
   }
+  // A freeze spent before any training day is found protects nothing.
+  if (streak === 0) freezeConsumed = false;
   return { streak, freezeConsumed };
 }

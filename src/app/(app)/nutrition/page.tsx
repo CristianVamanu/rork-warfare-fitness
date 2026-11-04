@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getTodayMeals, getTodayWaterLogs, deleteWaterLog, deleteMeal, updateUserGoals, getMealsForDate } from '@/lib/firestore';
 import { logWaterAction, logMealAction } from '@/lib/actions';
 import toast from 'react-hot-toast';
+import { AdaptiveCaloriesCard } from '@/components/nutrition/AdaptiveCaloriesCard';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Ring } from '@/components/dashboard/Ring';
@@ -531,6 +532,8 @@ function NutritionPageInner() {
             ))}
           </div>
         )}
+        {/* Real maintenance from your own logs, with a one-tap target. */}
+        <AdaptiveCaloriesCard />
       </div>
 
       {/* Manual meal entry / edit — works for the currently selected date,

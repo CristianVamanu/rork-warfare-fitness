@@ -25,15 +25,24 @@ const Workout = z.object({
   source: z.string().trim().max(80).optional(),
 }).strip();
 
+// One odd reading (a watch glitch) must not reject the whole sync: an
+// out-of-range number is dropped for that day instead.
 const Day = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  steps: z.coerce.number().int().min(0).max(200000).optional(),
-  sleepMinutes: z.coerce.number().int().min(0).max(24 * 60).optional(),
-  avgHeartRate: z.coerce.number().int().min(20).max(250).optional(),
-  restingHeartRate: z.coerce.number().int().min(20).max(250).optional(),
-  weightKg: z.coerce.number().min(20).max(400).optional(),
-  activeKcal: z.coerce.number().int().min(0).max(20000).optional(),
-  workouts: z.array(Workout).max(30).optional(),
+  steps: z.coerce.number().int().min(0).max(200000).optional().catch(undefined),
+  sleepMinutes: z.coerce.number().int().min(0).max(24 * 60).optional().catch(undefined),
+  avgHeartRate: z.coerce.number().int().min(20).max(250).optional().catch(undefined),
+  restingHeartRate: z.coerce.number().int().min(20).max(250).optional().catch(undefined),
+  weightKg: z.coerce.number().min(20).max(400).optional().catch(undefined),
+  activeKcal: z.coerce.number().int().min(0).max(20000).optional().catch(undefined),
+  totalKcal: z.coerce.number().int().min(0).max(30000).optional().catch(undefined),
+  minHeartRate: z.coerce.number().int().min(20).max(250).optional().catch(undefined),
+  hrvMs: z.coerce.number().int().min(1).max(400).optional().catch(undefined),
+  deepMinutes: z.coerce.number().int().min(0).max(24 * 60).optional().catch(undefined),
+  remMinutes: z.coerce.number().int().min(0).max(24 * 60).optional().catch(undefined),
+  lightMinutes: z.coerce.number().int().min(0).max(24 * 60).optional().catch(undefined),
+  awakeMinutes: z.coerce.number().int().min(0).max(24 * 60).optional().catch(undefined),
+  workouts: z.array(Workout).max(30).optional().catch(undefined),
   source: z.enum(['healthkit', 'healthconnect']),
 }).strip();
 

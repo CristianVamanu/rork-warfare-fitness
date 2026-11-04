@@ -15,7 +15,7 @@ import { Capacitor } from '@capacitor/core';
 import { getIdToken } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
-export const HEALTH_READ_TYPES = ['steps', 'sleep', 'heartRate', 'restingHeartRate', 'weight', 'calories', 'workouts'] as const;
+export const HEALTH_READ_TYPES = ['steps', 'sleep', 'heartRate', 'restingHeartRate', 'weight', 'calories', 'totalCalories', 'heartRateVariability', 'workouts'] as const;
 
 export interface HealthDaySummary {
   /** Local date, YYYY-MM-DD. */
@@ -26,10 +26,18 @@ export interface HealthDaySummary {
   /** Average heart rate across the day's samples, bpm. */
   avgHeartRate?: number;
   restingHeartRate?: number;
+  /** Lowest heart rate of the day: a stand-in when the watch writes no resting heart rate. */
+  minHeartRate?: number;
+  /** Heart rate variability (RMSSD), daily average, ms. */
+  hrvMs?: number;
+  /** Sleep stages, minutes, when the watch records them. */
+  deepMinutes?: number; remMinutes?: number; lightMinutes?: number; awakeMinutes?: number;
   /** Latest body-weight reading of the day, kg. */
   weightKg?: number;
   /** Active energy burned, kcal. */
   activeKcal?: number;
+  /** Total calories burned (incl. resting), for watches that do not write active calories (e.g. Samsung). */
+  totalKcal?: number;
   /** Workouts recorded by any app or watch that day. */
   workouts?: { type: string; minutes: number; kcal?: number; source?: string }[];
   /** Where the data came from, for the "Synced from Apple Health" line. */
@@ -144,8 +152,8 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
   const range = { startDate: from.toISOString(), endDate: now.toISOString() };
 
   async function sumByDay(
-    dataType: 'steps' | 'calories',
-    key: 'steps' | 'activeKcal',
+    dataType: 'steps' | 'calories' | 'totalCalories',
+    key: 'steps' | 'activeKcal' | 'totalKcal',
     round: (n: number) => number,
     n: { ok: (c: number) => void; fail: (e: unknown) => void },
   ) {
@@ -183,8 +191,26 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       })
       .catch(e => { lastHealthDiag.sources = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); }),
     sumByDay('calories', 'activeKcal', Math.round, note('calories')),
-    Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: 'average' })
-      .then(r => { note('heartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.avgHeartRate = Math.round(s.value); }); })
+    sumByDay('totalCalories', 'totalKcal', Math.round, note('totalCalories')),
+    Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true })
+      .then(r => {
+        note('heartRateVariability').ok(r.samples.length);
+        const acc = new Map<HealthDaySummary, number[]>();
+        r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) (acc.get(x) ?? acc.set(x, []).get(x)!).push(s.value); });
+        acc.forEach((v, x) => { x.hrvMs = Math.round(v.reduce((a, b) => a + b, 0) / v.length); });
+      })
+      .catch(note('heartRateVariability').fail),
+    Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: ['average', 'min'] })
+      .then(r => {
+        note('heartRate').ok(r.samples.length);
+        r.samples.forEach(s => {
+          const x = day(s.startDate); if (!x) return;
+          const v = (s as { values?: Record<string, number> }).values ?? {};
+          const avgHr = v.average ?? s.value, minHr = v.min;
+          if (avgHr > 0) x.avgHeartRate = Math.round(avgHr);
+          if (minHr && minHr >= 25) x.minHeartRate = Math.round(minHr);
+        });
+      })
       .catch(note('heartRate').fail),
     Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 200, ascending: true })
       .then(r => { note('restingHeartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.restingHeartRate = Math.round(s.value); }); })
@@ -200,7 +226,13 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
         const x = day(s.endDate); if (!x) return;
         const asleepStates = new Set(['asleep', 'light', 'deep', 'rem']);
         let mins = 0;
-        if (s.stages && s.stages.length) mins = s.stages.filter(st => asleepStates.has(st.stage)).reduce((a, st) => a + st.durationMinutes, 0);
+        if (s.stages && s.stages.length) {
+          mins = s.stages.filter(st => asleepStates.has(st.stage)).reduce((a, st) => a + st.durationMinutes, 0);
+          for (const st of s.stages) {
+            const k = st.stage === 'deep' ? 'deepMinutes' : st.stage === 'rem' ? 'remMinutes' : st.stage === 'light' ? 'lightMinutes' : st.stage === 'awake' ? 'awakeMinutes' : null;
+            if (k) x[k] = (x[k] ?? 0) + Math.round(st.durationMinutes);
+          }
+        }
         else if (!s.sleepState || asleepStates.has(s.sleepState)) mins = s.value;
         if (mins > 0) x.sleepMinutes = (x.sleepMinutes ?? 0) + Math.round(mins);
       }))

@@ -74,7 +74,10 @@ export function deriveStreak(input: StreakInput): StreakView {
   // freeze handling in lib/events.ts; without mirroring it here a
   // server-side save would be invisible and the UI would call a live
   // streak dead.
-  const deadAt = freezeAvailable ? 3 : 2;
+  // Up to REST_DAYS (2) rest days between sessions keep it alive, so it
+  // dies once more than 2 whole days pass with no session, plus one with
+  // a freeze: trained Mon → alive through Thu, gone Fri (Sat with freeze).
+  const deadAt = freezeAvailable ? 5 : 4;
   const broken = daysSince !== null && daysSince >= deadAt;
   const streak = broken ? 0 : cachedStreak;
 
@@ -90,7 +93,7 @@ export function deriveStreak(input: StreakInput): StreakView {
     streak,
     flameState,
     atRisk: streak > 0 && !workedOutToday,
-    savedByFreeze: daysSince === 2 && freezeAvailable && streak > 0,
+    savedByFreeze: daysSince === 4 && freezeAvailable && streak > 0,
     workedOutToday,
     daysSince,
   };
