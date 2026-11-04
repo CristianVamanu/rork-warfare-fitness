@@ -171,6 +171,15 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
     // aggregate query fails or comes back empty, fall back to summing the
     // raw samples per day, so one broken query path can't blank the card.
     sumByDay('steps', 'steps', Math.round, note('steps')),
+    // Which apps actually write into Health Connect / Apple Health (Samsung
+    // Health, Google Fit, a watch app...). "Connected but empty" is almost
+    // always no app feeding it, and this names them, or says none.
+    Health.readSamples({ dataType: 'steps', startDate: new Date(now.getTime() - 3 * 86400_000).toISOString(), endDate: now.toISOString(), limit: 300, ascending: false })
+      .then(r => {
+        const names = Array.from(new Set(r.samples.map(s => (s as { sourceName?: string }).sourceName).filter(Boolean)));
+        lastHealthDiag.sources = names.length ? names.join(', ') : 'none: no app is writing steps into it';
+      })
+      .catch(e => { lastHealthDiag.sources = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); }),
     sumByDay('calories', 'activeKcal', Math.round, note('calories')),
     Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: 'average' })
       .then(r => { note('heartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.avgHeartRate = Math.round(s.value); }); })

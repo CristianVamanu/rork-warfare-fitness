@@ -175,12 +175,29 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
             </button>
           )}
           {error && <p className="text-xs" style={{ color: HUD.alert }}>{error}</p>}
-          <details className="text-[11px]" style={{ color: HUD.dim }}>
+          {(() => {
+            // A plain verdict from the last read, so the fix is obvious
+            // without reading the raw details.
+            const src = lastHealthDiag.sources ?? '';
+            const errs = Object.entries(lastHealthDiag).filter(([, v]) => v.startsWith('error'));
+            let msg = '';
+            if (src.startsWith('none')) msg = `${sourceName} is connected, but no app is sending it data. ${nativePlatform() === 'android' ? 'Open Samsung Health (or your watch app) → Settings → Health Connect and turn on sharing for steps, sleep and heart rate.' : 'Open the Health app and check your watch is syncing.'}`;
+            else if (errs.length) msg = `${sourceName} refused part of the read (${errs.map(([k]) => k).join(', ')}). Tap Allow access, or check permissions in ${sourceName}.`;
+            if (!msg) return null;
+            return (
+              <div className="rounded-xl p-3 text-xs leading-snug" style={{ background: 'rgba(248,113,113,0.12)', color: '#FCA5A5' }}>
+                {msg}
+                {nativePlatform() === 'android' && <button onClick={openHealthSettings} className="block mt-2 font-bold underline underline-offset-2">Open Health Connect</button>}
+              </div>
+            );
+          })()}
+          <details className="text-[11px]" style={{ color: HUD.dim }} open={empty && !busy}>
             <summary className="cursor-pointer select-none">Details</summary>
             <div className="mt-1.5 space-y-0.5 font-mono break-words">
               <p>Allowed: {lastHealthAuth.allowed ?? '?'}</p>
               <p>Not allowed: {lastHealthAuth.denied ?? '?'}</p>
-              {Object.entries(lastHealthDiag).map(([k, v]) => <p key={k}>{k}: {v}</p>)}
+              <p>Apps feeding it: {lastHealthDiag.sources ?? '?'}</p>
+              {Object.entries(lastHealthDiag).filter(([k]) => k !== 'sources').map(([k, v]) => <p key={k}>{k}: {v}</p>)}
               {Object.keys(lastHealthDiag).length === 0 && <p>No read has run yet. Tap sync.</p>}
             </div>
           </details>
