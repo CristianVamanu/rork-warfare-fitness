@@ -10,6 +10,7 @@
  * today's numbers.
  */
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Watch } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -191,6 +192,11 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
               </div>
             );
           })()}
+          {empty && !busy && (
+            <Link href="/settings" className="block rounded-xl px-3 py-2.5 text-xs font-bold text-center" style={{ background: '#F5A623', color: '#0A0A0A' }}>
+              No watch data yet: run the health check in Settings
+            </Link>
+          )}
           <details className="text-[11px]" style={{ color: HUD.dim }} open={empty && !busy}>
             <summary className="cursor-pointer select-none">Details</summary>
             <div className="mt-1.5 space-y-0.5 font-mono break-words">

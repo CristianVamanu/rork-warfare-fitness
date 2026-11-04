@@ -15,6 +15,7 @@ import { subscribeToPush, unsubscribeFromPush, getCurrentSubscription } from '@/
 import { isNativeApp } from '@/lib/native/health';
 import { nativePushEnabled, nativePushEnable, nativePushDisable } from '@/lib/native/push';
 import { Header } from '@/components/layout/Header';
+import { HealthSettings } from '@/components/settings/HealthSettings';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
@@ -391,6 +392,12 @@ export default function SettingsPage() {
             </Card>
           </div>
         ))}
+
+        {/* Watch & health data: connect, sync, disconnect, health check */}
+        <div className="wf-rise">
+          <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Watch &amp; health data</h2>
+          <HealthSettings />
+        </div>
 
         {/* Push Notifications */}
         {'Notification' in window || true ? (
