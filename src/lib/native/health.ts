@@ -48,7 +48,6 @@ const localDate = (d: Date) => {
   const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 };
-const startOfLocalDay = (d: Date) => { const s = new Date(d); s.setHours(0, 0, 0, 0); return s; };
 
 // The plugin object is a Capacitor proxy: any property access, including the
 // `.then` probe JavaScript performs when a promise resolves to an object,
@@ -132,10 +131,13 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
   const { H: Health } = await load();
   const source: HealthDaySummary['source'] = nativePlatform() === 'ios' ? 'healthkit' : 'healthconnect';
   const now = new Date();
-  const from = startOfLocalDay(new Date(now.getTime() - (days - 1) * 86400_000));
+  const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (days - 1));
   const byDate = new Map<string, HealthDaySummary>();
+  // Step by calendar day, not by 24h: across a clock change (e.g. the last
+  // Sunday of October) adding 86 400 000 ms lands an hour short and the
+  // dates slide back by one, so "today" fell out of the window.
   for (let i = 0; i < days; i++) {
-    const d = localDate(new Date(from.getTime() + i * 86400_000));
+    const d = localDate(new Date(from.getFullYear(), from.getMonth(), from.getDate() + i, 12));
     byDate.set(d, { date: d, source });
   }
   const day = (iso: string) => byDate.get(localDate(new Date(iso)));

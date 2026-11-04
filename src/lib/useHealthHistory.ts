@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
+import { getIdToken } from 'firebase/auth';
 import { lastDays, type DayMap } from '@/lib/healthTrends';
 import type { HealthDaySummary } from '@/lib/native/health';
 
@@ -18,9 +19,21 @@ export function useHealthHistory(uid: string | undefined, n = 30) {
   const reload = useCallback(async () => {
     if (!uid) return;
     const dates = lastDays(n);
-    const snaps = await Promise.all(dates.map(d => getDoc(doc(db, 'healthDays', `${uid}_${d}`)).catch(() => null)));
     const m: DayMap = new Map();
-    snaps.forEach((s, i) => { if (s?.exists()) m.set(dates[i], s.data() as HealthDaySummary); });
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const token = await getIdToken(user);
+      const res = await fetch(`/api/health/days?dates=${dates.join(',')}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) {
+        const json = await res.json() as { days: HealthDaySummary[] };
+        for (const d of json.days) if (d?.date) m.set(d.date, d);
+      } else {
+        // Fallback: direct reads (work wherever the healthDays rule is published).
+        const snaps = await Promise.all(dates.map(d => getDoc(doc(db, 'healthDays', `${uid}_${d}`)).catch(() => null)));
+        snaps.forEach((s, i) => { if (s?.exists()) m.set(dates[i], s.data() as HealthDaySummary); });
+      }
+    } catch { /* leave empty; the next sync retries */ }
     setDays(m);
     setLoaded(true);
   }, [uid, n]);
@@ -30,7 +43,8 @@ export function useHealthHistory(uid: string | undefined, n = 30) {
   return { days, loaded, reload };
 }
 
-const BACKFILL_KEY = 'wf-health-backfill';
+// v2: forces one fresh 30-day read after the clock-change fix.
+const BACKFILL_KEY = 'wf-health-backfill-v2';
 
 /**
  * How many days to read from the phone on this sync: the full month once a
