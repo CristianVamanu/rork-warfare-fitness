@@ -19,7 +19,7 @@ import { getSecret } from '@/lib/secrets';
 import { resolveDateKey } from '@/lib/dailyTip';
 import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
 import {
-  reportWeek, computeWeekStats, rulesReport, parseReport, quietWeek, REPORT_SYSTEM_PROMPT,
+  reportWeek, computeWeekStats, REPORT_VERSION, rulesReport, parseReport, quietWeek, REPORT_SYSTEM_PROMPT,
   type RawEvent, type RawHealthDay, type WeeklyReport,
 } from '@/lib/weeklyReport';
 
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   const week = reportWeek(today);
   const ref = db.doc(`weeklyReports/${auth.uid}_${week}`);
   const existing = await ref.get();
-  if (existing.exists) {
+  if (existing.exists && (existing.data()?.quiet || existing.data()?.v === REPORT_VERSION)) {
     const d = existing.data() ?? {};
     return d.quiet ? NextResponse.json({ report: null, reason: 'quiet', week }) : NextResponse.json({ report: d, cached: true });
   }
@@ -96,6 +96,6 @@ export async function GET(req: NextRequest) {
   }
 
   const report: WeeklyReport = { ...words, week, stats, generatedBy };
-  await ref.set({ ...report, userId: auth.uid, createdAt: Timestamp.now() });
+  await ref.set({ ...report, v: REPORT_VERSION, userId: auth.uid, createdAt: Timestamp.now() });
   return NextResponse.json({ report });
 }

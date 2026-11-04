@@ -11,7 +11,7 @@ export interface WeekStats {
   sets: number; minutes: number;
   volumeKg: number; prevVolumeKg: number;
   plannedPerWeek: number | null;
-  mealDays: number; avgKcal: number | null; avgProtein: number | null;
+  mealDays: number; avgKcal: number | null; avgProtein: number | null; avgCarbs?: number | null; avgFat?: number | null;
   kcalGoal: number | null; proteinGoal: number | null;
   weightStartKg: number | null; weightEndKg: number | null;
   avgSleepMin: number | null; avgSteps: number | null; avgRestingHr: number | null;
@@ -63,11 +63,12 @@ export function computeWeekStats(
     .reduce((m, ex) => m + (ex.sets ?? []).filter((s) => s.completed).length, 0), 0);
 
   const meals = events.filter((e) => e.type === 'MEAL_LOGGED' && inWeek(e));
-  const byDay = new Map<string, { kcal: number; protein: number }>();
+  const byDay = new Map<string, { kcal: number; protein: number; carbs: number; fat: number }>();
   for (const m of meals) {
     const k = new Date(m.at).toISOString().slice(0, 10);
-    const t = byDay.get(k) ?? { kcal: 0, protein: 0 };
+    const t = byDay.get(k) ?? { kcal: 0, protein: 0, carbs: 0, fat: 0 };
     t.kcal += Number(m.payload.calories) || 0; t.protein += Number(m.payload.protein) || 0;
+    t.carbs += Number(m.payload.carbs) || 0; t.fat += Number(m.payload.fat) || 0;
     byDay.set(k, t);
   }
   const days = [...byDay.values()].filter((d) => d.kcal > 0);
@@ -91,6 +92,8 @@ export function computeWeekStats(
     mealDays: days.length,
     avgKcal: days.length ? Math.round(avg(days.map((d) => d.kcal))!) : null,
     avgProtein: days.length ? Math.round(avg(days.map((d) => d.protein))!) : null,
+    avgCarbs: days.length ? Math.round(avg(days.map((d) => d.carbs))!) : null,
+    avgFat: days.length ? Math.round(avg(days.map((d) => d.fat))!) : null,
     kcalGoal: profile.goals?.calories || null, proteinGoal: profile.goals?.protein || null,
     weightStartKg: weights.length ? r1(weights[0].kg) : null,
     weightEndKg: weights.length > 1 ? r1(weights[weights.length - 1].kg) : null,
@@ -103,6 +106,9 @@ export function computeWeekStats(
 }
 
 /** True when there is nothing to report on. */
+/** Bumped when the report's content or rules change, so stored reports from the old version are rebuilt once. */
+export const REPORT_VERSION = 2;
+
 export const quietWeek = (s: WeekStats) => s.workouts === 0 && s.mealDays === 0 && s.weightStartKg == null && s.avgSleepMin == null && s.avgSteps == null;
 
 const h = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
@@ -136,6 +142,7 @@ export function rulesReport(s: WeekStats): Omit<WeeklyReport, 'stats' | 'generat
 
 export const REPORT_SYSTEM_PROMPT = `You are the member's strength coach in the Warfare Fitness app. Write their weekly review from the JSON stats they send.
 Rules: use ONLY the numbers given, never invent data. Be direct, warm, specific, no hype, no emojis, no medical claims. Weights are in kg in the data; say "kg".
+A win must be genuinely good: never praise a low or below-target number (1 day of food logging, calories far under goal, 0 kg lifted, fewer workouts than planned). If only one real win exists, return one. Averages for calories and macros are over the days food was logged (mealDays), so with few mealDays say the picture is incomplete rather than judging intake. volumeKg 0 means bodyweight or cardio work, not zero effort.
 Return JSON: {"headline": string (max 9 words), "wins": string[] (1-3 items, each max 20 words, concrete from the stats), "fix": string (ONE thing to change this week, max 30 words, practical), "targets": string[] (exactly 3 short measurable targets for next week, max 8 words each)}.`;
 
 /** Accepts the model's JSON only if it has the right shape and sane lengths. */

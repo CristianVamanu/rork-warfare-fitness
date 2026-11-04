@@ -53,12 +53,26 @@ export function WeeklyReportCard() {
   const vol = lbs ? Math.round(s.volumeKg * 2.20462) : s.volumeKg;
   const unit = lbs ? 'lb' : 'kg';
   const weekLabel = new Date(`${report.week}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
-  const tiles = [
-    { label: 'Workouts', value: String(s.workouts) },
-    { label: 'Sets', value: String(s.sets) },
-    { label: `Lifted (${unit})`, value: vol >= 10000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString() },
-    s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g` } : s.avgSleepMin != null ? { label: 'Sleep / night', value: `${Math.floor(s.avgSleepMin / 60)}h ${String(s.avgSleepMin % 60).padStart(2, '0')}` } : { label: 'Minutes', value: String(s.minutes) },
-  ];
+  const hm = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}`;
+  const goal = (v: number | null | undefined, g: number | null | undefined, u: string) => (v == null ? null : g ? `of ${g.toLocaleString()} ${u}` : null);
+  // Everything the week has, as swipeable tiles. A tile only shows when
+  // there is a number for it.
+  const tiles = ([
+    { label: 'Workouts', value: String(s.workouts), sub: s.prevWorkouts ? `${s.prevWorkouts} the week before` : null },
+    { label: 'Sets', value: String(s.sets), sub: null },
+    s.minutes ? { label: 'Minutes', value: String(s.minutes), sub: 'training time' } : null,
+    vol > 0 ? { label: `Lifted (${unit})`, value: vol >= 10000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString(), sub: null } : null,
+    s.avgKcal != null ? { label: 'Calories / day', value: s.avgKcal.toLocaleString(), sub: goal(s.avgKcal, s.kcalGoal, 'kcal') } : null,
+    s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g') } : null,
+    s.avgCarbs != null ? { label: 'Carbs / day', value: `${s.avgCarbs} g`, sub: null } : null,
+    s.avgFat != null ? { label: 'Fat / day', value: `${s.avgFat} g`, sub: null } : null,
+    s.mealDays ? { label: 'Food logged', value: `${s.mealDays}/7`, sub: 'days' } : null,
+    s.weightStartKg != null && s.weightEndKg != null ? { label: `Weight (${unit})`, value: (() => { const d = (s.weightEndKg! - s.weightStartKg!) * (lbs ? 2.20462 : 1); return `${d > 0 ? '+' : ''}${d.toFixed(1)}`; })(), sub: 'change' } : null,
+    s.avgSleepMin != null ? { label: 'Sleep / night', value: hm(s.avgSleepMin), sub: null } : null,
+    s.avgSteps != null ? { label: 'Steps / day', value: s.avgSteps.toLocaleString(), sub: null } : null,
+    s.avgRestingHr != null ? { label: 'Resting HR', value: `${s.avgRestingHr}`, sub: 'bpm' } : null,
+    s.streak ? { label: 'Streak', value: `${s.streak}d`, sub: null } : null,
+  ] as ({ label: string; value: string; sub: string | null } | null)[]).filter((t): t is { label: string; value: string; sub: string | null } => !!t);
 
   return (
     <Card className="p-4">
@@ -73,14 +87,19 @@ export function WeeklyReportCard() {
       </div>
       <p className="text-lg font-black text-white leading-snug mt-1.5">{report.headline}</p>
 
-      <div className="grid grid-cols-4 gap-2 mt-3">
-        {tiles.map((t) => (
-          <div key={t.label} className="rounded-xl bg-surface-elevated px-2 py-2 text-center min-w-0">
-            <p className="text-base font-black text-white tabular-nums truncate">{t.value}</p>
-            <p className="text-[10px] text-text-tertiary truncate">{t.label}</p>
-          </div>
-        ))}
+      {/* Swipe sideways for more. Snap so a tile never stops half shown. */}
+      <div className="-mx-4 mt-3 overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" aria-label="This week in numbers">
+        <div className="flex gap-2 px-4 w-max">
+          {tiles.map((t) => (
+            <div key={t.label} className="snap-start rounded-xl bg-surface-elevated px-3 py-2.5 w-[104px] flex-shrink-0">
+              <p className="text-lg font-black text-white tabular-nums truncate">{t.value}</p>
+              <p className="text-[11px] text-text-secondary truncate">{t.label}</p>
+              {t.sub && <p className="text-[10px] text-text-tertiary truncate">{t.sub}</p>}
+            </div>
+          ))}
+        </div>
       </div>
+      {tiles.length > 3 && <p className="text-[10px] text-text-tertiary mt-1.5">Swipe for more →</p>}
 
       {open && (
         <div className="mt-4 space-y-3.5">
