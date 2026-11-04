@@ -42,7 +42,7 @@ export function Ring({ value, size = 96, color = HUD.amber }: { value: number | 
   const r = size / 2 - 7, c = 2 * Math.PI * r, v = value == null ? 0 : Math.max(0, Math.min(100, value));
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={value == null ? 'Readiness not available yet' : `Readiness ${value} of 100`} className="flex-shrink-0">
-      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={HUD.line} strokeWidth={7} strokeDasharray={value == null ? '3 5' : undefined} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--progress-track)" strokeWidth={7} strokeDasharray={value == null ? '3 5' : undefined} />
       {value != null && (
         <circle
           cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={7} strokeLinecap="round"
@@ -50,7 +50,7 @@ export function Ring({ value, size = 96, color = HUD.amber }: { value: number | 
           style={{ transition: 'stroke-dasharray 900ms cubic-bezier(.2,.8,.2,1)' }}
         />
       )}
-      <text x="50%" y="50%" dy=".35em" textAnchor="middle" fill={HUD.fg} style={{ fontFamily: HUD_DISPLAY, fontWeight: 700, fontSize: size * 0.28 }}>
+      <text x="50%" y="50%" dy=".35em" textAnchor="middle" fill="var(--foreground)" style={{ fontFamily: HUD_DISPLAY, fontWeight: 700, fontSize: size * 0.28 }}>
         {value == null ? '--' : value}
       </text>
     </svg>

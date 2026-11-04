@@ -403,9 +403,6 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Weekly coach report: from Sunday, last week's review and this week's targets. */}
-        <WeeklyReportCard />
-
         {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
 
@@ -936,6 +933,9 @@ export default function DashboardPage() {
           <FastingWidget />
           <DaysWithoutWidget />
         </motion.div>
+
+        {/* Weekly coach report, at the end of the page: a weekly read, not a daily action. */}
+        <WeeklyReportCard />
 
       </div>
       </div>

@@ -65,14 +65,14 @@ export function HomeHero({ name, photoURL, greeting, badges }: {
           className="flex items-center gap-3 rounded-full bg-gradient-accent pl-2 pr-2 py-2 active:scale-[.99] transition-transform"
           style={{ boxShadow: '0 10px 30px rgba(var(--accent-rgb) / 0.25)' }}
         >
-          <span className="w-12 h-12 rounded-full bg-black/85 flex items-center justify-center flex-shrink-0">
+          <span className="wf-dark w-12 h-12 rounded-full bg-black/85 flex items-center justify-center flex-shrink-0">
             <Trophy className="w-5 h-5 text-accent" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-[11px] font-bold uppercase tracking-wider text-black/60">Live challenge</span>
             <span className="block text-[15px] font-extrabold text-black truncate">{challenge.title}</span>
           </span>
-          <span className="h-10 px-4 rounded-full bg-black text-white text-xs font-extrabold flex items-center gap-1 flex-shrink-0">
+          <span className="wf-dark h-10 px-4 rounded-full bg-black text-white text-xs font-extrabold flex items-center gap-1 flex-shrink-0">
             START <ChevronRight className="w-3.5 h-3.5" />
           </span>
         </Link>

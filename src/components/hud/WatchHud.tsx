@@ -109,6 +109,8 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
 
   const sleep7 = series(days, week, 'sleepMinutes');
   const rhr7 = series(days, week, 'restingHeartRate');
+  const avgHr7 = series(days, week, 'avgHeartRate');
+  const hasRhr = rhr7.some((v) => v != null);
   const kcal7 = series(days, week, 'activeKcal');
   const sleepUsual = mean(series(days, prior14, 'sleepMinutes'), 4);
   const rhrUsual = mean(series(days, prior14, 'restingHeartRate'), 4);
@@ -155,8 +157,12 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
           icon={<HeartPulse className="w-3.5 h-3.5" style={{ color: C.heart }} />}
           label={today?.restingHeartRate != null ? 'Resting HR' : 'Heart rate'}
           value={hr != null ? String(hr) : '0'} unit="bpm"
-          chart={<Line values={rhr7} band={rhrUsual != null ? [rhrUsual - 2, rhrUsual + 2] : null} alertLast={rhrHigh} color={C.heart} height={26} label="Resting heart rate, last 7 days" />}
-          note={r.rhrDelta != null ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual` : 'Last 7 days'}
+          chart={hasRhr
+            ? <Line values={rhr7} band={rhrUsual != null ? [rhrUsual - 2, rhrUsual + 2] : null} alertLast={rhrHigh} color={C.heart} height={26} label="Resting heart rate, last 7 days" />
+            : <Line values={avgHr7} color={C.heart} height={26} label="Average heart rate, last 7 days" />}
+          note={r.rhrDelta != null
+            ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual`
+            : hr != null ? (hasRhr ? 'Resting, today' : 'Daily average · no resting HR from watch') : 'No heart rate today'}
           noteColor={rhrHigh ? C.alert : undefined}
         />
         <Tile

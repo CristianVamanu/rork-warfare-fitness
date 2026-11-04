@@ -165,7 +165,7 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
               <div className="flex gap-1.5 flex-shrink-0">
                 <button onClick={connect} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.amber, color: HUD.ground }}>Allow access</button>
                 {nativePlatform() === 'android' && (
-                  <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.line, color: HUD.fg }}>Open</button>
+                  <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.line, color: 'var(--foreground)' }}>Open</button>
                 )}
               </div>
             </div>

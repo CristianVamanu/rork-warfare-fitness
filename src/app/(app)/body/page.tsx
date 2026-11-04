@@ -21,7 +21,7 @@ function Panel({ title, value, note, noteColor, children }: { title: string; val
     <Card className="p-4 flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-3">
         <HudLabel>{title}</HudLabel>
-        {value && <span className="tabular-nums" style={{ fontFamily: HUD_DISPLAY, fontWeight: 700, fontSize: 22, color: HUD.fg }}>{value}</span>}
+        {value && <span className="tabular-nums" style={{ fontFamily: HUD_DISPLAY, fontWeight: 700, fontSize: 22, color: 'var(--foreground)' }}>{value}</span>}
       </div>
       {children}
       {note && <span className="text-xs" style={{ color: noteColor ?? HUD.dim }}>{note}</span>}
@@ -57,7 +57,7 @@ export default function BodyPage() {
 
         {loaded && !hasAny && (
           <Card className="p-4 flex flex-col gap-2">
-            <p className="text-sm font-semibold" style={{ color: HUD.fg }}>No watch data on your account yet</p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>No watch data on your account yet</p>
             <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. Your trends then show here on every device.</p>
             <GetTheAppCard />
             <Link href="/dashboard" className="text-sm underline underline-offset-2" style={{ color: HUD.amber }}>Back to dashboard</Link>
@@ -93,7 +93,7 @@ export default function BodyPage() {
                   {workouts.map((w, i) => (
                     <li key={i} className="flex items-center justify-between gap-3 py-2" style={{ borderTop: i ? `1px solid ${HUD.line}` : undefined }}>
                       <div className="min-w-0">
-                        <p className="text-sm font-semibold truncate capitalize" style={{ color: HUD.fg }}>{w.type.replace(/_/g, ' ').toLowerCase()}</p>
+                        <p className="text-sm font-semibold truncate capitalize" style={{ color: 'var(--foreground)' }}>{w.type.replace(/_/g, ' ').toLowerCase()}</p>
                         <p className="text-xs truncate" style={{ color: HUD.faint }}>{new Date(`${w.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}{w.source ? ` · ${w.source}` : ''}</p>
                       </div>
                       <span className="text-xs tabular-nums flex-shrink-0" style={{ fontFamily: HUD_MONO, color: HUD.dim }}>{w.minutes} min{w.kcal ? ` · ${w.kcal} kcal` : ''}</span>
