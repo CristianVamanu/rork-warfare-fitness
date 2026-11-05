@@ -1,0 +1,65 @@
+/**
+ * Google Play subscriptions in the Android app, through RevenueCat.
+ *
+ * On when NEXT_PUBLIC_REVENUECAT_ANDROID_KEY is set (the public "goog_..."
+ * SDK key) and the page runs inside the app. The member is logged in to
+ * RevenueCat with their Firebase uid, so the RevenueCat webhook
+ * (/api/revenuecat/webhook) can write the membership to the right account.
+ * App builds without the plugin reject the import; callers then fall back
+ * to the plain membership notice.
+ */
+import { isNativeApp } from '@/lib/native/health';
+
+const KEY = process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ?? '';
+
+export function inAppPurchasesEnabled(): boolean {
+  return !!KEY && isNativeApp();
+}
+
+let configuredFor: string | null = null;
+
+async function rc(uid: string) {
+  const { Purchases } = await import('@revenuecat/purchases-capacitor');
+  if (configuredFor === null) {
+    await Purchases.configure({ apiKey: KEY, appUserID: uid });
+    configuredFor = uid;
+  } else if (configuredFor !== uid) {
+    await Purchases.logIn({ appUserID: uid });
+    configuredFor = uid;
+  }
+  return Purchases;
+}
+
+export interface StorePackage { id: string; title: string; price: string; period: string | null; raw: unknown }
+
+/** The current offering's packages, priced by Google Play in the member's currency. */
+export async function loadPackages(uid: string): Promise<StorePackage[]> {
+  const P = await rc(uid);
+  const o = await P.getOfferings();
+  return (o.current?.availablePackages ?? []).map((p) => ({
+    id: p.identifier,
+    title: p.product.title.replace(/\s*\(.*\)\s*$/, ''),
+    price: p.product.priceString,
+    period: p.packageType === 'ANNUAL' ? 'year' : p.packageType === 'MONTHLY' ? 'month' : p.packageType === 'WEEKLY' ? 'week' : null,
+    raw: p,
+  }));
+}
+
+/** True when the purchase went through; false when the member cancelled the sheet. */
+export async function buyPackage(uid: string, pkg: StorePackage): Promise<boolean> {
+  const P = await rc(uid);
+  try {
+    await P.purchasePackage({ aPackage: pkg.raw as Parameters<typeof P.purchasePackage>[0]['aPackage'] });
+    return true;
+  } catch (e) {
+    if ((e as { userCancelled?: boolean })?.userCancelled) return false;
+    throw e;
+  }
+}
+
+/** Re-syncs past Play purchases to this account; the webhook then updates the membership. */
+export async function restore(uid: string): Promise<boolean> {
+  const P = await rc(uid);
+  const { customerInfo } = await P.restorePurchases();
+  return Object.keys(customerInfo.entitlements.active).length > 0;
+}

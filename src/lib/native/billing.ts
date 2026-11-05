@@ -3,10 +3,10 @@
  *
  * Google Play and the App Store require purchases of digital memberships
  * made inside an app to go through their own billing, and forbid steering
- * to an outside checkout from within the app. Until Play Billing / StoreKit
- * are added, the apps therefore sell nothing: no prices, no plan pickers, no
- * checkout, no "buy on the website" buttons. Members use everything;
- * non-members see a neutral notice (/membership). The website is unchanged.
+ * to an outside checkout from within the app. So the apps never open Stripe:
+ * every purchase entry point goes to /membership, which sells Google Play
+ * subscriptions through RevenueCat when configured (lib/native/purchases)
+ * and is otherwise a neutral notice. The website is unchanged.
  *
  * Every purchase entry point calls `nativeBillingBlocked()` first and, when
  * true, sends the user to the notice instead of Stripe.

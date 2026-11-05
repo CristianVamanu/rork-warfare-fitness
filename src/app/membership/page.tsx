@@ -1,23 +1,76 @@
 'use client';
 
 /**
- * The neutral membership notice shown inside the native apps wherever the
- * website would offer a plan or a checkout (see src/lib/native/billing.ts).
- * Deliberately no price, no plan names, no button to buy and no link to an
- * external checkout: that is what the stores' billing rules require of an
- * app that does not use their billing.
+ * Membership inside the native apps (see src/lib/native/billing.ts). Every
+ * in-app purchase entry point lands here. With RevenueCat configured
+ * (NEXT_PUBLIC_REVENUECAT_ANDROID_KEY) it sells Google Play subscriptions;
+ * without it, it is the neutral notice: no price, no link to an external
+ * checkout, as the stores' billing rules require.
  */
-import { ShieldCheck, ArrowLeft } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { ShieldCheck, ArrowLeft, Loader2, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { hasActiveSubscription } from '@/lib/membership';
+import { inAppPurchasesEnabled, loadPackages, buyPackage, restore, type StorePackage } from '@/lib/native/purchases';
+
+/** Google Play subscriptions (RevenueCat), shown only inside the app when configured. */
+function PlayPaywall({ uid }: { uid: string }) {
+  const [pkgs, setPkgs] = useState<StorePackage[] | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'buy' | 'restore' | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    loadPackages(uid).then((p) => { if (!alive) return; setPkgs(p); setPick(p.find((x) => x.period === 'year')?.id ?? p[0]?.id ?? null); })
+      .catch(() => { if (alive) setFailed(true); });
+    return () => { alive = false; };
+  }, [uid]);
+  if (failed || (pkgs && pkgs.length === 0)) return null;
+  if (!pkgs) return <Loader2 className="w-5 h-5 animate-spin text-accent mx-auto" />;
+  const chosen = pkgs.find((p) => p.id === pick) ?? null;
+  const go = async () => {
+    if (!chosen) return;
+    setBusy('buy'); setMsg(null);
+    try { if (await buyPackage(uid, chosen)) setMsg('Purchase complete. Unlocking your membership…'); }
+    catch { setMsg('The purchase did not go through. You have not been charged.'); }
+    finally { setBusy(null); }
+  };
+  const back = async () => {
+    setBusy('restore'); setMsg(null);
+    try { setMsg((await restore(uid)) ? 'Purchases restored. Unlocking your membership…' : 'No active Google Play subscription found for this account.'); }
+    catch { setMsg('Could not reach Google Play. Try again in a moment.'); }
+    finally { setBusy(null); }
+  };
+  return (
+    <div className="space-y-3 text-left">
+      {pkgs.map((p) => (
+        <button key={p.id} type="button" onClick={() => setPick(p.id)} aria-pressed={pick === p.id}
+          className={`w-full rounded-2xl border px-4 py-3 flex items-center justify-between ${pick === p.id ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface'}`}>
+          <span className="font-bold text-white">{p.period === 'year' ? 'Yearly' : p.period === 'month' ? 'Monthly' : p.title}</span>
+          <span className="flex items-center gap-2 text-white font-black">{p.price}{p.period ? <span className="text-xs text-text-tertiary font-semibold">/ {p.period}</span> : null}{pick === p.id && <Check className="w-4 h-4 text-accent" />}</span>
+        </button>
+      ))}
+      <Button fullWidth onClick={go} disabled={!chosen || !!busy}>{busy === 'buy' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Subscribe with Google Play'}</Button>
+      <button type="button" onClick={back} disabled={!!busy} className="w-full text-xs font-semibold text-accent py-1">{busy === 'restore' ? 'Restoring…' : 'Restore purchases'}</button>
+      {msg && <p className="text-sm text-text-secondary text-center" role="status">{msg}</p>}
+      <p className="text-[11px] text-text-tertiary leading-relaxed text-center">
+        Renews automatically until cancelled. Cancel any time in Google Play → Subscriptions. Payment is charged to your Google account.{' '}
+        <Link href="/terms" className="underline">Terms</Link> · <Link href="/privacy" className="underline">Privacy</Link>
+      </p>
+    </div>
+  );
+}
 
 export default function MembershipNoticePage() {
   const router = useRouter();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const active = !!profile && hasActiveSubscription(profile);
+  const sellsInApp = !active && !!user && inAppPurchasesEnabled();
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-4">
@@ -26,13 +79,18 @@ export default function MembershipNoticePage() {
           <ShieldCheck className="w-8 h-8 text-accent" />
         </div>
         <div>
-          <h1 className="text-xl font-black text-white">{active ? 'Membership active' : 'Membership required'}</h1>
+          <h1 className="text-xl font-black text-white">{active ? 'Membership active' : sellsInApp ? 'Become a member' : 'Membership required'}</h1>
           <p className="text-text-secondary text-sm mt-2">
             {active
-              ? 'Your membership is managed on the Warfare Fitness website, including plan changes and billing.'
-              : 'This part of Warfare Fitness is for members. Memberships are managed on the Warfare Fitness website, not in this app.'}
+              ? profile?.membership && (profile.membership as { source?: string }).source === 'google_play'
+                ? 'Your membership is billed through Google Play. Manage or cancel it in Google Play → Subscriptions.'
+                : 'Your membership is managed on the Warfare Fitness website, including plan changes and billing.'
+              : sellsInApp
+                ? 'Every program, the AI coach, nutrition tracking and your weekly report.'
+                : 'This part of Warfare Fitness is for members. Memberships are managed on the Warfare Fitness website, not in this app.'}
           </p>
         </div>
+        {sellsInApp && user && <PlayPaywall uid={user.uid} />}
         <Button fullWidth variant="secondary" onClick={() => router.replace('/dashboard')}>
           <ArrowLeft className="w-4 h-4" /> Back
         </Button>
