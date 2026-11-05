@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { nativeBillingBlocked } from '@/lib/native/billing';
 import { useState, useEffect, useRef } from 'react';
 import { getIdToken } from 'firebase/auth';
 import { useParams, useRouter } from 'next/navigation';
@@ -255,6 +256,9 @@ export default function ProgramDetailPage() {
 
   const handleBuyProgram = async () => {
     if (!user || !program) return;
+    // The phone apps sell nothing (Google Play payments policy): no checkout
+    // from inside the app, whatever button got here.
+    if (nativeBillingBlocked()) return;
     setPurchasing(true);
     try {
       const token = await getIdToken(user);
@@ -402,8 +406,8 @@ export default function ProgramDetailPage() {
                   <p className="text-xs text-text-secondary mt-0.5 mb-3">
                     Your trial covers the first {dayLimit} days of this program. Subscribe to keep training.
                   </p>
-                  <Button size="sm" fullWidth onClick={() => router.push('/profile')}>
-                    <Crown className="w-4 h-4" /> View Plans
+                  <Button size="sm" fullWidth onClick={() => router.push(nativeBillingBlocked() ? '/membership' : '/profile')}>
+                    <Crown className="w-4 h-4" /> {nativeBillingBlocked() ? 'Membership info' : 'View Plans'}
                   </Button>
                 </div>
               ) : todayDay && !isRestToday ? (
@@ -431,12 +435,17 @@ export default function ProgramDetailPage() {
             // summary of the same lock above it was the duplicate card.
             null
           ) : needsPurchase ? (
+            nativeBillingBlocked() ? (
+              // Consumption-only app: plain information, no price, no link.
+              <p className="text-sm text-text-secondary text-center">This program isn&apos;t available to buy in the app. Programs bought on our website appear here automatically.</p>
+            ) : (
             <div className="space-y-2">
               <Button fullWidth size="lg" loading={purchasing} onClick={handleBuyProgram}>
                 <Play className="w-5 h-5" /> Buy Program — ${program.price!.toFixed(2)}
               </Button>
               <p className="text-xs text-text-tertiary text-center">One-time purchase. Full platform members get this program included.</p>
             </div>
+            )
           ) : (
             <Button fullWidth size="lg" loading={enrolling} onClick={() => handleEnroll(false)}>
               <Play className="w-5 h-5" />
@@ -737,13 +746,13 @@ export default function ProgramDetailPage() {
                                       ? 'Buy this program to see the workouts.'
                                       : `Your free trial covers the first ${dayLimit} days of this program. Subscribe to keep going from here.`}
                                 </p>
-                                {needsPurchase && !isMembershipLocked ? (
+                                {needsPurchase && !isMembershipLocked && !nativeBillingBlocked() ? (
                                   <Button size="sm" fullWidth loading={purchasing} onClick={(e) => { e.stopPropagation(); handleBuyProgram(); }}>
                                     <Play className="w-3.5 h-3.5" /> Buy Program — ${program.price!.toFixed(2)}
                                   </Button>
                                 ) : (
-                                  <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push('/profile'); }}>
-                                    <Crown className="w-3.5 h-3.5" /> View Plans
+                                  <Button size="sm" fullWidth onClick={(e) => { e.stopPropagation(); router.push(nativeBillingBlocked() ? '/membership' : '/profile'); }}>
+                                    <Crown className="w-3.5 h-3.5" /> {nativeBillingBlocked() ? 'Membership info' : 'View Plans'}
                                   </Button>
                                 )}
                               </motion.div>

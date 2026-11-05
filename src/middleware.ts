@@ -51,6 +51,8 @@ export function middleware(request: NextRequest) {
   if (nativeApp) {
     if (pathname === '/') return NextResponse.redirect(new URL('/dashboard?source=native', request.url));
     if (pathname === '/checkout' || pathname.startsWith('/checkout/')) return NextResponse.redirect(new URL('/membership', request.url));
+    // The trainer white-label offer is priced and sold on the website only.
+    if (pathname === '/trainers' || pathname.startsWith('/trainers/')) return NextResponse.redirect(new URL('/membership', request.url));
   }
   const scriptSelf = nativeApp ? "'self' 'unsafe-inline'" : `'self' 'nonce-${nonce}' 'strict-dynamic'`;
   const csp = [

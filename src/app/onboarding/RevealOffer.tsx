@@ -1,5 +1,6 @@
 'use client';
 
+import { nativeBillingBlocked } from '@/lib/native/billing';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, ChevronRight, Loader2, Eye, EyeOff, Sparkles, Lock } from 'lucide-react';
@@ -71,7 +72,10 @@ export function RevealOffer(p: RevealOfferProps) {
     ]).then(([c, plans, sys]) => {
       if (!alive) return;
       setCfg(c);
-      const live = plans.filter((x) => x.active && planHasAnyPrice(x));
+      // Inside the phone apps nothing is sold (Google Play payments policy):
+      // no plan, no price, no subscribe button. The button just creates the
+      // account and starts training.
+      const live = nativeBillingBlocked() ? [] : plans.filter((x) => x.active && planHasAnyPrice(x));
       setPlan(
         (p.preferredPlanId ? live.find((x) => x.id === p.preferredPlanId) : undefined)
         ?? live.find((x) => x.mostPopular) ?? live[0] ?? null,

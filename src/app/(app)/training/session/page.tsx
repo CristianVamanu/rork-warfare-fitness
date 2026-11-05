@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { nativeBillingBlocked } from '@/lib/native/billing';
 import { easedSets } from '@/lib/recoveryEase';
 import { maybeAskForReview } from '@/lib/native/review';
 import { newWorkoutEventId, queueWorkout, isOfflineError } from '@/lib/workoutOutbox';
@@ -1985,8 +1986,8 @@ function WorkoutSessionPageInner() {
         <p className="text-text-secondary text-sm max-w-xs mb-6">
           Your trial covers the first {dayLimit} days of this program. Subscribe to keep training from here.
         </p>
-        <Button onClick={() => router.push('/profile')}>
-          <Crown className="w-4 h-4" /> View Plans
+        <Button onClick={() => router.push(nativeBillingBlocked() ? '/membership' : '/profile')}>
+          <Crown className="w-4 h-4" /> {nativeBillingBlocked() ? 'Membership info' : 'View Plans'}
         </Button>
         <button onClick={() => router.back()} className="text-xs text-text-tertiary hover:text-white mt-4">
           Go back
