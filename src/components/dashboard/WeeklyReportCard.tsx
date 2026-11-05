@@ -12,7 +12,8 @@ import { ClipboardList, ChevronDown, X, Check, Wrench, Target, Dumbbell, Layers,
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
-import type { WeeklyReport } from '@/lib/weeklyReport';
+import { weekScore, type WeeklyReport } from '@/lib/weeklyReport';
+import { ScoreRadar, NutritionRing } from './CoachVisuals';
 
 const HIDE_KEY = 'wf-weekly-report-hidden';
 // One fetch per week per session: the report for a past week never changes.
@@ -76,23 +77,56 @@ export function WeeklyReportCard() {
     s.streak ? { label: 'Streak', value: `${s.streak} days`, sub: null, icon: Zap, color: '#F5A623' } : null,
   ] as (Tile | null)[]).filter((t): t is Tile => !!t);
   // Four tiles by default (an even bento), everything when expanded.
-  const shown = open ? tiles : tiles.slice(0, 4);
+  // Calories and macros live in the nutrition ring above, not as tiles.
+  const NUTRI = new Set(['Calories / day', 'Protein / day', 'Carbs / day', 'Fat / day']);
+  const numTiles = tiles.filter((t) => !NUTRI.has(t.label));
+  const shown = open ? numTiles : numTiles.slice(0, 4);
+  const ws = weekScore(s);
 
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-1.5">
-          <ClipboardList className="w-3.5 h-3.5 text-accent" />
-          <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Coach report · week of {weekLabel}</span>
+        <div className="flex items-center gap-3 min-w-0">
+          {ws.score != null && (
+            <span className="w-14 h-14 rounded-2xl bg-accent text-black flex flex-col items-center justify-center flex-shrink-0 wf-dark" style={{ boxShadow: '0 8px 24px rgba(245,166,35,0.3)' }}>
+              <span className="text-xl font-black leading-none" style={{ color: '#0A0A0A' }}>{ws.score}</span>
+              <span className="text-[8px] font-bold uppercase tracking-wide mt-0.5" style={{ color: '#0A0A0A' }}>score</span>
+            </span>
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <ClipboardList className="w-3.5 h-3.5 text-accent" />
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide truncate">Coach report · week of {weekLabel}</span>
+            </div>
+            <p className="text-base font-black text-white leading-snug mt-0.5">{report.headline}</p>
+          </div>
         </div>
         <button aria-label="Hide this week's report" onClick={() => { setHidden(true); try { localStorage.setItem(HIDE_KEY, report.week); } catch { /* storage blocked */ } }} className="text-text-tertiary hover:text-white -mt-1 -mr-1 p-1">
           <X className="w-4 h-4" />
         </button>
       </div>
-      <p className="text-lg font-black text-white leading-snug mt-1.5">{report.headline}</p>
+
+      {ws.axes.length >= 3 && (
+        <div className="mt-3 rounded-2xl bg-surface-elevated pt-2 pb-1">
+          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide px-3.5 pt-1.5">Score breakdown</p>
+          <ScoreRadar axes={ws.axes} />
+        </div>
+      )}
+
+      {s.avgKcal != null && (
+        <div className="mt-2.5 rounded-2xl bg-surface-elevated p-3.5">
+          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide mb-2">Nutrition · average of {s.mealDays} logged {s.mealDays === 1 ? 'day' : 'days'}</p>
+          <NutritionRing kcal={s.avgKcal} kcalGoal={s.kcalGoal}
+            macros={[
+              { label: 'Protein', value: s.avgProtein, goal: s.proteinGoal, color: '#F87171' },
+              { label: 'Carbs', value: s.avgCarbs ?? null, goal: (profile?.goals as { carbs?: number } | undefined)?.carbs ?? null, color: '#FACC15' },
+              { label: 'Fat', value: s.avgFat ?? null, goal: (profile?.goals as { fat?: number } | undefined)?.fat ?? null, color: '#60A5FA' },
+            ]} />
+        </div>
+      )}
 
       {/* Equal bento tiles: icon chip, number, label, goal bar where there is one. */}
-      <div className="grid grid-cols-2 gap-2.5 mt-3.5" aria-label="This week in numbers">
+      <div className="grid grid-cols-2 gap-2.5 mt-2.5" aria-label="This week in numbers">
         {shown.map((t, i) => {
           const Icon = t.icon;
           // An odd tile out spans the row, so the grid always ends square.
@@ -138,7 +172,7 @@ export function WeeklyReportCard() {
       )}
 
       <button onClick={() => setOpen((v) => !v)} className="mt-3 w-full flex items-center justify-center gap-1 text-xs font-bold text-accent py-1.5">
-        {open ? 'Show less' : `All ${tiles.length} numbers, wins, one fix and targets`}
+        {open ? 'Show less' : `All ${numTiles.length} numbers, wins, one fix and targets`}
         <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
     </Card>

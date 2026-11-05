@@ -157,3 +157,23 @@ export function parseReport(raw: string): Omit<WeeklyReport, 'stats' | 'generate
     return { headline, wins, fix, targets };
   } catch { return null; }
 }
+
+/**
+ * Week score for the coach report: each area 0-100 from the week's own
+ * numbers, and the overall score as their average. An area with no data
+ * is left out rather than counted as zero.
+ */
+export interface ScoreAxis { key: string; label: string; score: number }
+export function weekScore(s: WeekStats): { score: number | null; axes: ScoreAxis[] } {
+  const axes: ScoreAxis[] = [];
+  const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+  const planned = s.plannedPerWeek ?? 3;
+  axes.push({ key: 'training', label: 'Training', score: clamp((s.workouts / planned) * 100) });
+  if (s.mealDays) axes.push({ key: 'logging', label: 'Food log', score: clamp((s.mealDays / 7) * 100) });
+  if (s.avgKcal != null && s.kcalGoal && s.mealDays >= 3) axes.push({ key: 'calories', label: 'Calories', score: clamp(100 - (Math.abs(s.avgKcal - s.kcalGoal) / s.kcalGoal) * 200) });
+  if (s.avgProtein != null && s.proteinGoal && s.mealDays >= 3) axes.push({ key: 'protein', label: 'Protein', score: clamp((s.avgProtein / s.proteinGoal) * 100) });
+  if (s.avgSleepMin != null) axes.push({ key: 'sleep', label: 'Sleep', score: clamp((s.avgSleepMin / 450) * 100) });
+  if (s.avgSteps != null) axes.push({ key: 'steps', label: 'Steps', score: clamp((s.avgSteps / 10000) * 100) });
+  const score = axes.length ? Math.round(axes.reduce((a, x) => a + x.score, 0) / axes.length) : null;
+  return { score, axes };
+}
