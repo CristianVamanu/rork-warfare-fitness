@@ -125,7 +125,9 @@ export interface OnboardingData {
   trainingFor?: 'selection' | 'active-duty' | 'first-responder' | 'hybrid' | 'comeback';
   occupation?: 'military-combat' | 'military-support' | 'police' | 'fire-ems' | 'preparing' | 'civilian' | 'prefer-not';
   blocker?: 'hopping' | 'falling-off' | 'no-time' | 'injuries' | 'alone';
-  priority?: 'strength' | 'running' | 'size' | 'rucking' | 'swimming';
+  priority?: 'strength' | 'running' | 'size' | 'fat-loss' | 'mobility' | 'rucking' | 'swimming';
+  bodyType?: 'slim' | 'average' | 'soft' | 'heavy' | 'athletic';
+  problemAreas?: ('belly' | 'arms' | 'chest' | 'back' | 'legs' | 'glutes' | 'whole')[];
 }
 
 // Self-serve weight goal, set once at onboarding (mandatory alongside
@@ -235,6 +237,8 @@ export interface UserProfile {
   occupation?: OnboardingData['occupation'];
   blocker?: OnboardingData['blocker'];
   priority?: OnboardingData['priority'];
+  bodyType?: OnboardingData['bodyType'];
+  problemAreas?: OnboardingData['problemAreas'];
   // Only present on accounts that answered these during onboarding, back
   // when the health screening lived there — it's collected on the 1:1
   // coaching application form now, and prefilled from here when present.

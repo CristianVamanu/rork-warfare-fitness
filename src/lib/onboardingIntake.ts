@@ -18,7 +18,10 @@ import type { FitnessGoal, ExperienceLevel, EquipmentType } from '@/types';
 export type TrainingFor = 'selection' | 'active-duty' | 'first-responder' | 'hybrid' | 'comeback';
 export type Occupation = 'military-combat' | 'military-support' | 'police' | 'fire-ems' | 'preparing' | 'civilian' | 'prefer-not';
 export type Blocker = 'hopping' | 'falling-off' | 'no-time' | 'injuries' | 'alone';
-export type Priority = 'strength' | 'running' | 'size' | 'rucking' | 'swimming';
+export type Priority = 'strength' | 'running' | 'size' | 'fat-loss' | 'mobility' | 'rucking' | 'swimming';
+/** How someone sees their body today. Copy and segmentation only. */
+export type BodyType = 'slim' | 'average' | 'soft' | 'heavy' | 'athletic';
+export type ProblemArea = 'belly' | 'arms' | 'chest' | 'back' | 'legs' | 'glutes' | 'whole';
 
 export interface Choice<T extends string> { value: T; label: string; sub: string }
 
@@ -49,30 +52,59 @@ export const EXPERIENCE_CHOICES: Choice<ExperienceLevel>[] = [
 
 export const EQUIPMENT_CHOICES: Choice<EquipmentType>[] = [
   { value: 'full-gym', label: 'Full gym access', sub: 'Barbell, racks, machines. Commercial gym or a fully kitted home gym.' },
-  { value: 'home', label: 'Home gym basics', sub: 'Dumbbells, kettlebell, bands, a ruck. Some weights, no barbell rack.' },
-  { value: 'minimal', label: 'Bodyweight only', sub: 'No gym, no equipment. Deployed, travelling, or home with nothing but a pull-up bar.' },
+  { value: 'home', label: 'Home gym basics', sub: 'Dumbbells, kettlebell, bands. Some weights, no barbell rack.' },
+  { value: 'minimal', label: 'Bodyweight only', sub: 'No gym, no equipment. At home, travelling, or just a pull-up bar.' },
 ];
 
 export const BLOCKERS: Choice<Blocker>[] = [
   { value: 'hopping', label: 'Program-hopping and guesswork', sub: 'New plan every month. No through-line.' },
   { value: 'falling-off', label: 'Falling off after two or three weeks', sub: 'Strong starts. Weak week fours.' },
-  { value: 'no-time', label: 'Shift work, no time', sub: 'The schedule eats the plan alive.' },
+  { value: 'no-time', label: 'No time', sub: 'Work, kids, shifts. The schedule eats the plan alive.' },
   { value: 'injuries', label: 'Injuries keep resetting me', sub: 'Train hard, break, restart. Repeat.' },
   { value: 'alone', label: 'Training alone, no accountability', sub: 'Nobody checking the work.' },
 ];
 
 export const PRIORITIES: Choice<Priority>[] = [
-  { value: 'strength', label: 'Strength', sub: 'Move heavy. Squat, bench, deadlift, carry.' },
-  { value: 'running', label: 'Running', sub: 'Cut your time or add distance.' },
-  { value: 'size', label: 'Size', sub: 'Add muscle. Functional armour for the job.' },
-  { value: 'rucking', label: 'Rucking', sub: 'Load on your back, miles under you.' },
-  { value: 'swimming', label: 'Swimming', sub: 'Water confidence and engine.' },
+  { value: 'fat-loss', label: 'Burn fat', sub: 'Lean out and see the muscle underneath.' },
+  { value: 'size', label: 'Build muscle', sub: 'Add size where it shows.' },
+  { value: 'strength', label: 'Get strong', sub: 'Move more weight, own the big lifts.' },
+  { value: 'running', label: 'Endurance', sub: 'Run further, recover faster, never gas out.' },
+  { value: 'mobility', label: 'Move better', sub: 'Fewer aches, better posture, more range.' },
+];
+/** Older choices still stored on some profiles; labels only, never offered. */
+const LEGACY_PRIORITIES: Choice<Priority>[] = [
+  { value: 'rucking', label: 'Rucking', sub: '' },
+  { value: 'swimming', label: 'Swimming', sub: '' },
+];
+
+export const BODY_TYPES: Choice<BodyType>[] = [
+  { value: 'slim', label: 'Slim', sub: 'Lean but small. Hard to put on size.' },
+  { value: 'average', label: 'Average', sub: 'Not bad, not where you want it.' },
+  { value: 'soft', label: 'Soft', sub: 'Some muscle, hidden under fat.' },
+  { value: 'heavy', label: 'Heavy', sub: 'Carrying more weight than you want.' },
+  { value: 'athletic', label: 'Athletic', sub: 'In shape. Want the next level.' },
+];
+
+export const PROBLEM_AREAS: Choice<ProblemArea>[] = [
+  { value: 'belly', label: 'Belly', sub: '' },
+  { value: 'arms', label: 'Arms', sub: '' },
+  { value: 'chest', label: 'Chest', sub: '' },
+  { value: 'back', label: 'Back', sub: '' },
+  { value: 'legs', label: 'Legs', sub: '' },
+  { value: 'glutes', label: 'Glutes', sub: '' },
+  { value: 'whole', label: 'Whole body', sub: '' },
 ];
 
 const TRAINING_FOR_VALUES = new Set(TRAINING_FOR.map((c) => c.value));
 const OCCUPATION_VALUES = new Set(OCCUPATIONS.map((c) => c.value));
 const BLOCKER_VALUES = new Set(BLOCKERS.map((c) => c.value));
-const PRIORITY_VALUES = new Set(PRIORITIES.map((c) => c.value));
+const PRIORITY_VALUES = new Set([...PRIORITIES, ...LEGACY_PRIORITIES].map((c) => c.value));
+const BODY_TYPE_VALUES = new Set(BODY_TYPES.map((c) => c.value));
+const PROBLEM_AREA_VALUES = new Set(PROBLEM_AREAS.map((c) => c.value));
+export const isBodyType = (v: unknown): v is BodyType => typeof v === 'string' && BODY_TYPE_VALUES.has(v as BodyType);
+/** Known areas only, deduplicated; anything else in a stored draft is dropped. */
+export const cleanProblemAreas = (v: unknown): ProblemArea[] =>
+  Array.isArray(v) ? [...new Set(v.filter((x): x is ProblemArea => typeof x === 'string' && PROBLEM_AREA_VALUES.has(x as ProblemArea)))] : [];
 
 export const isTrainingFor = (v: unknown): v is TrainingFor => typeof v === 'string' && TRAINING_FOR_VALUES.has(v as TrainingFor);
 export const isOccupation = (v: unknown): v is Occupation => typeof v === 'string' && OCCUPATION_VALUES.has(v as Occupation);
@@ -83,9 +115,10 @@ export const isPriority = (v: unknown): v is Priority => typeof v === 'string' &
  * The human label for a stored intake answer, for the admin client card.
  * Unknown or missing values come back as null so the caller can show a dash.
  */
-export function intakeAnswerLabel(field: 'trainingFor' | 'occupation' | 'blocker' | 'priority', value: unknown): string | null {
+export function intakeAnswerLabel(field: 'trainingFor' | 'occupation' | 'blocker' | 'priority' | 'bodyType', value: unknown): string | null {
   const list: readonly Choice<string>[] =
-    field === 'trainingFor' ? TRAINING_FOR : field === 'occupation' ? OCCUPATIONS : field === 'blocker' ? BLOCKERS : PRIORITIES;
+    field === 'trainingFor' ? TRAINING_FOR : field === 'occupation' ? OCCUPATIONS : field === 'blocker' ? BLOCKERS
+    : field === 'bodyType' ? BODY_TYPES : [...PRIORITIES, ...LEGACY_PRIORITIES];
   return list.find((c) => c.value === value)?.label ?? null;
 }
 
@@ -120,7 +153,7 @@ export function intelBreakFor(a: {
     'build-muscle': ['Hypertrophy blocks', 'Higher volume, controlled tempo, progressive load. Size follows tonnage over weeks.'],
     'strength': ['Heavy compounds first', 'Squat, press, pull and carry at the top of every session, accessories after.'],
     'recomposition': ['Strength plus engine', 'Lift heavy enough to hold muscle, condition hard enough to strip fat. Both, every week.'],
-    'military-prep': ['Test events trained directly', 'Push-ups, pull-ups, sit-ups, runs and rucks are on the program, not left to chance.'],
+    'military-prep': ['Test events trained directly', 'Push-ups, pull-ups, sit-ups and runs are on the program, not left to chance.'],
   };
   if (a.goal) rows.push({ label: 'Built around', value: focus[a.goal][0], why: focus[a.goal][1] });
   else if (a.trainingFor === 'selection' || a.trainingFor === 'active-duty') rows.push({ label: 'Built around', value: 'Test events trained directly', why: 'The scored events are on the program, not left to chance.' });
@@ -166,7 +199,7 @@ export function intelBreakFor(a: {
     eyebrow: 'Taking shape',
     title: rows.length >= 3 ? 'Here is how your program is being built.' : 'Here is what we know so far.',
     rows,
-    note: 'Three questions left. What stopped you before and what you would prioritise shape how the program is coached. Your body stats fix the exact match and set your nutrition targets.',
+    note: 'A few questions left. Your problem areas, what stopped you before and what you would prioritise shape how the program is coached. Your body stats fix the exact match and set your nutrition targets.',
   };
 }
 
@@ -183,7 +216,7 @@ export function shortProgramName(name: string): string {
 
 /** The word after "you're a": what the goal says about the person. */
 export function athleteLabel(goal: FitnessGoal | null, trainingFor: TrainingFor | null): string {
-  if (goal === 'military-prep') return 'Selection';
+  if (goal === 'military-prep') return 'Test-Ready';
   if (goal === 'strength') return 'Strength';
   if (goal === 'build-muscle') return 'Muscle-Building';
   if (goal === 'lose-fat') return 'Fat-Loss';
@@ -197,7 +230,7 @@ export function firstName(name: string): string {
 }
 
 const GOAL_WANT: Record<FitnessGoal, string> = {
-  'military-prep': 'to pass a PT test and be ready for selection',
+  'military-prep': 'to pass a fitness test',
   'lose-fat': 'to lose fat and keep the muscle',
   'build-muscle': 'to build muscle',
   recomposition: 'to build muscle and lose fat at the same time',
@@ -207,7 +240,7 @@ const GOAL_WANT: Record<FitnessGoal, string> = {
 const EQUIPMENT_FIT: Record<EquipmentType, string> = {
   'full-gym': 'Written for a full gym: barbell, racks and machines, the way you train.',
   home: 'Runs on home-gym basics: dumbbells, a kettlebell, bands. No commercial gym required.',
-  minimal: 'Runs on bodyweight and a pull-up bar. Deployed, travelling or at home, the session is still there.',
+  minimal: 'Runs on bodyweight and a pull-up bar. At home, travelling or short on time, the session is still there.',
 };
 
 const EXPERIENCE_FIT: Record<ExperienceLevel, string> = {
@@ -334,9 +367,9 @@ export const DEFAULT_WHY_PRICE =
 
 export const DEFAULT_OFFER_STACK: { title: string; body: string }[] = [
   { title: 'Your matched program', body: 'Phased blocks matched to your level and kit. Loads move with your logs.' },
-  { title: 'Every program unlocked', body: 'Selection prep, strength, fat loss, muscle, over-50s. Switch from your training screen, progress kept.' },
+  { title: 'Every program unlocked', body: 'Fat loss, muscle, strength, fitness-test prep, over-50s. Switch from your training screen, progress kept.' },
   { title: 'Nutrition targets built for the program', body: 'Calories and macros set to your goal. Photograph a plate or scan a barcode to log it.' },
-  { title: 'Standards tracking', body: 'PT test log scored against published standards, so you see the exact gap closing.' },
+  { title: 'Standards tracking', body: 'Fitness test log scored against published standards, so you see the exact gap closing.' },
   { title: 'Streaks, community, reminders', body: 'It counts the days you skip too. Members post their weeks. Reminders arrive in the installed app.' },
 ];
 

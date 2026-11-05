@@ -29,22 +29,22 @@ import { Medallion } from '@/components/dashboard/Medallion';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import type { FitnessGoal, ExperienceLevel, EquipmentType, OnboardingData, BiologicalSex, MedicalHistoryAnswers } from '@/types';
 import {
-  TRAINING_FOR, OCCUPATIONS, EXPERIENCE_CHOICES, BLOCKERS, PRIORITIES,
-  isTrainingFor, isOccupation, isBlocker, isPriority, intelBreakFor, intakePercent,
-  type TrainingFor, type Occupation, type Blocker, type Priority, type OfferWords,
+  EXPERIENCE_CHOICES, BLOCKERS, PRIORITIES, BODY_TYPES, PROBLEM_AREAS,
+  isTrainingFor, isBlocker, isPriority, isBodyType, cleanProblemAreas, intelBreakFor, intakePercent,
+  type TrainingFor, type Blocker, type Priority, type BodyType, type ProblemArea, type OfferWords,
 } from '@/lib/onboardingIntake';
 import { RevealOffer } from './RevealOffer';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
 const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType }[] = [
-  // First, because it is what the name on the door promises. Routes to the
-  // endurance programs (SAS, Commando, Legion), which no other goal reaches.
-  { value: 'military-prep', label: 'Selection Prep',  sub: 'Pass the PT test — run, ruck, calisthenics', icon: Shield },
-  { value: 'lose-fat',      label: 'Lose Fat',       sub: 'Burn fat, maintain muscle',       icon: Flame },
-  { value: 'build-muscle',  label: 'Build Muscle',   sub: 'Maximize hypertrophy',            icon: Dumbbell },
-  { value: 'recomposition', label: 'Recomposition',  sub: 'Build muscle & lose fat',         icon: RefreshCw },
-  { value: 'strength',      label: 'Get Stronger',   sub: 'Maximal strength & power',        icon: Zap },
+  // Everyday goals first. The test option still routes to the endurance
+  // programs (SAS, Commando, Legion), which no other goal reaches.
+  { value: 'lose-fat',      label: 'Lose Fat',          sub: 'Burn fat, keep the muscle',         icon: Flame },
+  { value: 'build-muscle',  label: 'Build Muscle',      sub: 'Add size and shape',                icon: Dumbbell },
+  { value: 'recomposition', label: 'Get Lean & Toned',  sub: 'Lose fat and build muscle together', icon: RefreshCw },
+  { value: 'strength',      label: 'Get Stronger',      sub: 'Lift more, own the big lifts',      icon: Zap },
+  { value: 'military-prep', label: 'Pass a Fitness Test', sub: 'Military, police or fire: run, push-ups, pull-ups', icon: Shield },
 ];
 
 // Same three values the matcher has always scored on; the words are the
@@ -59,13 +59,13 @@ const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = EXP
  * equipment, biometrics) are unchanged; the added screens are saved to the
  * profile and used for the reveal copy only.
  */
-type StepId = 'for' | 'you' | 'goal' | 'occupation' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
+type StepId = 'body' | 'you' | 'goal' | 'areas' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
 // Goal first: it is the thing the visitor came for, and answering it is
 // the first small commitment. Everything the matcher needs is still asked.
-const STEPS_ANON: StepId[] = ['goal', 'for', 'you', 'experience', 'days', 'equipment', 'break', 'occupation', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
+const STEPS_ANON: StepId[] = ['goal', 'body', 'you', 'experience', 'days', 'equipment', 'break', 'areas', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
 // Already signed in (resuming an unfinished quiz): no email step, and the
 // program is generated from the last screen exactly as before.
-const STEPS_AUTHED: StepId[] = ['goal', 'for', 'you', 'experience', 'days', 'equipment', 'break', 'occupation', 'blocker', 'priority', 'biometrics'];
+const STEPS_AUTHED: StepId[] = ['goal', 'body', 'you', 'experience', 'days', 'equipment', 'break', 'areas', 'blocker', 'priority', 'biometrics'];
 
 // 2 (and 1) deliberately excluded — zero programs in the catalog are built
 // for that few days/week, so offering it just set an expectation the
@@ -83,7 +83,7 @@ const AGE_BRACKETS = [
 ];
 
 /** Steps that advance on a tap (see selectAndAdvance). */
-const TAP_STEPS = new Set<StepId>(['for', 'goal', 'occupation', 'experience', 'days', 'blocker', 'priority']);
+const TAP_STEPS = new Set<StepId>(['body', 'goal', 'experience', 'days', 'blocker', 'priority']);
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -124,7 +124,8 @@ interface OnboardingDraft {
   name: string;
   email: string;
   trainingFor: TrainingFor | null;
-  occupation: Occupation | null;
+  bodyType: BodyType | null;
+  problemAreas: ProblemArea[];
   blocker: Blocker | null;
   priority: Priority | null;
 }
@@ -195,8 +196,9 @@ function OnboardingPageInner() {
   const [name, setName] = useState(draft.name ?? '');
   const [email, setEmail] = useState(draft.email ?? '');
   const [password, setPassword] = useState('');
-  const [trainingFor, setTrainingFor] = useState<TrainingFor | null>(isTrainingFor(draft.trainingFor) ? draft.trainingFor : null);
-  const [occupation, setOccupation] = useState<Occupation | null>(isOccupation(draft.occupation) ? draft.occupation : null);
+  const [trainingFor] = useState<TrainingFor | null>(isTrainingFor(draft.trainingFor) ? draft.trainingFor : null);
+  const [bodyType, setBodyType] = useState<BodyType | null>(isBodyType(draft.bodyType) ? draft.bodyType : null);
+  const [problemAreas, setProblemAreas] = useState<ProblemArea[]>(cleanProblemAreas(draft.problemAreas));
   const [blocker, setBlocker] = useState<Blocker | null>(isBlocker(draft.blocker) ? draft.blocker : null);
   const [priority, setPriority] = useState<Priority | null>(isPriority(draft.priority) ? draft.priority : null);
   // 'quiz' is the steps; 'reveal' is the match-and-offer page shown after
@@ -248,11 +250,11 @@ function OnboardingPageInner() {
       const draftToSave: OnboardingDraft = {
         step, goal, experience, trainingDays, equipment, equipmentItems, limitations,
         sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory,
-        name, email, trainingFor, occupation, blocker, priority,
+        name, email, trainingFor, bodyType, problemAreas, blocker, priority,
       };
       localStorage.setItem(ONBOARDING_DRAFT_KEY, JSON.stringify(draftToSave));
     } catch { /* ignore — e.g. private browsing storage quota */ }
-  }, [step, goal, experience, trainingDays, equipment, equipmentItems, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email, trainingFor, occupation, blocker, priority]);
+  }, [step, goal, experience, trainingDays, equipment, equipmentItems, limitations, sex, age, heightCm, weightKg, targetWeightKg, weightUnit, heightUnit, medicalHistory, name, email, trainingFor, bodyType, problemAreas, blocker, priority]);
 
   // Pre-fills sex/age from the landing page's quick-start selector (now
   // mandatory there — see LandingClient.tsx). Visitors who didn't come
@@ -402,10 +404,10 @@ function OnboardingPageInner() {
   const accountValidWith = (pw: string) => emailValid && pw.length >= 8;
 
   const canAdvanceById: Record<StepId, boolean> = {
-    for: !!trainingFor,
+    body: !!bodyType,
     you: sexAgeAnswered,
     goal: !!goal,
-    occupation: !!occupation,
+    areas: problemAreas.length > 0,
     experience: !!experience,
     days: !!trainingDays,
     equipment: !!equipment,
@@ -750,7 +752,7 @@ function OnboardingPageInner() {
         } catch {
           const local = estimateNutritionTargets(goal, experience, trainingDays, biometricsPayload);
           const goalLabels: Record<FitnessGoal, string> = {
-            'military-prep': 'Selection Prep', 'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
+            'military-prep': 'Fitness Test Prep', 'lose-fat': 'Fat Loss', 'build-muscle': 'Muscle Gain', recomposition: 'Body Recomposition', strength: 'Strength',
           };
           nutritionTargets = { ...local, goalLabel: goalLabels[goal], rationale: '' };
         }
@@ -784,7 +786,8 @@ function OnboardingPageInner() {
         ...(equipmentItems.length ? { equipmentItems } : {}),
         ...(limitations.trim() ? { limitations: limitations.trim() } : {}),
         ...(trainingFor ? { trainingFor } : {}),
-        ...(occupation ? { occupation } : {}),
+        ...(bodyType ? { bodyType } : {}),
+        ...(problemAreas.length ? { problemAreas } : {}),
         ...(blocker ? { blocker } : {}),
         ...(priority ? { priority } : {}),
         ...(biometricsValid ? { sex: sex!, age: ageNum, heightCm: heightNum, targetWeightKg: targetWeightNum } : {}),
@@ -1195,7 +1198,7 @@ function OnboardingPageInner() {
   const percent = intakePercent(step, TOTAL_STEPS);
   const trail: string[] = [
     goal ? (GOALS.find((g) => g.value === goal)?.label ?? '') : '',
-    trainingFor ? (TRAINING_FOR.find((c) => c.value === trainingFor)?.label ?? '') : '',
+    bodyType ? (BODY_TYPES.find((c) => c.value === bodyType)?.label ?? '') : '',
     sex ? (sex === 'male' ? 'Male' : 'Female') : '',
     Number.isFinite(ageNum) && ageNum >= 13 ? (AGE_BRACKETS.find((b) => ageNum >= b.min && ageNum <= b.max)?.label ?? `${ageNum}`) : '',
     experience ? (EXPERIENCE_CHOICES.find((c) => c.value === experience)?.label.split(',')[0] ?? '') : '',
@@ -1273,13 +1276,13 @@ function OnboardingPageInner() {
             the CSS animation. See .wf-step for why this is no longer
             framer-motion. */}
         <div key={step} className="wf-step space-y-4">
-            {stepId === 'for' && (
+            {stepId === 'body' && (
               <StepChoice
-                title="What are you training for?"
-                sub="One tap. It sets the standard you are held to."
-                choices={TRAINING_FOR}
-                selected={trainingFor}
-                onSelect={(v) => selectAndAdvance(step, () => setTrainingFor(v))}
+                title="How would you describe your body right now?"
+                sub="One tap. No judgement, it is just the starting line."
+                choices={BODY_TYPES}
+                selected={bodyType}
+                onSelect={(v) => selectAndAdvance(step, () => setBodyType(v))}
               />
             )}
             {stepId === 'you' && (
@@ -1291,13 +1294,11 @@ function OnboardingPageInner() {
             {stepId === 'goal' && (
               <StepGoal selected={goal} onSelect={(v) => selectAndAdvance(step, () => setGoal(v))} />
             )}
-            {stepId === 'occupation' && (
-              <StepChoice
-                title="What's your current occupation?"
-                sub="Your program does not change with this. Your reveal does."
-                choices={OCCUPATIONS}
-                selected={occupation}
-                onSelect={(v) => selectAndAdvance(step, () => setOccupation(v))}
+            {stepId === 'areas' && (
+              <StepAreas
+                selected={problemAreas}
+                onToggle={(v) => setProblemAreas((cur) => v === 'whole' ? (cur.includes('whole') ? [] : ['whole'])
+                  : cur.includes(v) ? cur.filter((x) => x !== v) : [...cur.filter((x) => x !== 'whole'), v])}
               />
             )}
             {stepId === 'experience' && (
@@ -1755,6 +1756,26 @@ function StepDays({ selected, onSelect }: { selected: number | null; onSelect: (
           {selected} training days · {7 - selected} rest days per week
         </p>
       )}
+    </div>
+  );
+}
+
+function StepAreas({ selected, onToggle }: { selected: ProblemArea[]; onToggle: (v: ProblemArea) => void }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-black text-white mb-1 text-center">Which areas do you want to work on most?</h1>
+      <p className="text-text-secondary text-sm mb-5 text-center">Choose all that apply.</p>
+      <div className="grid grid-cols-2 gap-2.5">
+        {PROBLEM_AREAS.map((a) => {
+          const on = selected.includes(a.value);
+          return (
+            <button key={a.value} type="button" aria-pressed={on} onClick={() => onToggle(a.value)}
+              className={`rounded-2xl border px-4 py-4 text-left font-bold transition-colors ${a.value === 'whole' ? 'col-span-2' : ''} ${on ? 'border-accent bg-accent/10 text-white' : 'border-white/10 bg-surface text-text-secondary hover:border-white/20'}`}>
+              <span className="flex items-center justify-between">{a.label}{on && <CheckCircle className="w-4 h-4 text-accent" />}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

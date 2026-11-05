@@ -12,7 +12,7 @@ describe('intel break', () => {
     expect(b.rows[2].value).toMatch(/Four days/);
     expect(b.rows[3].value).toMatch(/Bodyweight/);
     for (const r of b.rows) expect(r.why.length).toBeGreaterThan(20);
-    expect(b.note).toMatch(/Three questions left/);
+    expect(b.note).toMatch(/A few questions left/);
   });
   it('only describes what was answered, and still says something for a selection candidate', () => {
     const b = intelBreakFor({ trainingFor: 'selection', goal: null, experience: null, trainingDays: null, equipment: null });
@@ -29,7 +29,7 @@ describe('intel break', () => {
 
 describe('reveal words', () => {
   it('names the athlete by goal first, then by tribe', () => {
-    expect(athleteLabel('military-prep', 'comeback')).toBe('Selection');
+    expect(athleteLabel('military-prep', 'comeback')).toBe('Test-Ready');
     expect(athleteLabel('recomposition', 'hybrid')).toBe('Hybrid');
     expect(athleteLabel(null, null)).toBe('Recomp');
   });
@@ -97,7 +97,9 @@ describe('admin copy and misc', () => {
   });
   it('labels stored intake answers for the admin card, dash-able when unknown', () => {
     expect(intakeAnswerLabel('trainingFor', 'selection')).toBe('A selection course');
-    expect(intakeAnswerLabel('blocker', 'no-time')).toBe('Shift work, no time');
+    expect(intakeAnswerLabel('blocker', 'no-time')).toBe('No time');
+    expect(intakeAnswerLabel('bodyType', 'soft')).toBe('Soft');
+    expect(intakeAnswerLabel('priority', 'rucking')).toBe('Rucking');
     expect(intakeAnswerLabel('priority', undefined)).toBeNull();
     expect(intakeAnswerLabel('occupation', 'astronaut')).toBeNull();
   });
@@ -105,5 +107,15 @@ describe('admin copy and misc', () => {
     expect(isTrainingFor('selection')).toBe(true);
     expect(isTrainingFor('pilot')).toBe(false);
     expect(isBlocker(undefined)).toBe(false);
+  });
+});
+
+describe('body type and problem areas', () => {
+  it('keeps only known areas, once each', async () => {
+    const { cleanProblemAreas, isBodyType } = await import('./onboardingIntake');
+    expect(cleanProblemAreas(['belly', 'belly', 'nose', 3, 'arms'])).toEqual(['belly', 'arms']);
+    expect(cleanProblemAreas('belly')).toEqual([]);
+    expect(isBodyType('athletic')).toBe(true);
+    expect(isBodyType('swole')).toBe(false);
   });
 });

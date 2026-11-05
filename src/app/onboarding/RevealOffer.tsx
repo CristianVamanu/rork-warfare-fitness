@@ -7,6 +7,7 @@ import { Check, ChevronRight, Loader2, Eye, EyeOff, Sparkles, Lock } from 'lucid
 import { getMembershipConfig, getMembershipPlans, getSystemConfig } from '@/lib/firestore';
 import { freePlanConfig } from '@/lib/freePlan';
 import { getPlanBillingPeriods, planHasAnyPrice, getActiveDiscountPercent, applyDiscount } from '@/lib/utils';
+import { formatMoney } from '@/lib/trialReminder';
 import { offerWords, revealCopy, whyThisFits, athleteLabel, firstName, shortProgramName, type OfferWords, type Blocker } from '@/lib/onboardingIntake';
 import type { MatchedProgram } from '@/lib/programMatch';
 import type { MembershipConfig, MembershipPlan, FitnessGoal, EquipmentType, ExperienceLevel } from '@/types';
@@ -90,6 +91,8 @@ export function RevealOffer(p: RevealOfferProps) {
 
   const period = plan ? getPlanBillingPeriods(plan)[0] : undefined;
   const discount = getActiveDiscountPercent(cfg);
+  // The plan's own currency, the same one Stripe charges in (plan-checkout).
+  const money = (major: number) => formatMoney(Math.round(major * 100), plan?.currency ?? 'USD');
   const offer = offerWords(cfg, period ? { price: period.price, months: period.months } : null);
   const first = firstName(p.name);
   const label = athleteLabel(p.goal, p.trainingFor);
@@ -280,14 +283,14 @@ export function RevealOffer(p: RevealOfferProps) {
                 <div>
                   <p className="wf-readout text-[10px] font-bold text-accent">{plan.name}</p>
                   {offer.kind === 'paid-trial' ? (
-                    <p className="text-4xl font-black text-white mt-1">${((cfg?.trialPriceCents ?? 100) / 100).toFixed(0)}<span className="text-base text-text-tertiary font-bold ml-1">today</span></p>
+                    <p className="text-4xl font-black text-white mt-1">{money((cfg?.trialPriceCents ?? 100) / 100)}<span className="text-base text-text-tertiary font-bold ml-1">today</span></p>
                   ) : (
-                    <p className="text-4xl font-black text-white mt-1">${period.price.toFixed(0)}<span className="text-base text-text-tertiary font-bold ml-1">{period.months === 1 ? '/mo' : `/ ${period.months}mo`}</span></p>
+                    <p className="text-4xl font-black text-white mt-1">{money(period.price)}<span className="text-base text-text-tertiary font-bold ml-1">{period.months === 1 ? '/mo' : `/ ${period.months}mo`}</span></p>
                   )}
                 </div>
                 <div className="text-right">
-                  {offer.kind === 'paid-trial' && <p className="text-sm text-text-secondary"><span className="line-through text-text-tertiary">${period.price.toFixed(0)}</span> first {cfg?.trialDays ?? 30} days</p>}
-                  {discount > 0 && offer.kind !== 'paid-trial' && <p className="text-sm text-text-secondary">First payment ${applyDiscount(period.price, discount).toFixed(2)}, {discount}% off</p>}
+                  {offer.kind === 'paid-trial' && <p className="text-sm text-text-secondary"><span className="line-through text-text-tertiary">{money(period.price)}</span> first {cfg?.trialDays ?? 30} days</p>}
+                  {discount > 0 && offer.kind !== 'paid-trial' && <p className="text-sm text-text-secondary">First payment {money(applyDiscount(period.price, discount))}, {discount}% off</p>}
                   <p className="wf-readout text-[9px] font-bold text-text-tertiary mt-1">cancel in the app anytime</p>
                 </div>
               </div>
@@ -311,7 +314,7 @@ export function RevealOffer(p: RevealOfferProps) {
 
           {offer.kind === 'paid-trial' && (
             <div className="rounded-2xl border border-white/10 bg-black/25 p-4 mt-6">
-              <p className="text-sm font-bold text-white flex items-center gap-2"><Lock className="w-4 h-4 text-accent" /> Why ${((cfg?.trialPriceCents ?? 100) / 100).toFixed(0)}?</p>
+              <p className="text-sm font-bold text-white flex items-center gap-2"><Lock className="w-4 h-4 text-accent" /> Why {money((cfg?.trialPriceCents ?? 100) / 100)}?</p>
               <p className="text-[13px] text-text-secondary leading-relaxed mt-2">{copy.whyPrice}</p>
             </div>
           )}
