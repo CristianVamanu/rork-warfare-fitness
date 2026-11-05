@@ -75,8 +75,11 @@ export default function ProfilePage() {
   // people still opening it in a browser tab.
   const [isStandalone, setIsStandalone] = useState(true);
   useEffect(() => {
+    // Already "installed": the home-screen PWA, or the Android/iOS app
+    // (its web view is not display-mode standalone, so check the app marker).
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches
-      || (navigator as Navigator & { standalone?: boolean }).standalone === true);
+      || (navigator as Navigator & { standalone?: boolean }).standalone === true
+      || nativeBillingBlocked());
   }, []);
   async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
