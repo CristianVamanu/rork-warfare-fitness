@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import { getIdToken } from 'firebase/auth';
-import { ClipboardList, ChevronDown, X, Check, Wrench, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
+import { ChevronDown, X, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
@@ -83,98 +83,119 @@ export function WeeklyReportCard() {
   const shown = open ? numTiles : numTiles.slice(0, 4);
   const ws = weekScore(s);
 
+  // The four headline numbers for the strip; the rest open with the report.
+  const strip = numTiles.slice(0, 4);
+  const R = 30, C = 2 * Math.PI * R, sc = ws.score ?? 0;
+  const kcalPct = pct(s.avgKcal, s.kcalGoal), protPct = pct(s.avgProtein, s.proteinGoal);
+
   return (
-    <Card className="p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
+    <Card className="p-0 overflow-hidden relative">
+      {/* AI panel: amber hairline on top, faint scan glow behind the dial */}
+      <div aria-hidden className="absolute inset-x-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, #F5A623, transparent)' }} />
+      <div aria-hidden className="absolute -top-16 -left-10 w-48 h-48 rounded-full pointer-events-none" style={{ background: 'radial-gradient(closest-side, rgba(245,166,35,0.18), transparent)' }} />
+      <div className="relative p-3.5">
+        <div className="flex items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5">
+            <span className="relative flex w-1.5 h-1.5"><span className="absolute inset-0 rounded-full bg-accent animate-ping opacity-60" /><span className="relative w-1.5 h-1.5 rounded-full bg-accent" /></span>
+            <span className="text-[9px] font-black tracking-[0.18em] text-accent uppercase">AI Coach</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Week of {weekLabel}</span>
+            <button aria-label="Hide this week's report" onClick={() => { setHidden(true); try { localStorage.setItem(HIDE_KEY, report.week); } catch { /* storage blocked */ } }} className="text-text-tertiary hover:text-white p-1 -mr-1">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3 mt-2.5">
           {ws.score != null && (
-            <span className="w-14 h-14 rounded-2xl bg-accent text-black flex flex-col items-center justify-center flex-shrink-0 wf-dark" style={{ boxShadow: '0 8px 24px rgba(245,166,35,0.3)' }}>
-              <span className="text-xl font-black leading-none" style={{ color: '#0A0A0A' }}>{ws.score}</span>
-              <span className="text-[8px] font-bold uppercase tracking-wide mt-0.5" style={{ color: '#0A0A0A' }}>score</span>
-            </span>
+            <svg width="72" height="72" viewBox="0 0 72 72" className="flex-shrink-0" role="img" aria-label={`Week score ${sc} of 100`}>
+              <circle cx="36" cy="36" r={R} fill="none" stroke="var(--progress-track)" strokeWidth="5" />
+              <circle cx="36" cy="36" r={R} fill="none" stroke="#F5A623" strokeWidth="5" strokeLinecap="round"
+                strokeDasharray={`${(sc / 100) * C} ${C}`} transform="rotate(-90 36 36)" style={{ filter: 'drop-shadow(0 0 4px rgba(245,166,35,0.6))' }} />
+              <text x="36" y="39" textAnchor="middle" fontSize="20" fontWeight={900} fill="var(--foreground)">{sc}</text>
+              <text x="36" y="51" textAnchor="middle" fontSize="7" fontWeight={700} letterSpacing="1.2" fill="var(--text-tertiary)">SCORE</text>
+            </svg>
           )}
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <ClipboardList className="w-3.5 h-3.5 text-accent" />
-              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide truncate">Coach report · week of {weekLabel}</span>
-            </div>
-            <p className="text-base font-black text-white leading-snug mt-0.5">{report.headline}</p>
+            <p className="text-[15px] font-black text-white leading-snug line-clamp-2">{report.headline}</p>
+            <p className="text-xs text-text-secondary leading-snug mt-1 line-clamp-2"><span className="text-accent font-bold">Next move: </span>{report.fix}</p>
           </div>
         </div>
-        <button aria-label="Hide this week's report" onClick={() => { setHidden(true); try { localStorage.setItem(HIDE_KEY, report.week); } catch { /* storage blocked */ } }} className="text-text-tertiary hover:text-white -mt-1 -mr-1 p-1">
-          <X className="w-4 h-4" />
+
+        {strip.length > 0 && (
+          <div className="mt-3 grid rounded-xl border border-white/8 bg-surface-elevated/60 divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
+            {strip.map((t) => (
+              <div key={t.label} className="px-1.5 py-2 text-center min-w-0">
+                <p className="text-[15px] font-black text-white tabular-nums leading-none truncate">{t.value}</p>
+                <p className="text-[9px] font-semibold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {s.avgKcal != null && (
+          <div className="mt-2.5 grid grid-cols-2 gap-3">
+            {[
+              { k: 'Calories', v: `${s.avgKcal.toLocaleString()}${s.kcalGoal ? ` / ${s.kcalGoal.toLocaleString()}` : ''}`, p: kcalPct, c: '#F5A623' },
+              { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein}${s.proteinGoal ? ` / ${s.proteinGoal}` : ''} g` : '—', p: protPct, c: '#F87171' },
+            ].map((m) => (
+              <div key={m.k} className="min-w-0">
+                <div className="flex justify-between text-[10px]"><span className="text-text-tertiary font-semibold uppercase tracking-wide">{m.k}</span><span className="text-white font-bold tabular-nums truncate ml-1">{m.v}</span></div>
+                <div className="h-1 mt-1 rounded-full overflow-hidden" style={{ background: 'var(--progress-track)' }}><div className="h-full rounded-full" style={{ width: `${m.p ?? 0}%`, background: m.c, boxShadow: `0 0 6px ${m.c}` }} /></div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {open && (
+          <div className="mt-3.5 space-y-3.5">
+            {ws.axes.length >= 3 && (
+              <div className="rounded-2xl bg-surface-elevated pt-1">
+                <ScoreRadar axes={ws.axes} />
+              </div>
+            )}
+            {s.avgKcal != null && (
+              <div className="rounded-2xl bg-surface-elevated p-3.5">
+                <NutritionRing kcal={s.avgKcal} kcalGoal={s.kcalGoal}
+                  macros={[
+                    { label: 'Protein', value: s.avgProtein, goal: s.proteinGoal, color: '#F87171' },
+                    { label: 'Carbs', value: s.avgCarbs ?? null, goal: (profile?.goals as { carbs?: number } | undefined)?.carbs ?? null, color: '#FACC15' },
+                    { label: 'Fat', value: s.avgFat ?? null, goal: (profile?.goals as { fat?: number } | undefined)?.fat ?? null, color: '#60A5FA' },
+                  ]} />
+              </div>
+            )}
+            {numTiles.length > 4 && (
+              <div className="grid grid-cols-3 gap-2">
+                {numTiles.slice(4).map((t) => { const Icon = t.icon; return (
+                  <div key={t.label} className="rounded-xl bg-surface-elevated p-2.5 min-w-0">
+                    <Icon className="w-3.5 h-3.5" style={{ color: t.color }} />
+                    <p className="text-sm font-black text-white tabular-nums mt-1 truncate">{t.value}</p>
+                    <p className="text-[9px] text-text-tertiary uppercase tracking-wide truncate">{t.label}</p>
+                  </div>); })}
+              </div>
+            )}
+            <div>
+              <p className="text-[10px] font-bold text-success uppercase tracking-wide mb-1.5">What went well</p>
+              <ul className="space-y-1.5">
+                {report.wins.map((w, i) => <li key={i} className="flex gap-2 text-sm text-white leading-snug"><Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />{w}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide mb-1.5">Targets this week</p>
+              <ul className="space-y-1.5">
+                {report.targets.map((t, i) => <li key={i} className="flex gap-2 text-sm text-white"><Target className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />{t}</li>)}
+              </ul>
+            </div>
+            {report.generatedBy === 'ai' && <p className="text-[11px] text-text-tertiary">Written by AI from your logged numbers. It can be wrong; your coach and your body know best.</p>}
+          </div>
+        )}
+
+        <button onClick={() => setOpen((v) => !v)} className="mt-2.5 w-full flex items-center justify-center gap-1 text-[11px] font-bold text-accent py-1">
+          {open ? 'Show less' : 'Full report'}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
       </div>
-
-      {ws.axes.length >= 3 && (
-        <div className="mt-3 rounded-2xl bg-surface-elevated pt-2 pb-1">
-          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide px-3.5 pt-1.5">Score breakdown</p>
-          <ScoreRadar axes={ws.axes} />
-        </div>
-      )}
-
-      {s.avgKcal != null && (
-        <div className="mt-2.5 rounded-2xl bg-surface-elevated p-3.5">
-          <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide mb-2">Nutrition · average of {s.mealDays} logged {s.mealDays === 1 ? 'day' : 'days'}</p>
-          <NutritionRing kcal={s.avgKcal} kcalGoal={s.kcalGoal}
-            macros={[
-              { label: 'Protein', value: s.avgProtein, goal: s.proteinGoal, color: '#F87171' },
-              { label: 'Carbs', value: s.avgCarbs ?? null, goal: (profile?.goals as { carbs?: number } | undefined)?.carbs ?? null, color: '#FACC15' },
-              { label: 'Fat', value: s.avgFat ?? null, goal: (profile?.goals as { fat?: number } | undefined)?.fat ?? null, color: '#60A5FA' },
-            ]} />
-        </div>
-      )}
-
-      {/* Equal bento tiles: icon chip, number, label, goal bar where there is one. */}
-      <div className="grid grid-cols-2 gap-2.5 mt-2.5" aria-label="This week in numbers">
-        {shown.map((t, i) => {
-          const Icon = t.icon;
-          // An odd tile out spans the row, so the grid always ends square.
-          const wide = shown.length % 2 === 1 && i === shown.length - 1;
-          return (
-            <div key={t.label} className={`rounded-2xl bg-surface-elevated p-3.5 flex flex-col gap-2 min-w-0 min-h-[112px] ${wide ? 'col-span-2' : ''}`}>
-              <span className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${t.color}22` }}>
-                <Icon className="w-4 h-4" style={{ color: t.color }} />
-              </span>
-              <div className="min-w-0 mt-auto">
-                <p className="text-xl font-black text-white tabular-nums leading-tight truncate">{t.value}</p>
-                <p className="text-xs text-text-secondary truncate">{t.label}</p>
-                {t.sub && <p className="text-[11px] text-text-tertiary truncate">{t.sub}</p>}
-              </div>
-              {t.pct != null && (
-                <div className="h-1 rounded-full bg-black/30 overflow-hidden"><div className="h-full rounded-full" style={{ width: `${t.pct}%`, background: t.color }} /></div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {open && (
-        <div className="mt-4 space-y-3.5">
-          <div>
-            <p className="text-[10px] font-bold text-success uppercase tracking-wide mb-1.5">What went well</p>
-            <ul className="space-y-1.5">
-              {report.wins.map((w, i) => <li key={i} className="flex gap-2 text-sm text-white leading-snug"><Check className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />{w}</li>)}
-            </ul>
-          </div>
-          <div className="rounded-xl p-3 bg-accent-muted">
-            <p className="text-[10px] font-bold text-accent uppercase tracking-wide mb-1 flex items-center gap-1"><Wrench className="w-3 h-3" /> One thing to fix</p>
-            <p className="text-sm text-white leading-snug">{report.fix}</p>
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide mb-1.5">Targets this week</p>
-            <ul className="space-y-1.5">
-              {report.targets.map((t, i) => <li key={i} className="flex gap-2 text-sm text-white"><Target className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />{t}</li>)}
-            </ul>
-          </div>
-          {report.generatedBy === 'ai' && <p className="text-[11px] text-text-tertiary">Written by AI from your logged numbers. It can be wrong; your coach and your body know best.</p>}
-        </div>
-      )}
-
-      <button onClick={() => setOpen((v) => !v)} className="mt-3 w-full flex items-center justify-center gap-1 text-xs font-bold text-accent py-1.5">
-        {open ? 'Show less' : `All ${numTiles.length} numbers, wins, one fix and targets`}
-        <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
     </Card>
   );
 }
