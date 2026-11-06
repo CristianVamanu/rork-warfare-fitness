@@ -84,7 +84,7 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
     // design, also when the app is in light mode (wf-dark keeps text white).
     <div className="wf-dark -mx-[5px]">
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
-      <div className="relative -mx-[11px] -mt-[76px] h-[182px] overflow-hidden" style={{ background: '#0A0A0A' }}>
+      <div className="relative -mx-[11px] h-[182px] overflow-hidden" style={{ background: '#0A0A0A' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute top-0 h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px', maskImage: 'linear-gradient(90deg, transparent 0%, #000 40%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 40%)' }} />
         <div aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(90deg, #0A0A0A 18%, rgba(10,10,10,0) 55%)' }} />

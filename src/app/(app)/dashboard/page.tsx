@@ -379,7 +379,7 @@ export default function DashboardPage() {
     <div className="relative">
       <div className="relative">
       <Header overlay />
-      <div className="relative px-4 pt-[76px] pb-4 space-y-3.5">
+      <div className="relative px-4 pt-0 pb-4 space-y-3.5">
         {/* Top of Home: hero, readiness / weekly score, today's numbers,
             Nutrition / Hydration / Recovery, today's challenge and the streak. */}
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
