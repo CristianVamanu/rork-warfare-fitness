@@ -85,7 +85,7 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
       <div className="relative -mx-[11px] -mt-[76px] h-[182px] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute -top-[30px] h-[262px] w-auto max-w-none object-cover" style={{ right: '-28px' }} />
+        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute top-[22px] h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px' }} />
         <div aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(90deg, #0A0A0A 18%, rgba(10,10,10,0) 55%)' }} />
         <div aria-hidden className="absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0), var(--background))' }} />
         <div className="absolute left-[24px] top-[80px]">
