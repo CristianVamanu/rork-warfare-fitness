@@ -21,7 +21,7 @@ const TTL = 5 * 60_000;
 // The last banner is also kept on the device, so a cold start (opening the
 // app) draws it straight away instead of popping in after the Firestore
 // read. It is refreshed in the background and dropped once its end passes.
-type Banner = Pick<Challenge, 'id' | 'title'> & { endMs: number | null };
+export type Banner = Pick<Challenge, 'id' | 'title'> & { endMs: number | null };
 const STORE = 'wf-home-challenge';
 function readStored(): Banner | null {
   try {
@@ -41,9 +41,8 @@ function weekDates(now = new Date()) {
   return Array.from({ length: 7 }, (_, i) => new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset + i));
 }
 
-export function HomeHero({ name, photoURL, greeting, badges }: {
-  name: string; photoURL?: string | null; greeting: string; badges?: React.ReactNode;
-}) {
+/** The live challenge featured on Home: drawn from the last known one at once, refreshed in the background. */
+export function useHomeChallenge(): Banner | null {
   const [challenge, setChallenge] = useState<Banner | null>(cached?.c ?? null);
   useEffect(() => {
     if (cached && Date.now() - cached.at < TTL) return;
@@ -60,6 +59,13 @@ export function HomeHero({ name, photoURL, greeting, badges }: {
       .catch(() => { /* no banner */ });
     return () => { alive = false; };
   }, []);
+  return challenge;
+}
+
+export function HomeHero({ name, photoURL, greeting, badges }: {
+  name: string; photoURL?: string | null; greeting: string; badges?: React.ReactNode;
+}) {
+  const challenge = useHomeChallenge();
 
   const today = new Date();
   const days = weekDates(today);

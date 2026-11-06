@@ -23,7 +23,7 @@ import { useNextProgram } from '@/lib/useNextProgram';
 import { ProgramCompleteCard } from '@/components/training/ProgramCompleteCard';
 import { Card } from '@/components/ui/Card';
 import { HealthCard } from '@/components/dashboard/HealthCard';
-import { HomeHero } from '@/components/dashboard/HomeHero';
+import { HomeCommand } from '@/components/dashboard/HomeCommand';
 import { WeeklyReportCard } from '@/components/dashboard/WeeklyReportCard';
 import { precachePage } from '@/lib/offlinePages';
 import { updateWidget } from '@/lib/native/widget';
@@ -396,171 +396,21 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Greeting, live challenge banner and the week strip */}
+        {/* Top of Home: hero, readiness / weekly score, today's numbers,
+            Nutrition / Hydration / Recovery, today's challenge and the streak. */}
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
-          <HomeHero
+          <HomeCommand
             name={firstName}
-            photoURL={profile?.photoURL}
-            greeting={greeting}
-            badges={(
-              <div className="flex items-center gap-1.5 flex-wrap -mt-1">
-                {streak > 0 && <Badge variant="muted">🔥 {streak} day streak</Badge>}
-                <Badge variant="muted"><span className={tier.color}>⚡</span> Lvl {powerLevel} · {tier.title}</Badge>
-              </div>
-            )}
+            kcal={Math.round(calories ?? 0)}
+            kcalGoal={goals.calories}
+            waterMl={waterMl ?? 0}
+            waterGoalMl={goals.water}
+            workouts={totalWorkouts}
+            streak={streak}
+            sessionsThisWeek={sessionsThisWeek}
+            daysPerWeek={programSource?.daysPerWeek ?? 0}
+            startHref={activeProgram?.programId && !isRestToday ? `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}` : '/training'}
           />
-        </motion.div>
-
-        {/* Bento Grid — the glanceable stuff, sized by how much it matters */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 auto-rows-[86px] gap-3">
-
-          {/* Streak — hero tile, flame centered behind the number */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-2">
-            <Card className="p-4 h-full flex flex-col bg-gradient-to-br from-surface-elevated to-surface relative overflow-hidden card-float">
-              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide relative">Streak</span>
-
-              <div className="flex-1 flex items-center justify-center relative">
-                {igniting && (
-                  <div
-                    className="ignite-flash absolute w-36 h-36 rounded-full pointer-events-none"
-                    style={{ background: 'radial-gradient(circle, rgba(255,214,140,0.9) 0%, rgba(245,166,35,0) 70%)' }}
-                  />
-                )}
-                {(() => {
-                  const cfg = {
-                    blazing:    { glow: 'rgba(245,166,35,0.55)', size: 104, opacity: 0.25, anim: 'flame-glow flame-flicker',      gray: false },
-                    flickering: { glow: 'rgba(245,166,35,0.35)', size: 76,  opacity: 0.22, anim: 'flame-glow flame-flicker-weak', gray: false },
-                    out:        { glow: 'rgba(120,113,108,0.4)', size: 60,  opacity: 0.20, anim: 'ember-pulse',                   gray: true },
-                    unlit:      { glow: 'rgba(120,113,108,0.4)', size: 56,  opacity: 0.18, anim: 'ember-pulse',                   gray: true },
-                  }[flameState];
-                  return (
-                    <>
-                      <div
-                        className="absolute rounded-full pointer-events-none"
-                        style={{ width: cfg.size * 1.3, height: cfg.size * 1.3, background: `radial-gradient(circle, ${cfg.glow} 0%, rgba(0,0,0,0) 70%)` }}
-                      />
-                      <span
-                        key={igniting ? 'igniting' : 'settled'}
-                        className={`${igniting ? 'flame-ignite' : cfg.anim} absolute leading-none pointer-events-none select-none`}
-                        style={{ fontSize: cfg.size, opacity: igniting ? 1 : cfg.opacity, filter: !igniting && cfg.gray ? 'grayscale(0.75) brightness(0.85)' : undefined }}
-                      >
-                        🔥
-                      </span>
-                    </>
-                  );
-                })()}
-                <p className="text-4xl font-black text-white leading-none relative drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
-                  {streak}<span className="text-lg font-bold text-text-secondary ml-0.5">d</span>
-                </p>
-              </div>
-
-              {igniting ? (
-                <p className="text-[9px] text-center text-accent font-bold mb-1.5 relative">
-                  Your flame is lit 🔥
-                </p>
-              ) : (
-                <p className="text-[9px] text-center text-amber-400/80 font-medium mb-1.5 relative">
-                  {streakCaption(streakView)}
-                </p>
-              )}
-
-              {/* One bar per training day the program asks for in a week,
-                  filled by how many sessions were actually logged.
-
-                  It had no label at all, so it was a row of dashes nobody
-                  could interpret — and the count changed with the program
-                  (three for a 3-day plan, six for a 6-day one), which just
-                  made it look arbitrary. It says what it is now.
-
-                  Filled from sessionsThisWeek — the position inside the
-                  CURRENT program's week. It used to be a rolling seven-day
-                  count across every program, which lit all six bars on day
-                  one of a fresh 6-day plan because the previous program's
-                  sessions were still inside the window.
-
-                  Reads programSource, not activeMock — getMockProgram
-                  returns null for anything an admin created, so on those
-                  programs (which is most of them) the bars simply vanished. */}
-              {programSource?.daysPerWeek ? (
-                <div className="relative w-full">
-                  <div className="flex items-baseline justify-between mb-1">
-                    <span className="text-[8px] font-bold uppercase tracking-[0.12em] text-text-tertiary">This week</span>
-                    <span className="text-[8px] font-bold text-text-tertiary tabular-nums">
-                      {sessionsThisWeek}/{programSource.daysPerWeek}
-                    </span>
-                  </div>
-                  <div className="flex gap-1">
-                    {Array.from({ length: programSource.daysPerWeek }).map((_, i) => (
-                      <div
-                        key={i}
-                        className={`flex-1 h-1.5 rounded-full ${i < sessionsThisWeek ? 'bg-accent' : 'bg-white/8'}`}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </Card>
-          </motion.div>
-
-          {/* Calories */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Card className="p-3.5 h-full flex flex-col justify-between">
-              {loading && calories === null ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <>
-                  <div className="flex items-center gap-1.5">
-                    <Flame className="w-3.5 h-3.5 text-orange-400" />
-                    <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Calories</span>
-                  </div>
-                  <p className="text-lg font-black text-white">
-                    {calories ?? 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.calories}</span>
-                  </p>
-                  <ProgressBar value={calories ?? 0} max={goals.calories} color="danger" size="sm" />
-                </>
-              )}
-            </Card>
-          </motion.div>
-
-          {/* Water */}
-          <motion.div variants={stagger.item} className="col-span-2 row-span-1">
-            <Card className="p-3.5 h-full flex flex-col justify-between">
-              {loading && waterMl === null ? (
-                <Skeleton className="h-10 w-full" />
-              ) : (
-                <>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Droplets className="w-3.5 h-3.5 text-blue-400" />
-                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Water</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={handleRemoveWater}
-                        disabled={adjustingWater || !waterMl}
-                        aria-label="Remove 250ml"
-                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={handleAddWater}
-                        disabled={adjustingWater}
-                        aria-label="Add 250ml"
-                        className="w-7 h-7 rounded-full bg-blue-400/10 text-blue-400 flex items-center justify-center disabled:opacity-30 active:scale-90 transition-transform"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                  <p className="text-lg font-black text-white">
-                    {waterMl ? +(waterMl / 1000).toFixed(2) : 0}<span className="text-xs font-medium text-text-secondary ml-1">/{goals.water / 1000}L</span>
-                  </p>
-                  <ProgressBar value={waterMl ?? 0} max={goals.water} color="info" size="sm" />
-                </>
-              )}
-            </Card>
-          </motion.div>
         </motion.div>
 
         {/* Watch data, in the same card style as the tiles above. Native apps
