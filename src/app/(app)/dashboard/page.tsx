@@ -380,22 +380,6 @@ export default function DashboardPage() {
       <div className="relative">
       <Header overlay />
       <div className="relative px-4 pt-[76px] pb-4 space-y-3.5">
-        {/* Browser-only: disappears once opened from the home screen. */}
-        <InstallAppStrip />
-        {/* Streak Urgency Banner */}
-        {streakAtRisk && (
-          <div className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl wf-rise">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-white">🔥 {streak}-day streak at risk!</p>
-              <p className="text-xs text-amber-400/80">Train today to keep your streak alive.</p>
-            </div>
-            <Link href="/training">
-              <Button size="sm" variant="ghost" className="text-amber-400 border-amber-400/30">Train</Button>
-            </Link>
-          </div>
-        )}
-
         {/* Top of Home: hero, readiness / weekly score, today's numbers,
             Nutrition / Hydration / Recovery, today's challenge and the streak. */}
         <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
@@ -415,6 +399,23 @@ export default function DashboardPage() {
             startHref={activeProgram?.programId && !isRestToday ? `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}` : '/training'}
           />
         </motion.div>
+
+        {/* Browser-only: disappears once opened from the home screen. */}
+        <InstallAppStrip />
+        {/* Streak Urgency Banner */}
+        {streakAtRisk && (
+          <div className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl wf-rise">
+            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-bold text-white">🔥 {streak}-day streak at risk!</p>
+              <p className="text-xs text-amber-400/80">Train today to keep your streak alive.</p>
+            </div>
+            <Link href="/training">
+              <Button size="sm" variant="ghost" className="text-amber-400 border-amber-400/30">Train</Button>
+            </Link>
+          </div>
+        )}
+
 
         {/* Watch data, in the same card style as the tiles above. Native apps
             only; null on the web. */}
