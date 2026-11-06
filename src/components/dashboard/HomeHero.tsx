@@ -16,8 +16,23 @@ import type { Challenge } from '@/types';
 
 // The banner only changes when an admin flips it, so one read per five
 // minutes is plenty; returning to Home must not wait on Firestore again.
-let cached: { at: number; c: Challenge | null } | null = null;
+let cached: { at: number; c: Banner | null } | null = null;
 const TTL = 5 * 60_000;
+// The last banner is also kept on the device, so a cold start (opening the
+// app) draws it straight away instead of popping in after the Firestore
+// read. It is refreshed in the background and dropped once its end passes.
+type Banner = Pick<Challenge, 'id' | 'title'> & { endMs: number | null };
+const STORE = 'wf-home-challenge';
+function readStored(): Banner | null {
+  try {
+    const b = JSON.parse(localStorage.getItem(STORE) || 'null') as Banner | null;
+    return b && b.id && (!b.endMs || b.endMs > Date.now()) ? b : null;
+  } catch { return null; }
+}
+const toMs = (v: unknown): number | null => {
+  const d = v && typeof (v as { toDate?: () => Date }).toDate === 'function' ? (v as { toDate: () => Date }).toDate() : v ? new Date(v as string) : null;
+  return d && !isNaN(d.getTime()) ? d.getTime() : null;
+};
 
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -29,14 +44,17 @@ function weekDates(now = new Date()) {
 export function HomeHero({ name, photoURL, greeting, badges }: {
   name: string; photoURL?: string | null; greeting: string; badges?: React.ReactNode;
 }) {
-  const [challenge, setChallenge] = useState<Challenge | null>(cached?.c ?? null);
+  const [challenge, setChallenge] = useState<Banner | null>(cached?.c ?? null);
   useEffect(() => {
     if (cached && Date.now() - cached.at < TTL) return;
+    if (!cached) { const b = readStored(); if (b) setChallenge(b); }
     let alive = true;
     getChallenges()
       .then((list) => {
-        const c = list.find((x) => x.featuredOnHome && bucket(x) === 'live') ?? null;
+        const live = list.find((x) => x.featuredOnHome && bucket(x) === 'live');
+        const c: Banner | null = live ? { id: live.id, title: live.title, endMs: toMs(live.endsAt) } : null;
         cached = { at: Date.now(), c };
+        try { if (c) localStorage.setItem(STORE, JSON.stringify(c)); else localStorage.removeItem(STORE); } catch { /* storage blocked */ }
         if (alive) setChallenge(c);
       })
       .catch(() => { /* no banner */ });
