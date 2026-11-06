@@ -550,7 +550,6 @@ function BuilderInner() {
       }
       const marker = raw.indexOf('__RESULT__');
       const payload = marker === -1 ? raw : raw.slice(marker + '__RESULT__'.length);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let data: { program?: any; error?: string };
       try {
         data = JSON.parse(payload);
@@ -561,7 +560,6 @@ function BuilderInner() {
       if (!data.program) throw new Error('No program returned');
 
       const p = data.program;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const rawPhases: any[] = Array.isArray(p.phases) ? p.phases : [];
 
       // Collect exercise names across every phase's schedule (or the flat

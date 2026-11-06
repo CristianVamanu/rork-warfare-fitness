@@ -5646,7 +5646,7 @@ function AdminPageInner() {
             </div>
             <div>
               <label className="text-xs text-text-secondary mb-1 block">Demo Video (optional)</label>
-              <p className="text-[11px] text-text-tertiary mb-2">A short walkthrough of the app. Adds a "Watch Demo" link near the hero CTA that opens it in a lightbox — visitors who want proof before signing up can see the product working without leaving the page.</p>
+              <p className="text-[11px] text-text-tertiary mb-2">A short walkthrough of the app. Adds a &quot;Watch Demo&quot; link near the hero CTA that opens it in a lightbox — visitors who want proof before signing up can see the product working without leaving the page.</p>
               <div className="flex items-center gap-3">
                 {landingForm.heroDemoVideoUrl && (
                   <video src={landingForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" onError={() => toast.error('Demo video URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-hero-demo-video', duration: 6000 })} />
@@ -5982,7 +5982,7 @@ function AdminPageInner() {
               <Rocket className="w-4 h-4 text-accent" /> B2B Landing Page (/trainers)
             </h2>
             <p className="text-xs text-text-secondary">
-              A separate landing page pitching the white-label offer to trainers/gym owners — linked from the main site's nav as &quot;For Trainers&quot;.
+              A separate landing page pitching the white-label offer to trainers/gym owners — linked from the main site&apos;s nav as &quot;For Trainers&quot;.
             </p>
 
             <div>
@@ -6002,7 +6002,7 @@ function AdminPageInner() {
             </div>
 
             <div>
-              <label className="text-xs text-text-secondary mb-1 block">Hero Demo Video (optional — shown as a "Watch Demo" player instead of the static image)</label>
+              <label className="text-xs text-text-secondary mb-1 block">Hero Demo Video (optional — shown as a &quot;Watch Demo&quot; player instead of the static image)</label>
               <div className="flex items-center gap-3">
                 {b2bForm.heroDemoVideoUrl && (
                   <video src={b2bForm.heroDemoVideoUrl} className="w-24 h-16 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" muted crossOrigin="anonymous" onError={() => toast.error('B2B demo video URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-b2b-hero-demo-video', duration: 6000 })} />

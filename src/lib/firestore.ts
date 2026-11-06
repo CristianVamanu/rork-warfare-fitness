@@ -979,7 +979,6 @@ export function invalidateProgramsCache() {
 
 /** The browse list: public programs, by name. Shared with peekProgramList callers. */
 export function selectPublicPrograms(all: Record<string, unknown>[], trainerId?: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const list = all as any[];
   if (trainerId) {
     return list.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -992,9 +991,7 @@ export function selectPublicPrograms(all: Record<string, unknown>[], trainerId?:
 /** A member's own "Build Your Own" programs, newest first. */
 export function selectCustomPrograms(all: Record<string, unknown>[], uid: string) {
   return all
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .filter((p: any) => p.ownerId === uid)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .sort((a: any, b: any) => (b.createdAt?.seconds ?? 0) - (a.createdAt?.seconds ?? 0));
 }
 
@@ -1300,7 +1297,6 @@ export async function enrollInProgram(
   // of dotted field paths (some deleteField() sentinels, some plain
   // values) — this is the same shape of update every other dotted-path
   // write in this file does inline, just built up conditionally first.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   await updateDoc(userRef, updates as any);
 }
 
@@ -2613,7 +2609,6 @@ export async function createChannel(data: Omit<Channel, 'id' | 'postCount' | 'cr
 }
 
 export async function updateChannel(id: string, data: Partial<Channel>) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const clean: Record<string, any> = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
   await updateDoc(doc(db, 'channels', id), clean);
   invalidateChannelsCache();

@@ -349,7 +349,6 @@ export async function POST(req: NextRequest) {
       // Kept low deliberately: this shares a box with live traffic, and the
       // OpenAI calls inside are rate-limited upstream.
       await mapWithConcurrency(page, 6, async (user) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const u = user as any;
 
       // Abandoned checkout — runs every hour for everyone, ahead of the 8am

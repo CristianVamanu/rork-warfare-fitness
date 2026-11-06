@@ -175,9 +175,9 @@ export default function ScanAndGoPage() {
               <div className="w-14 h-14 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto mb-3">
                 <Camera className="w-7 h-7 text-accent" />
               </div>
-              <h1 className="text-lg font-black text-white mb-1.5">Scan what you've got</h1>
+              <h1 className="text-lg font-black text-white mb-1.5">Scan what you&apos;ve got</h1>
               <p className="text-sm text-text-secondary leading-relaxed">
-                Take up to {MAX_PHOTOS} photos of the equipment around you — a hotel gym, a friend's setup, whatever's in front of you — and get a single workout built around exactly what's there. No commitment beyond today.
+                Take up to {MAX_PHOTOS} photos of the equipment around you — a hotel gym, a friend&apos;s setup, whatever&apos;s in front of you — and get a single workout built around exactly what&apos;s there. No commitment beyond today.
               </p>
               {remaining !== null && (
                 <p className={`text-xs font-semibold mt-3 ${remaining === 0 ? 'text-red-400' : 'text-text-tertiary'}`}>
@@ -247,7 +247,7 @@ export default function ScanAndGoPage() {
             </Card>
 
             <Card className="p-5">
-              <p className="text-sm font-bold text-white mb-3">Today's Workout</p>
+              <p className="text-sm font-bold text-white mb-3">Today&apos;s Workout</p>
               <div className="space-y-3">
                 {result.exercises.map((ex, i) => (
                   <div key={ex.id} className="flex items-start gap-3">

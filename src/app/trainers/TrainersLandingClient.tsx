@@ -372,7 +372,7 @@ function DemoRequestModal({ open, onClose }: { open: boolean; onClose: () => voi
     <Modal open={open} onClose={handleClose} title={submitted ? "You're on the list!" : 'Book a Demo'}>
       {submitted ? (
         <div className="text-center py-4">
-          <p className="text-sm text-text-secondary">Thanks — we'll reach out to {email} shortly to schedule your demo.</p>
+          <p className="text-sm text-text-secondary">Thanks — we&apos;ll reach out to {email} shortly to schedule your demo.</p>
           <Button fullWidth className="mt-5" onClick={handleClose}>Done</Button>
         </div>
       ) : (

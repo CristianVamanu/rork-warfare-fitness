@@ -73,7 +73,6 @@ RULES:
 - Do NOT reuse an earlier phase's schedule verbatim with only the label changed — vary exercise selection meaningfully while respecting the phase's focus.`;
 
 type PlanPhase = { label?: string; startWeek?: number; endWeek?: number; focus?: string };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BDay = any;
 
 export async function POST(req: NextRequest) {
@@ -163,7 +162,6 @@ export async function POST(req: NextRequest) {
           // is exactly what PLAN_TRUNCATED was in the logs.
           const planRaw = await withTruncationRetry('PLAN', (brief) =>
             complete(PLAN_SYSTEM_PROMPT, prompt + docContext, 4000, brief));
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const plan: any = parseLooseJson(planRaw);
           const daysPerWeek = Number(plan.daysPerWeek) || 4;
           const planPhases: PlanPhase[] = Array.isArray(plan.phases) && plan.phases.length > 0
@@ -184,7 +182,6 @@ export async function POST(req: NextRequest) {
             // precisely the ones worth generating.
             const phaseRaw = await withTruncationRetry('PHASE', (brief) =>
               complete(phaseSystemPrompt(daysPerWeek), userMsg, 6000, brief));
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const phaseData: any = parseLooseJson(phaseRaw);
             phaseSchedules.push(fixSchedule(phaseData.schedule));
           }
@@ -206,7 +203,6 @@ export async function POST(req: NextRequest) {
             targetGender: plan.targetGender,
             weeks,
             daysPerWeek: actualDaysPerWeek,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             phases: planPhases.map((p, i) => ({
               id: `ai-ph${i + 1}`,
               label: p.label || `Phase ${i + 1}`,

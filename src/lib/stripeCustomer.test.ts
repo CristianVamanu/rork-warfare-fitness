@@ -64,7 +64,6 @@ beforeEach(() => {
   stripe = stripeStub();
 });
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const run = (uid = UID) => getOrCreateStripeCustomer({ db: db as any, stripe: stripe as any, uid, email: 'a@b.c' });
 
 describe('getOrCreateStripeCustomer', () => {

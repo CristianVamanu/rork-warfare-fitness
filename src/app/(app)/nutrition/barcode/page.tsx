@@ -50,9 +50,7 @@ export default function BarcodePage() {
   const { user } = useAuth();
   const { tasteAvailable } = useFeatureAccess('barcode');
   const videoRef = useRef<HTMLVideoElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const readerRef = useRef<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null); // IScannerControls — .stop() actually releases the camera stream
   const scannedRef = useRef(false); // debounce: prevent multiple triggers
   // Last decoded candidate and how many consecutive frames agreed on it.

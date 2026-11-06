@@ -148,7 +148,7 @@ export default function InstallPage() {
             <span className="text-2xl font-black text-black">W</span>
           </div>
           <h1 className="text-2xl font-black text-white">Setup Wizard</h1>
-          <p className="text-text-secondary text-sm mt-1">Let's get Warfare Fitness ready</p>
+          <p className="text-text-secondary text-sm mt-1">Let&apos;s get Warfare Fitness ready</p>
         </div>
 
         {/* Step indicators */}
@@ -187,7 +187,7 @@ export default function InstallPage() {
                   Welcome to Warfare Fitness
                 </h2>
                 <p className="text-text-secondary text-sm mb-6">
-                  This setup wizard will configure your premium fitness platform. You'll need:
+                  This setup wizard will configure your premium fitness platform. You&apos;ll need:
                 </p>
                 <div className="space-y-3 mb-6">
                   {[

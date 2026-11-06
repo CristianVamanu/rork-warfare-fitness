@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const update: Record<string, any> = {};
   let changeDescription = '';
   if (touchesEnabled) {

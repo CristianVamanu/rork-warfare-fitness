@@ -609,7 +609,7 @@ export default function SettingsPage() {
       <Modal open={deleteAccountModal} onClose={() => { setDeleteAccountModal(false); setDeleteConfirmText(''); }} title="Delete Your Account?">
         <div className="space-y-4">
           <p className="text-sm text-text-secondary">
-            This permanently deletes your account, every workout, meal, weight entry, message, and photo you've logged, and cannot be undone.
+            This permanently deletes your account, every workout, meal, weight entry, message, and photo you&apos;ve logged, and cannot be undone.
           </p>
           <div>
             <label className="text-xs text-text-secondary mb-1.5 block">Type <span className="font-bold text-white">DELETE</span> to confirm</label>
