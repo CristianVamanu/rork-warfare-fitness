@@ -443,23 +443,24 @@ export async function addDaysWithoutGoal(userId: string, label: string): Promise
   });
 }
 
-export async function resetDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const userRef = doc(db, 'users', userId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(userRef);
-    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-    const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
-    tx.update(userRef, { daysWithoutGoals: updated });
-  });
+// Plain writes, not transactions: a transaction waits on the server and
+// could hang on a weak connection ("spins and nothing happens"). A plain
+// write lands in the local cache at once (the live profile updates the card
+// immediately) and syncs when it can. `current` is the live list the caller
+// already shows; a 10 s cap turns a stuck write into an error, not a spinner.
+function withTimeout<T>(p: Promise<T>, ms = 10_000): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error('Timed out')), ms))]);
 }
 
-export async function deleteDaysWithoutGoal(userId: string, goalId: string): Promise<void> {
-  const userRef = doc(db, 'users', userId);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(userRef);
-    const goals = (snap.data()?.daysWithoutGoals as DaysWithoutGoal[]) ?? [];
-    tx.update(userRef, { daysWithoutGoals: goals.filter((g) => g.id !== goalId) });
-  });
+export async function resetDaysWithoutGoal(userId: string, goalId: string, current?: DaysWithoutGoal[]): Promise<void> {
+  const goals = current ?? ((await getDoc(doc(db, 'users', userId))).data()?.daysWithoutGoals as DaysWithoutGoal[] ?? []);
+  const updated = goals.map((g) => g.id === goalId ? { ...g, startedAt: Timestamp.now() } : g);
+  await withTimeout(updateDoc(doc(db, 'users', userId), { daysWithoutGoals: updated }));
+}
+
+export async function deleteDaysWithoutGoal(userId: string, goalId: string, current?: DaysWithoutGoal[]): Promise<void> {
+  const goals = current ?? ((await getDoc(doc(db, 'users', userId))).data()?.daysWithoutGoals as DaysWithoutGoal[] ?? []);
+  await withTimeout(updateDoc(doc(db, 'users', userId), { daysWithoutGoals: goals.filter((g) => g.id !== goalId) }));
 }
 
 export const DEFAULT_USER_GOALS: UserGoals = {

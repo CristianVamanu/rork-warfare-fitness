@@ -63,31 +63,22 @@ export function DaysWithoutWidget() {
     }
   };
 
-  const handleReset = async () => {
+  // Close at once: the write lands in the local cache straight away (the
+  // card updates from the live profile) and syncs in the background. Only a
+  // real failure surfaces, as a toast.
+  const handleReset = () => {
     if (!user || !detailGoal) return;
-    setBusy(true);
-    try {
-      await resetDaysWithoutGoal(user.uid, detailGoal.id);
-      setDetailGoal(null);
-      toast.success('Timer reset — you got this');
-    } catch {
-      toast.error('Failed to reset');
-    } finally {
-      setBusy(false);
-    }
+    const id = detailGoal.id;
+    setDetailGoal(null);
+    toast.success('Timer reset — you got this');
+    resetDaysWithoutGoal(user.uid, id, goals).catch(() => toast.error('Could not reset. Check your connection and try again.'));
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!user || !detailGoal) return;
-    setBusy(true);
-    try {
-      await deleteDaysWithoutGoal(user.uid, detailGoal.id);
-      setDetailGoal(null);
-    } catch {
-      toast.error('Failed to delete');
-    } finally {
-      setBusy(false);
-    }
+    const id = detailGoal.id;
+    setDetailGoal(null);
+    deleteDaysWithoutGoal(user.uid, id, goals).catch(() => toast.error('Could not delete. Check your connection and try again.'));
   };
 
   return (
