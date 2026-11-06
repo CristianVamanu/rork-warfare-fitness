@@ -132,26 +132,26 @@ export function DaysWithoutWidget() {
 
       <Modal open={addModal} onClose={() => setAddModal(false)} title="Start a New Goal">
         <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2.5">
             {PRESET_GOALS.map((p) => (
               <button
                 key={p}
                 onClick={() => handleAdd(p)}
                 disabled={adding}
-                className="px-4 py-2.5 rounded-full wf-glow text-[13px] font-semibold text-white active:scale-95 transition-transform"
+                className="w-full px-3 py-3 rounded-full wf-glow text-[13px] font-semibold text-white text-center truncate active:scale-95 transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 last:odd:col-span-2"
               >
                 {p}
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <Input
+          <div className="flex items-center gap-2.5">
+            <div className="flex-1 min-w-0"><Input
               value={customGoal}
               onChange={(e) => setCustomGoal(e.target.value)}
               placeholder="Custom goal (a few words)"
               maxLength={40}
               className="!rounded-full !px-5 wf-glow"
-            />
+            /></div>
             <Button disabled={!customGoal.trim()} loading={adding} onClick={() => handleAdd(customGoal)} className="!rounded-full !px-7 wf-cta">
               Add
             </Button>
