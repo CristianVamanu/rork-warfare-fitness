@@ -56,15 +56,11 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
             <h1 className="text-lg font-bold text-foreground">{title}</h1>
           </div>
         ) : (
-          <div className="flex items-center gap-2">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center overflow-hidden ${logoUrl && !logoErrored ? '' : 'bg-accent'}`}>
-              {logoUrl && !logoErrored ? (
-                <Image src={logoUrl} alt="Logo" width={40} height={40} className="w-full h-full object-cover" onError={() => setLogoErrored(true)} />
-              ) : (
-                <span className="text-sm font-black" style={{ color: 'var(--btn-primary-text)' }}>W</span>
-              )}
-            </div>
-            <span className="text-sm font-bold text-foreground whitespace-nowrap">{appName}</span>
+          <div className="flex items-center">
+            {/* The Warfare Fitness wordmark (W mark + name). Its black backing
+                blends away on the dark header. */}
+            <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={165} height={38} priority
+              className="h-[34px] w-auto" style={{ mixBlendMode: 'lighten' }} />
           </div>
         )}
 

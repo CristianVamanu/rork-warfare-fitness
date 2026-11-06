@@ -33,13 +33,13 @@
   --input-placeholder: rgba(255, 255, 255, 0.33);
   --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --scrollbar-hover: rgba(255, 255, 255, 0.25);
-  --card-glass-bg: rgba(22, 20, 18, 0.62);
-  --card-glass-border: rgba(255, 214, 160, 0.12);
-  /* Glass cards: lift, a hairline highlight on top and a faint amber halo. */
-  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 22px rgba(245, 166, 35, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* Every card: dark, a thin warm edge and a small amber glow under it. */
+  --card-glass-bg: rgba(18, 15, 12, 0.92);
+  --card-glass-border: rgba(245, 166, 35, 0.22);
+  --card-shadow: 0 8px 16px -12px rgba(245, 140, 20, 0.7), inset 0 -1px 0 rgba(255, 150, 40, 0.45);
   /* Buttons and tiles that should glow (View/Switch, tools, nav). */
-  --glow-border: rgba(245, 166, 35, 0.32);
-  --glow-shadow: 0 0 18px rgba(245, 166, 35, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --glow-border: rgba(245, 166, 35, 0.3);
+  --glow-shadow: 0 8px 14px -12px rgba(245, 140, 20, 0.75), inset 0 -1px 0 rgba(255, 150, 40, 0.5);
   --skeleton-bg: rgba(255, 255, 255, 0.08);
   --nav-bg: rgba(16, 14, 12, 0.82);
   --header-bg: rgba(10, 10, 10, 0.85);
