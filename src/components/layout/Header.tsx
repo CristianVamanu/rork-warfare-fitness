@@ -59,10 +59,9 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
           </div>
         ) : (
           <div className="flex items-center">
-            {/* The Warfare Fitness wordmark (W mark + name). Its black backing
-                blends away on the dark header. */}
-            <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={165} height={38} priority
-              className={overlay ? 'h-[28px] w-auto' : 'h-[34px] w-auto'} style={{ mixBlendMode: 'lighten' }} />
+            {/* The Warfare Fitness wordmark (W mark + name), transparent PNG/WebP. */}
+            <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={740} height={125} priority
+              className={overlay ? 'h-[25px] w-auto' : 'h-[28px] w-auto'} />
           </div>
         )}
 
