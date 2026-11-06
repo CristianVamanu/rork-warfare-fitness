@@ -1629,7 +1629,7 @@ function subscribeTodayEventsTotal(
     compoundQ,
     (snap) => {
       const total = snap.docs.reduce(
-        (sum, d) => sum + (((d.data().payload) as Record<string, number>)?.[sumField] ?? 0),
+        (sum, d) => sum + (Number(((d.data().payload) as Record<string, unknown>)?.[sumField]) || 0),
         0,
       );
       onUpdate(total);
@@ -1647,7 +1647,7 @@ function subscribeTodayEventsTotal(
           if (data.type !== eventType) return sum;
           const ts = data.createdAt as Timestamp | null;
           if (!ts || ts.toMillis() < todayTs.toMillis()) return sum;
-          return sum + ((data.payload as Record<string, number>)?.[sumField] ?? 0);
+          return sum + (Number((data.payload as Record<string, unknown>)?.[sumField]) || 0);
         }, 0);
         onUpdate(total);
       }, (fallbackErr) => console.error(`[Firestore] subscribeTodayEventsTotal(${eventType}) fallback error:`, fallbackErr));

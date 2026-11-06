@@ -147,14 +147,14 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   // Calories logged today
   const mealSnap = await queryEvents('MEAL_LOGGED', todayTs);
   const caloriesToday = mealSnap.docs.reduce(
-    (sum, d) => sum + (((d.data().payload) as Record<string, number>).calories ?? 0),
+    (sum, d) => sum + (Number(((d.data().payload) as Record<string, unknown>).calories) || 0),
     0
   );
 
   // Water logged today (ml)
   const waterSnap = await queryEvents('WATER_LOGGED', todayTs);
   const waterToday = waterSnap.docs.reduce(
-    (sum, d) => sum + (((d.data().payload) as Record<string, number>).amountMl ?? 0),
+    (sum, d) => sum + (Number(((d.data().payload) as Record<string, unknown>).amountMl) || 0),
     0
   );
 
