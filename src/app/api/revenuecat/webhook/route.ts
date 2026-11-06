@@ -7,7 +7,7 @@
  *   Authorization  the value of REVENUECAT_WEBHOOK_AUTH
  * Env:
  *   REVENUECAT_WEBHOOK_AUTH  shared secret sent in the Authorization header
- *   REVENUECAT_ENTITLEMENT   entitlement id that means "member" (default: premium)
+ *   REVENUECAT_ENTITLEMENT   entitlement id that means "member" (default: warfare_fitness_pro)
  *   REVENUECAT_PLAN_ID       membership plan id to record, so plan-based feature access matches
  */
 import { NextRequest, NextResponse } from 'next/server';
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   const event = body.event;
   if (!event) return NextResponse.json({ error: 'no event' }, { status: 400 });
 
-  const change = membershipChangeFor(event, process.env.REVENUECAT_ENTITLEMENT || 'premium');
+  const change = membershipChangeFor(event, process.env.REVENUECAT_ENTITLEMENT || 'warfare_fitness_pro');
   if (change.kind === 'ignore') return NextResponse.json({ ok: true, ignored: change.reason });
 
   const app = getAdminApp();
