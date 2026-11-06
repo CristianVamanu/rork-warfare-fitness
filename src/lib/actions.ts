@@ -18,7 +18,7 @@ import {
 import type { DistanceUnit } from '@/lib/distance';
 import { lbsToKg } from '@/lib/utils';
 import { auth, db } from './firebase';
-import { createEvent } from './events';
+import { createEvent, STREAK_REST_DAYS } from './events';
 import { incrementProgramWorkouts, updateUserGoals, postCommunityActivity, invalidateWorkoutsCache } from './firestore';
 import { calcWorkoutXP, xpToPowerLevel } from './xp';
 import { estimateNutritionTargets, nutritionInputsFromProfile } from './tdee';
@@ -164,7 +164,9 @@ export async function completeWorkout(
   // what already happened: the event if it exists, and the XP step if the
   // user doc records this event id as already awarded (lastXpEventId).
   let eventExists = false;
-  if (opts.eventId) {
+  // Only an outbox re-upload (it carries completedAt) can find its event
+  // already written; a fresh save's id is brand new, so skip the round trip.
+  if (opts.eventId && opts.completedAt) {
     const existing = await getDocFromServer(doc(db, 'events', opts.eventId)).catch(() => null);
     eventExists = !!existing?.exists();
   }
@@ -219,7 +221,6 @@ export async function completeWorkout(
     const workoutHour = now.getHours();
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
     const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD local
-    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString('sv-SE');
 
     let totalWorkouts = 0;
     let newStreak = 1;
@@ -249,10 +250,19 @@ export async function completeWorkout(
       prevTotalWeightLifted = prevStats?.totalWeightLifted ?? 0;
       totalMealsLogged = prevStats?.totalMealsLogged ?? 0;
 
+      // Same rule as computeStreak (lib/events): up to STREAK_REST_DAYS
+      // rest days between sessions keep the streak, a freeze covers one more.
+      // It only counted consecutive days, so a Mon/Wed/Fri lifter's streak
+      // read 1 here while Home showed 3, and streak achievements never fired.
+      const gapDays = lastWorkoutDate && /^\d{4}-\d{2}-\d{2}$/.test(lastWorkoutDate)
+        ? Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${lastWorkoutDate}T12:00:00Z`)) / 86400000)
+        : null;
+      const freeze = (data.streakFreeze as { available?: boolean } | undefined)?.available ?? true;
+      const maxGap = STREAK_REST_DAYS + 1 + (freeze ? 1 : 0);
       if (lastWorkoutDate === today) {
         newStreak = streak; // same day — streak unchanged
-      } else if (lastWorkoutDate === yesterday) {
-        newStreak = streak + 1; // consecutive day — extend streak
+      } else if (gapDays !== null && gapDays >= 1 && gapDays <= maxGap && streak > 0) {
+        newStreak = streak + 1; // within the rest-day allowance — extend streak
         streakAdvanced = true;
       } else {
         newStreak = 1; // gap or first workout — start at 1
