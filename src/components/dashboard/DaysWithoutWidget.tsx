@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ShieldOff, Plus, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
+import { ShieldOff, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
 import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -91,7 +91,7 @@ export function DaysWithoutWidget() {
 
   return (
     <>
-      <Card glass className="wf-art p-4 space-y-3 cursor-pointer active:scale-[.99] transition-transform" onClick={() => { if (goals.length === 0) setAddModal(true); }} style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
+      <Card glass className="wf-art p-4 space-y-3 cursor-pointer active:scale-[.99] transition-transform" onClick={() => setAddModal(true)} style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div>
@@ -99,14 +99,11 @@ export function DaysWithoutWidget() {
               <p className="text-[15px] font-extrabold text-white leading-tight">Habits you are quitting</p>
             </div>
           </div>
-          <button onClick={(e) => { e.stopPropagation(); setAddModal(true); }} aria-label="Add a habit" className="w-10 h-10 -m-1 rounded-full wf-round flex items-center justify-center">
-            <Plus className="w-4 h-4" />
-          </button>
         </div>
 
         {goals.length === 0 ? (
           <button onClick={() => setAddModal(true)} className="w-full text-left">
-            <p className="text-xs text-text-secondary">Track a habit you&apos;re quitting — tap + to add one.</p>
+            <p className="text-xs text-text-secondary">Track a habit you&apos;re quitting. Tap to add one.</p>
           </button>
         ) : (
           <div className="space-y-2">
