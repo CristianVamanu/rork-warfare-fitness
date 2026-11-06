@@ -1653,6 +1653,7 @@ function BuilderInner() {
                                       ) : (
                                         <>
                                           {libEntry?.thumbnailUrl && (
+                                            // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                                             <img src={libEntry.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
                                           )}
                                           <Play className={`w-4 h-4 relative z-10 ${libEntry?.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />
@@ -1861,6 +1862,7 @@ function BuilderInner() {
                     ) : (
                       <>
                         {v.thumbnailUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                           <img src={v.thumbnailUrl} alt={v.name} className="absolute inset-0 w-full h-full object-cover" />
                         )}
                         <Play className={`w-5 h-5 relative z-10 ${v.thumbnailUrl ? 'text-white' : 'text-text-tertiary'}`} />

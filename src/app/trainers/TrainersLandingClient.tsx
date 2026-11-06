@@ -122,6 +122,7 @@ export default function TrainersLandingPage({
             {config.heroDemoVideoUrl ? (
               <InlineHeroVideo src={config.heroDemoVideoUrl} posterUrl={config.heroDemoPosterUrl || config.heroImageUrl} />
             ) : config.heroImageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
               <img src={config.heroImageUrl} alt="Your branded app" className="max-h-[560px] max-w-full w-auto h-auto rounded-2xl border border-white/10" />
             ) : (
               <div className="w-full aspect-[4/3] rounded-2xl border border-dashed border-white/15 flex items-center justify-center">

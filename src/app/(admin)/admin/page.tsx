@@ -411,6 +411,7 @@ function AdminPageInner() {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     });
     return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   }, [activeConv?.id]);
 
   // ── Settings state ─────────────────────────────────────────────────────────
@@ -2278,6 +2279,7 @@ function AdminPageInner() {
               className={`w-full h-28 mb-2 rounded-xl flex items-center justify-center relative overflow-hidden transition-colors ${editingEx.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
             >
               {editingEx.thumbnailUrl && (
+                // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                 <img src={editingEx.thumbnailUrl} alt={editingEx.name} className="absolute inset-0 w-full h-full object-cover" />
               )}
               <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center ${editingEx.thumbnailUrl ? 'bg-black/50' : ''}`}>
@@ -4982,6 +4984,7 @@ function AdminPageInner() {
                       className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 relative overflow-hidden transition-colors ${ex.thumbnailUrl ? 'bg-black' : 'bg-white/10 hover:bg-accent/20'}`}
                     >
                       {ex.thumbnailUrl && (
+                        // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                         <img src={ex.thumbnailUrl} alt={ex.name} className="absolute inset-0 w-full h-full object-cover" />
                       )}
                       <Play className={`w-5 h-5 relative z-10 ${ex.thumbnailUrl ? 'text-white' : 'text-accent'}`} />
@@ -5329,6 +5332,7 @@ function AdminPageInner() {
                 <p className="text-xs text-text-tertiary mb-2">Replaces the default &quot;W&quot; icon in the header and throughout the app. Square image recommended.</p>
                 <div className="flex items-center gap-3">
                   {settingsForm.logoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                     <img src={settingsForm.logoUrl} alt="Logo preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('Logo URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-logo', duration: 6000 })} />
                   )}
                   <label className="flex-1">
@@ -5349,6 +5353,7 @@ function AdminPageInner() {
                 <p className="text-xs text-text-tertiary mb-2">The small icon shown in the browser tab and PWA/home-screen icon. Separate from the logo above on purpose — a favicon needs to be simple and square (it gets shrunk down to as little as 16×16px), while the logo can be a larger banner-style image that would turn into an unrecognizable blob at that size. Falls back to the logo, then a default icon, if left blank.</p>
                 <div className="flex items-center gap-3">
                   {settingsForm.faviconUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                     <img src={settingsForm.faviconUrl} alt="Favicon preview" className="w-12 h-12 rounded-xl object-cover border border-white/10 flex-shrink-0 bg-black" onError={() => toast.error('Favicon URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-favicon', duration: 6000 })} />
                   )}
                   <label className="flex-1">
@@ -5625,6 +5630,7 @@ function AdminPageInner() {
               <p className="text-[11px] text-text-tertiary mb-2">Shows behind the headline, blended into the dark background. Best results: a tall portrait-orientation photo with the subject roughly centered — it gets cropped differently on mobile vs desktop.</p>
               <div className="flex items-center gap-3">
                 {landingForm.heroImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                   <img src={landingForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('Hero image URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-hero-image', duration: 6000 })} />
                 )}
                 <div className="flex flex-col gap-1.5">
@@ -5675,6 +5681,7 @@ function AdminPageInner() {
                 <div className="flex flex-wrap gap-2 mb-2">
                   {landingForm.screenshotUrls.map((url, i) => (
                     <div key={url + i} className="relative flex-shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted */}
                       <img src={url} alt={`Screenshot ${i + 1}`} className="w-16 h-32 rounded-xl object-cover border border-white/10" />
                       <button
                         type="button"
@@ -5704,6 +5711,7 @@ function AdminPageInner() {
                   {landingForm.transformationPhotos.map((p, i) => (
                     <div key={p.imageUrl + i} className="relative bg-surface-elevated rounded-xl p-2 space-y-2">
                       <div className="relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted */}
                         <img src={p.imageUrl} alt={`Transformation ${i + 1}`} className="w-full aspect-[3/4] rounded-lg object-cover border border-white/10" />
                         <button
                           type="button"
@@ -5989,6 +5997,7 @@ function AdminPageInner() {
               <label className="text-xs text-text-secondary mb-1 block">Hero Image</label>
               <div className="flex items-center gap-3">
                 {b2bForm.heroImageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- user/admin-uploaded media from storage; next/image would need every storage host allowlisted
                   <img src={b2bForm.heroImageUrl} alt="Hero preview" className="w-16 h-20 rounded-xl object-cover border border-white/10 flex-shrink-0" onError={() => toast.error('B2B hero image URL failed to load — it may not be publicly reachable (check R2/storage permissions).', { id: 'preview-b2b-hero-image', duration: 6000 })} />
                 )}
                 <label className="flex items-center gap-2 px-3 py-2 rounded-xl bg-surface-elevated border border-border text-xs font-medium text-white cursor-pointer">

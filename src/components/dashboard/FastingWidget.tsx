@@ -63,6 +63,7 @@ export function FastingWidget() {
   const [stopping, setStopping] = useState(false);
 
   const fasting = profile?.fasting ?? null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   const quote = useMemo(() => pickQuote(FASTING_QUOTES), [fasting?.startedAt]);
 
   useEffect(() => {

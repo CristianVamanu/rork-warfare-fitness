@@ -1500,6 +1500,7 @@ function WorkoutSessionPageInner() {
     };
 
     resolveExercises();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   }, [programId, dow, sessionKey, eased]);
 
   // ── Progressive-overload suggestions ────────────────────────────────────

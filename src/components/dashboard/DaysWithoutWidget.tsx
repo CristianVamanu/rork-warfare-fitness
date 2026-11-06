@@ -40,6 +40,7 @@ export function DaysWithoutWidget() {
   const [busy, setBusy] = useState(false);
 
   const goals = profile?.daysWithoutGoals ?? [];
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   const quote = useMemo(() => pickQuote(HABIT_QUOTES), [detailGoal?.id, detailGoal?.startedAt]);
 
   useEffect(() => {

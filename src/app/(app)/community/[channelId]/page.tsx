@@ -592,6 +592,7 @@ export default function ChannelPage() {
       () => setPostsLoaded(true),
     );
     return () => unsub();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   }, [channelId, trainerId, user]);
 
   // Resume where the user left off instead of always jumping to the very

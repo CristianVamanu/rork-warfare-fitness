@@ -68,6 +68,7 @@ export default function MessagesPage() {
       setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     });
     return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   }, [activeConv?.id]);
 
   // Mark read from the live list, not from the tap. The one-conversation
@@ -78,6 +79,7 @@ export default function MessagesPage() {
     if (!activeConv) return;
     const live = conversations.find((c) => c.id === activeConv.id);
     if (live?.unreadByUser) markConversationRead(live.id, false).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: re-run only when these keys change (see the effect above)
   }, [activeConv?.id, conversations]);
 
   function openConversation(conv: Conversation) {
