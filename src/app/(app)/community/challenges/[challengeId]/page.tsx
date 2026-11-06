@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Users, CheckCircle2, Trophy, Heart, Trash2, Send, ShieldCheck, Clock, Flame } from 'lucide-react';
+import { ChevronLeft, Users, CheckCircle2, Trophy, Heart, Trash2, Send, ShieldCheck, Clock, Flame, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -111,7 +111,7 @@ export default function ChallengePage() {
 
   return (
     <PaywallGate feature="community" noTaste>
-      <div className="min-h-screen pb-28">
+      <div className={`min-h-screen ${tab === 'feed' && user && (entry || isAdmin) ? 'pb-48' : 'pb-32'}`}>
         <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto w-full">
             <button onClick={() => router.push('/community/challenges')} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" aria-label="Back">
@@ -408,18 +408,22 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
     }
   };
   return (
-    <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-      <div className="px-4 py-2 max-w-2xl mx-auto w-full space-y-1.5">
-        <div className="flex gap-2 items-end">
-          <div className="flex flex-col gap-1.5 flex-shrink-0">
-            <MediaPicker value={media} onChange={setMedia} max={PROOF_MAX} compact />
-          </div>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Say something to the others…" rows={1}
-            className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50"
-            style={{ maxHeight: 80, overflowY: 'auto' }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
-          <Button onClick={send} loading={posting} disabled={!canSend} size="sm" className="flex-shrink-0 !px-2.5 !py-2"><Send className="w-4 h-4" /></Button>
+    // A floating glass pill over the feed: attach, message, glowing send.
+    <div className="fixed above-bottom-nav left-3 right-3 z-20 pointer-events-none">
+      <div className="pointer-events-auto max-w-2xl mx-auto flex items-end gap-1 rounded-[26px] p-1.5 backdrop-blur-xl focus-within:border-accent/50 transition-colors"
+        style={{ background: 'color-mix(in srgb, var(--background) 82%, transparent)', border: '1px solid rgba(var(--accent-rgb) / 0.22)', boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.03) inset' }}>
+        <div className="flex items-end gap-1 flex-shrink-0 [&_button]:!rounded-full [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!p-2.5">
+          <MediaPicker value={media} onChange={setMedia} max={PROOF_MAX} compact />
         </div>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Message the squad…" rows={1} aria-label="Message the others in this challenge"
+          className="flex-1 min-w-0 bg-transparent px-1 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none"
+          style={{ maxHeight: 96, overflowY: 'auto' }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <button type="button" onClick={send} disabled={!canSend} aria-label="Send"
+          className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-35 bg-accent text-black active:scale-95"
+          style={canSend ? { boxShadow: '0 0 16px rgba(var(--accent-rgb) / 0.55)' } : undefined}>
+          {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   );
