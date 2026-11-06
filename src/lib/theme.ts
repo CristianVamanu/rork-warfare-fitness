@@ -36,8 +36,10 @@ export function resolveTheme(input: {
 }): Theme | null {
   const { preference, signedIn, inAppShell, authResolved = true } = input;
   if (!authResolved) return null;
-  if (!signedIn || !inAppShell) return 'dark';
-  return preference;
+  // The app is dark only: the design is built for it. The saved preference
+  // and arguments are kept so nothing that calls this has to change.
+  void preference; void signedIn; void inAppShell;
+  return 'dark';
 }
 
 /**
@@ -76,9 +78,7 @@ export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {}
  */
 export function themeBootstrapScript(): string {
   const prefixes = JSON.stringify(APP_SHELL_PREFIXES);
-  return (
-    "try{if(localStorage.getItem('theme')==='light'&&localStorage.getItem('wf:session')==='1'){" +
-    `var p=location.pathname,a=${prefixes};` +
-    "for(var i=0;i<a.length;i++){if(p===a[i]||p.indexOf(a[i]+'/')===0){document.documentElement.classList.add('light');break}}}}catch(e){}"
-  );
+  // Dark only: make sure no saved light preference ever applies.
+  void prefixes;
+  return "try{document.documentElement.classList.remove('light')}catch(e){}";
 }
