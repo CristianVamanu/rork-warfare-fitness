@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
 import { weekScore, type WeeklyReport } from '@/lib/weeklyReport';
-import { ScoreRadar, NutritionRing } from './CoachVisuals';
+import { ScoreRadar } from './CoachVisuals';
 
 const HIDE_KEY = 'wf-weekly-report-hidden';
 // One fetch per week per session: the report for a past week never changes.
@@ -63,7 +63,7 @@ export function WeeklyReportCard() {
   const tiles = ([
     { label: 'Workouts', value: String(s.workouts), sub: s.prevWorkouts ? `${s.prevWorkouts} the week before` : null, icon: Dumbbell, color: '#F5A623' },
     { label: 'Sets done', value: String(s.sets), sub: null, icon: Layers, color: '#F5A623' },
-    s.minutes ? { label: 'Training time', value: s.minutes >= 60 ? hm(s.minutes) : `${s.minutes} min`, sub: null, icon: Timer, color: '#60A5FA' } : null,
+    s.minutes ? { label: 'Training', value: s.minutes >= 60 ? hm(s.minutes) : `${s.minutes} min`, sub: null, icon: Timer, color: '#60A5FA' } : null,
     vol > 0 ? { label: `Weight lifted`, value: `${vol >= 10000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString()} ${unit}`, sub: null, icon: Weight, color: '#F5A623' } : null,
     s.avgKcal != null ? { label: 'Calories / day', value: s.avgKcal.toLocaleString(), sub: goal(s.avgKcal, s.kcalGoal, 'kcal'), icon: Flame, color: '#FB923C', pct: pct(s.avgKcal, s.kcalGoal) } : null,
     s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g'), icon: Beef, color: '#F87171', pct: pct(s.avgProtein, s.proteinGoal) } : null,
@@ -87,6 +87,7 @@ export function WeeklyReportCard() {
   const strip = numTiles.slice(0, 4);
   const R = 30, C = 2 * Math.PI * R, sc = ws.score ?? 0;
   const kcalPct = pct(s.avgKcal, s.kcalGoal), protPct = pct(s.avgProtein, s.proteinGoal);
+  const carbGoal = (profile?.goals as { carbs?: number } | undefined)?.carbs ?? null, fatGoal = (profile?.goals as { fat?: number } | undefined)?.fat ?? null;
 
   return (
     <Card className="p-0 overflow-hidden relative">
@@ -124,9 +125,9 @@ export function WeeklyReportCard() {
         </div>
 
         {strip.length > 0 && (
-          <div className="mt-3 grid rounded-xl border border-white/8 bg-surface-elevated/60 divide-x divide-white/8" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
+          <div className="mt-3 grid rounded-xl bg-surface-elevated" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
             {strip.map((t) => (
-              <div key={t.label} className="px-1.5 py-2 text-center min-w-0">
+              <div key={t.label} className="px-1.5 py-2 text-center min-w-0 [&:not(:first-child)]:border-l" style={{ borderColor: 'var(--border-subtle)' }}>
                 <p className="text-[15px] font-black text-white tabular-nums leading-none truncate">{t.value}</p>
                 <p className="text-[9px] font-semibold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
               </div>
@@ -135,10 +136,14 @@ export function WeeklyReportCard() {
         )}
 
         {s.avgKcal != null && (
-          <div className="mt-2.5 grid grid-cols-2 gap-3">
+          <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2">
             {[
               { k: 'Calories', v: `${s.avgKcal.toLocaleString()}${s.kcalGoal ? ` / ${s.kcalGoal.toLocaleString()}` : ''}`, p: kcalPct, c: '#F5A623' },
               { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein}${s.proteinGoal ? ` / ${s.proteinGoal}` : ''} g` : '—', p: protPct, c: '#F87171' },
+              ...(open ? [
+                { k: 'Carbs', v: s.avgCarbs != null ? `${s.avgCarbs}${carbGoal ? ` / ${carbGoal}` : ''} g` : '—', p: pct(s.avgCarbs, carbGoal), c: '#FACC15' },
+                { k: 'Fat', v: s.avgFat != null ? `${s.avgFat}${fatGoal ? ` / ${fatGoal}` : ''} g` : '—', p: pct(s.avgFat, fatGoal), c: '#60A5FA' },
+              ] : []),
             ].map((m) => (
               <div key={m.k} className="min-w-0">
                 <div className="flex justify-between text-[10px]"><span className="text-text-tertiary font-semibold uppercase tracking-wide">{m.k}</span><span className="text-white font-bold tabular-nums truncate ml-1">{m.v}</span></div>
@@ -153,16 +158,6 @@ export function WeeklyReportCard() {
             {ws.axes.length >= 3 && (
               <div className="rounded-2xl bg-surface-elevated pt-1">
                 <ScoreRadar axes={ws.axes} />
-              </div>
-            )}
-            {s.avgKcal != null && (
-              <div className="rounded-2xl bg-surface-elevated p-3.5">
-                <NutritionRing kcal={s.avgKcal} kcalGoal={s.kcalGoal}
-                  macros={[
-                    { label: 'Protein', value: s.avgProtein, goal: s.proteinGoal, color: '#F87171' },
-                    { label: 'Carbs', value: s.avgCarbs ?? null, goal: (profile?.goals as { carbs?: number } | undefined)?.carbs ?? null, color: '#FACC15' },
-                    { label: 'Fat', value: s.avgFat ?? null, goal: (profile?.goals as { fat?: number } | undefined)?.fat ?? null, color: '#60A5FA' },
-                  ]} />
               </div>
             )}
             {numTiles.length > 4 && (
