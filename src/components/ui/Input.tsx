@@ -34,7 +34,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               color: 'var(--foreground)',
             }}
             className={cn(
-              'w-full border rounded-xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/40 transition-all',
+              'w-full border rounded-2xl px-4 py-3 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40 focus:border-accent/60 focus:shadow-[0_0_14px_rgba(245,166,35,0.3)] transition-all',
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
               error && 'border-danger/50 focus:ring-danger/30',

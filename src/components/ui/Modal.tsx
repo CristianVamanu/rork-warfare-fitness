@@ -156,20 +156,20 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
             // broken, half-cut modal with the page showing through beneath
             // it. The Tailwind vh classes stay as the fallback for browsers
             // without dvh support, which drop these two declarations.
-            style={{ boxShadow: 'var(--shadow-modal)', top: '4dvh', maxHeight: '92dvh' }}
+            style={{ top: '4dvh', maxHeight: '92dvh' }}
             className={cn(
-              'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto bg-surface-elevated border border-border rounded-2xl flex flex-col outline-none',
+              'fixed inset-x-4 top-[5vh] z-50 max-w-lg mx-auto wf-set-active rounded-[26px] flex flex-col outline-none overflow-hidden',
               'max-h-[90vh]',
               className
             )}
           >
-            <div className="flex items-center justify-between p-5 border-b border-border flex-shrink-0">
-              {title && <h2 id={titleId} className="text-lg font-bold text-foreground">{title}</h2>}
+            <div className="flex items-center justify-between px-5 pt-5 pb-2 flex-shrink-0">
+              {title && <h2 id={titleId} className="text-[20px] font-extrabold text-white">{title}</h2>}
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="ml-auto p-1.5 rounded-lg text-text-secondary hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                className="ml-auto w-9 h-9 rounded-full wf-round flex items-center justify-center hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
               >
                 <X className="w-5 h-5" aria-hidden="true" />
               </button>
@@ -180,7 +180,7 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
               // gives way instead — the actions must never be the thing that
               // gets squeezed out of a short viewport.
               <div
-                className="flex-shrink-0 border-t border-border p-4"
+                className="flex-shrink-0 p-4 pt-2"
                 style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
               >
                 {footer}

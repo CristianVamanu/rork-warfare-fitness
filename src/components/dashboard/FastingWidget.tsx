@@ -126,16 +126,16 @@ export function FastingWidget() {
 
         <Modal open={startModal} onClose={() => setStartModal(false)} title="Start a Fast">
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {PRESETS.map((p) => (
                 <button
                   key={p.label}
                   onClick={() => handleStart(p.hours)}
                   disabled={starting}
-                  className="p-3 rounded-xl border border-white/10 bg-surface hover:border-accent/40 transition-colors text-left"
+                  className="px-4 py-3.5 rounded-[18px] wf-glow active:scale-[.98] transition-transform text-left disabled:opacity-60"
                 >
-                  <p className="text-sm font-bold text-white">{p.label}</p>
-                  <p className="text-[10px] text-text-secondary">{p.desc}</p>
+                  <p className="text-[19px] font-extrabold text-white leading-tight">{p.label}</p>
+                  <p className="text-[12px] text-text-secondary mt-1">{p.desc}</p>
                 </button>
               ))}
             </div>
@@ -147,13 +147,13 @@ export function FastingWidget() {
                 value={customHours}
                 onChange={(e) => setCustomHours(e.target.value)}
                 placeholder="Custom hours"
-                style={{ backgroundColor: 'var(--surface-elevated)', borderColor: 'var(--border-subtle)', color: 'var(--foreground)' }}
-                className="flex-1 border rounded-xl px-4 py-2.5 text-sm placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-accent/40"
+                className="flex-1 min-w-0 wf-glow rounded-full px-5 py-3 text-sm text-white placeholder:text-text-tertiary focus:outline-none"
               />
               <Button
                 disabled={!customHours || Number(customHours) <= 0}
                 loading={starting}
                 onClick={() => handleStart(Number(customHours))}
+                className="!rounded-full !px-7 !py-3 wf-cta"
               >
                 Start
               </Button>
