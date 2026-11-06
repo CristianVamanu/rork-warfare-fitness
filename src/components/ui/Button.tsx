@@ -17,11 +17,11 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent font-bold shadow-[0_0_22px_rgba(245,166,35,0.45),inset_0_1px_0_rgba(255,255,255,0.35)]',
+    'bg-accent font-bold shadow-glow-sm',
   secondary:
-    'wf-glow text-foreground',
+    'bg-surface-elevated border border-border text-foreground',
   ghost:
-    'wf-glow text-text-secondary',
+    'bg-transparent text-text-secondary',
   danger:
     'bg-danger/10 border border-danger/30 text-danger hover:bg-danger/20',
 };
