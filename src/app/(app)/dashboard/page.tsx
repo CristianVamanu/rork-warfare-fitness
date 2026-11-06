@@ -15,7 +15,7 @@ import { logWaterAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgress, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
-import { getLevelTier } from '@/lib/xp';
+import { getLevelTier, xpToNextLevel } from '@/lib/xp';
 import { deriveStreak, streakCaption } from '@/lib/streakFlame';
 import { shouldCelebrate } from '@/lib/programCompletion';
 import { currentPlan } from '@/lib/nextProgram';
@@ -824,23 +824,22 @@ export default function DashboardPage() {
         {/* Quick actions — the eight small tiles, as they were. */}
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 gap-2.5">
           {[
-            { icon: Dumbbell, label: 'Workout', href: '/training', tone: 'bg-purple-400/15 text-purple-300' },
-            { icon: Apple, label: 'Log food', href: '/nutrition', tone: 'bg-green-400/15 text-green-300' },
-            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', tone: 'bg-blue-400/15 text-blue-300' },
-            { icon: CheckSquare, label: 'Habits', href: '/habits', tone: 'bg-indigo-400/15 text-indigo-300' },
-            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: 'bg-orange-400/15 text-orange-300' },
-            { icon: TrendingUp, label: 'Progress', href: '/progress', tone: 'bg-teal-400/15 text-teal-300' },
-            { icon: Trophy, label: 'Achievements', href: '/achievements', tone: 'bg-yellow-400/15 text-yellow-300' },
-            { icon: Swords, label: 'Quests', href: '/quests', tone: 'bg-pink-400/15 text-pink-300' },
+            { icon: Dumbbell, label: 'Workout', href: '/training', tone: '' },
+            { icon: Apple, label: 'Log food', href: '/nutrition', tone: '' },
+            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', tone: '' },
+            { icon: CheckSquare, label: 'Habits', href: '/habits', tone: '' },
+            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: '' },
+            { icon: TrendingUp, label: 'Progress', href: '/progress', tone: '' },
+            { icon: Trophy, label: 'Achievements', href: '/achievements', tone: 'text-accent' },
+            { icon: Swords, label: 'Quests', href: '/quests', tone: 'text-accent' },
           ].map((action) => (
             <motion.div key={action.label} variants={stagger.item}>
               <Link href={action.href} className="block">
-                <Card glass className="h-[84px] flex flex-col items-center justify-center gap-2 card-float">
-                  <span className={`w-10 h-10 rounded-2xl flex items-center justify-center ${action.tone}`}>
-                    <action.icon className="w-5 h-5" strokeWidth={1.75} />
-                  </span>
-                  <span className="text-[10px] font-semibold text-text-secondary text-center leading-tight px-1">{action.label}</span>
-                </Card>
+                {/* Glass tool tile with the amber edge glow; white line icon, amber for the reward tools. */}
+                <div className="wf-glow rounded-2xl h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <action.icon className={`w-6 h-6 ${action.tone || 'text-foreground'}`} strokeWidth={1.6} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.35))' }} />
+                  <span className="text-[10px] font-semibold text-foreground/85 text-center leading-tight px-1">{action.label}</span>
+                </div>
               </Link>
             </motion.div>
           ))}
@@ -850,23 +849,31 @@ export default function DashboardPage() {
           {/* Level — personal progression, not a ranking. */}
           <motion.div variants={stagger.item}>
             <Link href="/achievements" className="block h-full">
-              <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
-                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
-                <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
-                <p className="text-[11px] text-text-tertiary">{(profile?.xp ?? 0).toLocaleString()} XP · {tier.title}</p>
-              </Card>
+              <div className="wf-glow rounded-2xl p-4 h-full flex items-center gap-2 card-float">
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
+                  <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
+                  <p className="text-[11px] text-text-tertiary truncate">{(profile?.xp ?? 0).toLocaleString()} XP</p>
+                </div>
+                {/* Amber ring: progress through the current level. */}
+                <svg width="52" height="52" viewBox="0 0 52 52" className="flex-shrink-0" aria-hidden>
+                  <circle cx="26" cy="26" r="21" fill="none" stroke="var(--progress-track)" strokeWidth="5" />
+                  <circle cx="26" cy="26" r="21" fill="none" stroke="#F5A623" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${(() => { const n = xpToNextLevel(profile?.xp ?? 0); return n.needed ? Math.min(1, n.current / n.needed) * 132 : 0; })()} 132`} transform="rotate(-90 26 26)" style={{ filter: 'drop-shadow(0 0 5px rgba(245,166,35,0.7))' }} />
+                </svg>
+              </div>
             </Link>
           </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
-              <Card glass className="p-4 h-full flex flex-col gap-1 card-float">
+              <div className="wf-glow rounded-2xl p-4 h-full flex flex-col gap-1 card-float">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
-                  <Trophy className="w-4 h-4 text-accent" strokeWidth={1.75} />
+                  <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.6))' }} />
                 </div>
                 <p className="text-[15px] font-extrabold text-white leading-tight">Post a lift</p>
                 <p className="text-[11px] text-text-tertiary">Verified by admin</p>
-              </Card>
+              </div>
             </Link>
           </motion.div>
         </motion.div>
