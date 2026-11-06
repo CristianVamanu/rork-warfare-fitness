@@ -997,7 +997,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 64 + 26}px + env(safe-area-inset-bottom, 0px))` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 26}px + env(safe-area-inset-bottom, 0px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* What the channel is for, in full. It lived in the sticky header
@@ -1120,7 +1120,7 @@ export default function ChannelPage() {
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `calc(${COMPOSE_HEIGHT + 64 + 22}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 22}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
@@ -1130,15 +1130,15 @@ export default function ChannelPage() {
 
       {/* ── Compose box (fixed above tab bar) ── */}
       {channel.allowUserPosts === false && !isAdmin ? (
-        <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-          <div className="px-4 py-3 max-w-2xl mx-auto w-full flex items-center gap-2 text-sm text-text-secondary">
+        <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
+          <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] backdrop-blur-xl px-4 py-3.5 flex items-center gap-2 text-sm text-text-secondary" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
             <Megaphone className="w-4 h-4 flex-shrink-0" />
             Announcement-only channel — only admins can post here.
           </div>
         </div>
       ) : (
-      <div className="fixed above-bottom-nav left-0 right-0 z-20 bg-background/95 backdrop-blur-xl border-t border-white/8">
-        <div className="px-4 py-2 max-w-2xl mx-auto w-full space-y-1.5">
+      <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
+        <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] backdrop-blur-xl p-1.5 space-y-1.5 focus-within:border-accent/50 transition-colors" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
@@ -1176,7 +1176,7 @@ export default function ChannelPage() {
               )}
             </div>
           )}
-          <div className="flex gap-2 items-end">
+          <div className="flex gap-1 items-end">
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -1191,7 +1191,7 @@ export default function ChannelPage() {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingImage || pending.length >= maxMedia}
                 aria-label={uploadingImage && uploadPct !== null ? `Uploading, ${uploadPct} percent` : maxMedia > 1 ? `Attach up to ${maxMedia} photos or clips` : 'Attach a photo or clip'}
-                className="relative p-2 rounded-xl bg-surface border border-white/10 text-text-secondary hover:text-white hover:border-white/20 transition-colors flex-shrink-0 disabled:opacity-100 overflow-hidden"
+                className="relative p-2.5 rounded-full text-text-secondary hover:text-white transition-colors flex-shrink-0 disabled:opacity-100 overflow-hidden"
                 style={uploadingImage && uploadPct !== null
                   // The button itself becomes the progress ring: an accent arc
                   // that sweeps round the border as bytes land.
@@ -1214,7 +1214,7 @@ export default function ChannelPage() {
               placeholder={isMuted ? 'Muted' : isBlocked ? 'Slow mode active…' : ideas ? 'Suggest a feature…' : 'Share something…'}
               disabled={isBlocked}
               rows={1}
-              className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent/50 disabled:opacity-40"
+              className="flex-1 min-w-0 bg-transparent px-2 py-2.5 text-sm text-white placeholder:text-text-tertiary resize-none focus:outline-none disabled:opacity-40"
               style={{ maxHeight: 80, overflowY: 'auto' }}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePost(); } }}
               onInput={e => {
@@ -1223,15 +1223,16 @@ export default function ChannelPage() {
                 t.style.height = Math.min(t.scrollHeight, 80) + 'px';
               }}
             />
-            <Button
+            <button
+              type="button"
               onClick={handlePost}
-              loading={posting}
               disabled={!canSend}
-              size="sm"
-              className="flex-shrink-0 !px-2.5 !py-2"
+              aria-label="Send"
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all disabled:opacity-35 bg-accent text-black active:scale-95"
+              style={canSend ? { boxShadow: '0 0 16px rgba(var(--accent-rgb) / 0.55)' } : undefined}
             >
-              <Send className="w-4 h-4" />
-            </Button>
+              {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
           </div>
         </div>
       </div>

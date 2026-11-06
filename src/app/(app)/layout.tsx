@@ -169,8 +169,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <WelcomeVideo />
       {/* The workout session has its own fixed action bar; the nav's raised
           centre button would sit on top of it. */}
-      {/* Challenge rooms are chat screens: their message bar takes the nav's place. */}
-      {!hideNav && !pathname.startsWith('/training/session') && !/^\/community\/challenges\/[^/]+$/.test(pathname) && <BottomNav />}
+      {/* Channel and challenge rooms are chat screens: their message bar takes the nav's place. */}
+      {!hideNav && !pathname.startsWith('/training/session') && !/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname) && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>
   );
