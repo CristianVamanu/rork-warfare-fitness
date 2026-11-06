@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { BrandVideo } from './BrandVideo';
 
 /**
- * Full-screen brand hold: the Warfare Fitness wordmark over a loading bar.
+ * Full-screen brand hold — the same burning-logo clip the landing page and
+ * login screen open with.
  *
  * Used wherever the app has to block on a check that is usually fast but
  * occasionally isn't. A bare "Checking installation…" line spent that moment
@@ -79,14 +81,14 @@ export function BrandSplash({ label = 'Loading', gated = false }: { label?: stri
         />
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[440px] h-[440px] rounded-full bg-accent/[0.10] blur-3xl" />
       </div>
-      {/* The Warfare Fitness wordmark, with a soft amber glow behind it. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/brand/logo-wf.webp" alt="Warfare Fitness" width={920} height={155} className="relative w-60 h-auto" style={{ filter: 'drop-shadow(0 0 18px rgba(245,166,35,0.35))' }} />
+      <div className="relative w-32 h-32">
+        <BrandVideo className="w-full h-full rounded-2xl object-cover shadow-glow-accent" />
+      </div>
       {/* Same width as the logo, sitting just under it. The track is faint;
           the fill is the brand accent with a soft glow so it reads on the
           dark ground without shouting. */}
       <div
-        className="relative mt-7 w-48 h-[4px] rounded-full bg-white/10 overflow-hidden"
+        className="relative mt-5 w-32 h-[3px] rounded-full bg-white/10 overflow-hidden"
         role="progressbar"
         aria-label={label}
         aria-valuemin={0}
@@ -94,7 +96,7 @@ export function BrandSplash({ label = 'Loading', gated = false }: { label?: stri
         aria-valuenow={Math.round(progress)}
       >
         <div
-          className="h-full rounded-full bg-gradient-to-r from-[#D9700A] via-accent to-[#FFB52E] shadow-[0_0_12px] shadow-accent/80 transition-[width] duration-300 ease-out motion-reduce:transition-none"
+          className="h-full rounded-full bg-accent shadow-[0_0_10px] shadow-accent/70 transition-[width] duration-300 ease-out motion-reduce:transition-none"
           style={{ width: `${progress}%` }}
         />
       </div>
