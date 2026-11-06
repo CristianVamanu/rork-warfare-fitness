@@ -195,15 +195,12 @@ export default function ProgressPage() {
 
         {/* Power Level Hero */}
         <div className="wf-rise">
-          <Card className="p-5 bg-gradient-to-br from-surface to-surface-elevated border-accent/20">
+          <Card className="p-5 wf-art" style={{ '--art': "url('/home/cards/level.webp')" } as React.CSSProperties}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <p className="text-xs text-text-secondary uppercase tracking-wider mb-0.5">Fitness Level</p>
-                <p className={`text-4xl font-black ${tier.color}`}>{powerLevel}</p>
-                <p className={`text-sm font-bold ${tier.color} mt-0.5`}>{tier.title}</p>
-              </div>
-              <div className="p-4 bg-accent-muted rounded-2xl">
-                <Zap className="w-8 h-8 text-accent" />
+                <p className="text-5xl font-black italic text-white leading-none mt-1">{powerLevel}</p>
+                <p className="text-sm font-bold text-accent mt-1.5">{tier.title}</p>
               </div>
             </div>
             <div className="mt-1">
@@ -220,16 +217,14 @@ export default function ProgressPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-3 wf-rise" style={{ animationDelay: `${0.05}s` }}>
           {[
-            { icon: Dumbbell, label: 'Total Workouts', value: totalWorkouts,                    color: 'text-purple-400', bg: 'bg-purple-400/10' },
-            { icon: TrendingUp, label: 'Day Streak',   value: `${streak}d`,                    color: 'text-accent',    bg: 'bg-accent-muted'  },
-            { icon: Scale,      label: 'Current Weight', value: formatBodyWeight(profile?.currentWeightKg, weightUnit), color: 'text-green-400',  bg: 'bg-green-400/10'  },
-            { icon: Award,      label: 'Achievements', value: `${earnedAchievements.size}/${ACHIEVEMENT_DEFS.length}`, color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-          ].map(({ icon: Icon, label, value, color, bg }) => (
-            <Card key={label} className="p-4">
-              <div className={`inline-flex p-2 rounded-lg ${bg} mb-2`}>
-                <Icon className={`w-4 h-4 ${color}`} />
-              </div>
-              <p className="text-xl font-black text-white">{loading && label === 'Total Workouts' ? '…' : value}</p>
+            { icon: Dumbbell, label: 'Total Workouts', value: totalWorkouts,                    color: 'text-white', bg: '', art: 'prwall' },
+            { icon: TrendingUp, label: 'Day Streak',   value: `${streak}d`,                    color: 'text-white', bg: '', art: 'flame' },
+            { icon: Scale,      label: 'Current Weight', value: formatBodyWeight(profile?.currentWeightKg, weightUnit), color: 'text-white', bg: '', art: 'pttest' },
+            { icon: Award,      label: 'Achievements', value: `${earnedAchievements.size}/${ACHIEVEMENT_DEFS.length}`, color: 'text-white', bg: '', art: 'level' },
+          ].map(({ icon: Icon, label, value, color, art }) => (
+            <Card key={label} className="p-4 h-[112px] flex flex-col justify-end wf-art" style={{ '--art': art === 'flame' ? "url('/home/flame.webp')" : `url('/home/cards/${art}.webp')` } as React.CSSProperties}>
+              <Icon className={`w-4 h-4 ${color} opacity-70 mb-auto`} strokeWidth={1.8} />
+              <p className="text-2xl font-black italic text-white leading-none">{loading && label === 'Total Workouts' ? '…' : value}</p>
               <p className="text-xs text-text-secondary mt-0.5">{label}</p>
             </Card>
           ))}
@@ -239,13 +234,8 @@ export default function ProgressPage() {
         {weeklySummary && (weeklySummary.workoutsCompleted > 0 || weeklySummary.volumeKg > 0) && (
           <div className="wf-rise" style={{ animationDelay: `${0.07}s` }}>
             <Card className="p-3.5 flex items-center justify-between relative overflow-hidden">
-              <div className="absolute right-0 bottom-0 opacity-[0.04] pointer-events-none">
-                <TrendingUp className="w-20 h-20 text-accent" />
-              </div>
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-accent-muted">
-                  <TrendingUp className="w-4 h-4 text-accent" />
-                </div>
+                <TrendingUp className="w-4 h-4 text-accent" />
                 <span className="text-[10px] text-text-tertiary font-bold uppercase tracking-wide">This Week</span>
               </div>
               <div className="flex items-center gap-5">
