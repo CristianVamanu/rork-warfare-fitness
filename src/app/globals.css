@@ -33,10 +33,15 @@
   --input-placeholder: rgba(255, 255, 255, 0.33);
   --scrollbar-thumb: rgba(255, 255, 255, 0.15);
   --scrollbar-hover: rgba(255, 255, 255, 0.25);
-  --card-glass-bg: rgba(255, 255, 255, 0.05);
-  --card-glass-border: rgba(255, 255, 255, 0.10);
+  --card-glass-bg: rgba(22, 20, 18, 0.62);
+  --card-glass-border: rgba(255, 214, 160, 0.12);
+  /* Glass cards: lift, a hairline highlight on top and a faint amber halo. */
+  --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 0 22px rgba(245, 166, 35, 0.07), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  /* Buttons and tiles that should glow (View/Switch, tools, nav). */
+  --glow-border: rgba(245, 166, 35, 0.32);
+  --glow-shadow: 0 0 18px rgba(245, 166, 35, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   --skeleton-bg: rgba(255, 255, 255, 0.08);
-  --nav-bg: rgba(17, 17, 17, 0.85);
+  --nav-bg: rgba(16, 14, 12, 0.82);
   --header-bg: rgba(10, 10, 10, 0.85);
   --progress-track: rgba(255, 255, 255, 0.08);
   --badge-muted-bg: rgba(255, 255, 255, 0.06);
@@ -70,6 +75,9 @@ html.light {
   --scrollbar-hover: rgba(0, 0, 0, 0.25);
   --card-glass-bg: rgba(255, 255, 255, 0.70);
   --card-glass-border: rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  --glow-border: rgba(212, 130, 10, 0.35);
+  --glow-shadow: 0 4px 14px rgba(212, 130, 10, 0.15);
   --skeleton-bg: rgba(0, 0, 0, 0.07);
   --nav-bg: rgba(255, 255, 255, 0.88);
   --header-bg: rgba(242, 242, 247, 0.88);
@@ -742,3 +750,22 @@ html main.wf-app-main[data-chat] { padding-bottom: 0; }
 /* A docked chat bar: lifted clear of the iPhone home indicator, so a tap on
    the box never lands on the swipe-home area. */
 .chat-dock { padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 12px) + 10px); }
+
+/* ── Glow surfaces: glass with a thin amber edge and halo ── */
+.wf-glow {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015)), var(--card-glass-bg);
+  border: 1px solid var(--glow-border);
+  box-shadow: var(--glow-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.wf-glow:active { box-shadow: 0 0 26px rgba(245, 166, 35, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+/* Home hero: art fading into the page, headline over it */
+.home-hero {
+  position: relative; overflow: hidden; border-radius: 28px; min-height: 250px;
+  background:
+    linear-gradient(180deg, rgba(10, 10, 10, 0) 35%, rgba(10, 10, 10, 0.85) 82%, var(--background) 100%),
+    var(--hero-img, radial-gradient(120% 80% at 75% 20%, #3a3f4a 0%, #1a1c22 45%, #0a0a0a 80%));
+  background-size: cover; background-position: center;
+}
+html.light .home-hero { color: #fff; }

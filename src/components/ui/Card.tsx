@@ -16,7 +16,7 @@ export function Card({ children, className, glass: glassProp, solid, onClick }: 
   return (
     <div
       onClick={onClick}
-      style={glass ? { backgroundColor: 'var(--card-glass-bg)', borderColor: 'var(--card-glass-border)' } : undefined}
+      style={glass ? { backgroundColor: 'var(--card-glass-bg)', borderColor: 'var(--card-glass-border)', boxShadow: 'var(--card-shadow)' } : undefined}
       className={cn(
         'rounded-2xl transition-colors',
         glass
