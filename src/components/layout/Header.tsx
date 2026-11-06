@@ -60,7 +60,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
         ) : (
           <div className="flex items-center">
             {/* The Warfare Fitness wordmark (W mark + name), transparent PNG/WebP. */}
-            <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={740} height={125} priority
+            <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={920} height={155} priority
               className={overlay ? 'h-[25px] w-auto' : 'h-[28px] w-auto'} />
           </div>
         )}
