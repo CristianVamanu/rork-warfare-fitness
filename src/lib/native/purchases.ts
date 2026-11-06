@@ -1,8 +1,8 @@
 /**
  * Google Play subscriptions in the Android app, through RevenueCat.
  *
- * On when NEXT_PUBLIC_REVENUECAT_ANDROID_KEY is set (the public "goog_..."
- * SDK key) and the page runs inside the app. The member is logged in to
+ * On inside the app; the public "goog_..." SDK key is below (overridable
+ * with NEXT_PUBLIC_REVENUECAT_ANDROID_KEY). The member is logged in to
  * RevenueCat with their Firebase uid, so the RevenueCat webhook
  * (/api/revenuecat/webhook) can write the membership to the right account.
  * App builds without the plugin reject the import; callers then fall back
@@ -10,7 +10,9 @@
  */
 import { isNativeApp } from '@/lib/native/health';
 
-const KEY = process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY ?? '';
+// RevenueCat's public Google Play SDK key. Public by design (it ships inside
+// every app build); an env value overrides it.
+const KEY = process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY || 'goog_hybWGqQAoooKClEMBLOffJKUyld';
 
 export function inAppPurchasesEnabled(): boolean {
   return !!KEY && isNativeApp();
