@@ -749,7 +749,13 @@ html main.wf-app-main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom
 html main.wf-app-main[data-chat] { padding-bottom: 0; }
 /* A docked chat bar: lifted clear of the iPhone home indicator, so a tap on
    the box never lands on the swipe-home area. */
-.chat-dock { padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 12px) + 10px); }
+.chat-dock {
+  /* Just above the home indicator (its inset plus a hair), and the strip
+     behind the bar is filled so posts never show through underneath it. */
+  padding-top: 10px;
+  padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 8px) + 4px);
+  background: linear-gradient(180deg, rgba(var(--background-rgb) / 0) 0%, rgb(var(--background-rgb)) 45%);
+}
 
 /* ── Glow surfaces: glass with a thin amber edge and halo ── */
 .wf-glow {

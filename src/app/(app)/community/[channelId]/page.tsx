@@ -1005,7 +1005,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 22}px + max(env(safe-area-inset-bottom, 0px), 12px))` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 24}px + max(env(safe-area-inset-bottom, 0px), 8px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* What the channel is for, in full. It lived in the sticky header
@@ -1128,7 +1128,7 @@ export default function ChannelPage() {
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `calc(${COMPOSE_HEIGHT + 34}px + max(env(safe-area-inset-bottom, 0px), 12px))`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 30}px + max(env(safe-area-inset-bottom, 0px), 8px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
