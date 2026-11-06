@@ -1668,6 +1668,14 @@ export function subscribeTodayCalories(
   return subscribeTodayEventsTotal(userId, localDateStr, 'MEAL_LOGGED', 'calories', onUpdate);
 }
 
+export function subscribeTodayProtein(
+  userId: string,
+  localDateStr: string,
+  onUpdate: (grams: number) => void,
+): () => void {
+  return subscribeTodayEventsTotal(userId, localDateStr, 'MEAL_LOGGED', 'protein', onUpdate);
+}
+
 export function subscribeTodayWater(
   userId: string,
   localDateStr: string,

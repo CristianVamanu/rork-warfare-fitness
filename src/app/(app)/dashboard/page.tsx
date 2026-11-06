@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
+import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayProtein, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { sessionsIntoWeek } from '@/lib/programWeek';
@@ -60,6 +60,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [waterMl, setWaterMl] = useState<number | null>(null);
   const [calories, setCalories] = useState<number | null>(null);
+  const [protein, setProtein] = useState<number | null>(null);
   // Goals live on users/{uid}, the document AuthContext already streams live —
   // reading them here used to mean a second getDoc of that same doc on every
   // dashboard mount, which could also render one frame behind an edit made on
@@ -125,6 +126,7 @@ export default function DashboardPage() {
       setCalories(v);
       markLive();
     });
+    const unsubProtein = subscribeTodayProtein(user.uid, localDateStr, (v) => setProtein(v));
     const unsubWater = subscribeTodayWater(user.uid, localDateStr, (v) => {
       setWaterMl(v);
       markLive();
@@ -139,6 +141,7 @@ export default function DashboardPage() {
     return () => {
       clearTimeout(loadingGuard);
       unsubCal();
+      unsubProtein();
       unsubWater();
     };
   }, [user]);
@@ -406,6 +409,8 @@ export default function DashboardPage() {
             name={firstName}
             kcal={Math.round(calories ?? 0)}
             kcalGoal={goals.calories}
+            protein={Math.round(protein ?? 0)}
+            proteinGoal={(profile?.goals as { protein?: number } | undefined)?.protein ?? 0}
             waterMl={waterMl ?? 0}
             waterGoalMl={goals.water}
             workouts={totalWorkouts}

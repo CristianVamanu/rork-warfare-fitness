@@ -7,7 +7,7 @@
  * challenge and the streak. Dark glass with amber glow, same on web and apps.
  */
 import Link from 'next/link';
-import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus } from 'lucide-react';
+import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus, Beef } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealthHistory } from '@/lib/useHealthHistory';
 import { readiness } from '@/lib/healthTrends';
@@ -60,8 +60,8 @@ function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { h
   );
 }
 
-export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy }: {
-  name: string; kcal: number; kcalGoal: number; waterMl: number; waterGoalMl: number; workouts: number; streak: number;
+export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy }: {
+  name: string; kcal: number; kcalGoal: number; protein: number; proteinGoal: number; waterMl: number; waterGoalMl: number; workouts: number; streak: number;
   startHref: string; sessionsThisWeek: number; daysPerWeek: number;
   onAddWater: () => void; onRemoveWater: () => void; waterBusy: boolean;
 }) {
@@ -163,11 +163,11 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
           <span className="absolute right-[12px] top-[86px] w-[23px] h-[23px] rounded-full flex items-center justify-center" style={ROUND_BTN}><ChevronRight className="w-[12px] h-[12px] text-white" strokeWidth={2.5} /></span>
         </Link>
         <div className="flex flex-col gap-[8px] h-[119px]">
-          {/* Calories today */}
+          {/* Protein today */}
           <Link href="/nutrition" className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
-            <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Flame className="w-[13px] h-[13px] text-accent" strokeWidth={2} /> Calories</span>
-            <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{kcal.toLocaleString()}</span><span className="text-[9px] text-white/55"> /{kcalGoal.toLocaleString()}</span></p>
-            <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${kcalGoal ? Math.min(100, (kcal / kcalGoal) * 100) : 0}%`, background: AMBER, boxShadow: '0 0 6px rgba(245,166,35,0.8)' }} /></span>
+            <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Beef className="w-[13px] h-[13px] text-[#F87171]" strokeWidth={2} /> Protein</span>
+            <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{protein}</span><span className="text-[9px] text-white/55"> {proteinGoal ? `/${proteinGoal} g` : 'g'}</span></p>
+            <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${proteinGoal ? Math.min(100, (protein / proteinGoal) * 100) : 0}%`, background: '#F87171', boxShadow: '0 0 6px rgba(248,113,113,0.8)' }} /></span>
           </Link>
           {/* Water today, with − / + */}
           <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
