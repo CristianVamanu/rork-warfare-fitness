@@ -93,7 +93,6 @@ export function DaysWithoutWidget() {
       <Card glass className="wf-art p-4 space-y-3" style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <Medallion><ShieldOff className="w-6 h-6" strokeWidth={2} /></Medallion>
             <div>
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Days without</span>
               <p className="text-[15px] font-extrabold text-white leading-tight">Habits you are quitting</p>

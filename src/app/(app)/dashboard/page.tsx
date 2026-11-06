@@ -709,22 +709,13 @@ export default function DashboardPage() {
                   <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
                   <p className="text-[11px] text-text-tertiary truncate">{(profile?.xp ?? 0).toLocaleString()} XP</p>
                 </div>
-                {/* Amber ring: progress through the current level. */}
-                <svg width="52" height="52" viewBox="0 0 52 52" className="flex-shrink-0" aria-hidden>
-                  <circle cx="26" cy="26" r="21" fill="none" stroke="var(--progress-track)" strokeWidth="5" />
-                  <circle cx="26" cy="26" r="21" fill="none" stroke="#F5A623" strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={`${(() => { const n = xpToNextLevel(profile?.xp ?? 0); return n.needed ? Math.min(1, n.current / n.needed) * 132 : 0; })()} 132`} transform="rotate(-90 26 26)" style={{ filter: 'drop-shadow(0 0 5px rgba(245,166,35,0.7))' }} />
-                </svg>
               </div>
             </Link>
           </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
               <div className="wf-glow wf-art rounded-2xl p-4 h-full flex flex-col gap-1 card-float" style={{ '--art': "url('/home/cards/prwall.webp')" } as React.CSSProperties}>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
-                  <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.6))' }} />
-                </div>
+                <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
                 <p className="text-[15px] font-extrabold text-white leading-tight">Post a lift</p>
                 <p className="text-[11px] text-text-tertiary">Verified by admin</p>
               </div>
@@ -741,12 +732,7 @@ export default function DashboardPage() {
           <motion.div variants={stagger.item}>
             <Link href="/pt-test" className="block h-full">
               <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-art" style={{ '--art': "url('/home/cards/pttest.webp')" } as React.CSSProperties}>
-                <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full border-[10px] border-accent/10" aria-hidden />
-                <div className="absolute right-4 bottom-4 w-10 h-10 rounded-full border-4 border-accent/25" aria-hidden />
-                <div className="flex items-start justify-between">
-                  <Medallion><Crosshair className="w-6 h-6" strokeWidth={2} /></Medallion>
-                  <ChevronRight className="w-4 h-4 text-text-tertiary" />
-                </div>
+                <div className="flex justify-end"><ChevronRight className="w-4 h-4 text-text-tertiary" /></div>
                 <div>
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PT test</span>
                   <p className="text-[15px] font-extrabold text-white leading-tight mt-0.5">Would you pass today?</p>
@@ -759,21 +745,11 @@ export default function DashboardPage() {
           <motion.div variants={stagger.item}>
             <Link href="/breathing" className="block h-full">
               <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-art" style={{ '--art': "url('/home/cards/breathing.webp')" } as React.CSSProperties}>
-                <motion.div
-                  aria-hidden
-                  animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.35, 0.7, 0.35] }}
-                  transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
-                  className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full"
-                  style={{ background: 'radial-gradient(circle, rgba(var(--accent-rgb) / 0.55) 0%, rgba(var(--accent-rgb) / 0) 68%)' }}
-                />
-                <div className="flex items-start justify-between">
-                  <Medallion><Wind className="w-6 h-6" strokeWidth={2} /></Medallion>
-                  <ChevronRight className="w-4 h-4 text-text-tertiary" />
-                </div>
+                <div className="flex justify-end"><ChevronRight className="w-4 h-4 text-text-tertiary" /></div>
                 <div>
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Breathing</span>
                   <p className="text-[15px] font-extrabold text-white leading-tight mt-0.5">The Reset. Follow the circle.</p>
-                  <p className="text-[11px] text-text-tertiary mt-0.5">7 guided techniques · 3 to 10 min</p>
+                  <p className="text-[11px] text-text-tertiary mt-0.5 truncate">7 techniques · 3–10 min</p>
                 </div>
               </Card>
             </Link>
