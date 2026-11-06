@@ -43,7 +43,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
       // to draw a line between "header" and "background."
       className={overlay ? 'absolute inset-x-0 top-0 z-30' : 'sticky top-0 z-30 backdrop-blur-xl'}
     >
-      <div className={`flex items-center justify-between px-4 ${overlay ? 'pt-1 pb-3' : 'py-3'} max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto`}>
+      <div className={`flex items-center justify-between px-4 ${overlay ? 'pt-3 pb-3 pl-5' : 'py-3'} max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto`}>
         {title ? (
           <div className="flex items-center gap-1">
             {showBack && (

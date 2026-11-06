@@ -80,14 +80,15 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
   const litres = (waterMl / 1000).toFixed(waterMl % 1000 ? 1 : 0);
 
   return (
-    // 11pt side margins like the design (the page gives 16).
-    <div className="-mx-[5px]">
+    // 11pt side margins like the design (the page gives 16). Always the dark
+    // design, also when the app is in light mode (wf-dark keeps text white).
+    <div className="wf-dark -mx-[5px]">
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
-      <div className="relative -mx-[11px] -mt-[76px] h-[182px] overflow-hidden">
+      <div className="relative -mx-[11px] -mt-[76px] h-[182px] overflow-hidden" style={{ background: '#0A0A0A' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute top-[22px] h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px' }} />
+        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute top-0 h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px', maskImage: 'linear-gradient(90deg, transparent 0%, #000 40%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 40%)' }} />
         <div aria-hidden className="absolute inset-0" style={{ background: 'linear-gradient(90deg, #0A0A0A 18%, rgba(10,10,10,0) 55%)' }} />
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0), var(--background))' }} />
+        <div aria-hidden className="absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0), #0A0A0A)' }} />
         <div className="absolute left-[24px] top-[80px]">
           <h1 className="text-[22px] font-bold text-white tracking-[-0.01em] leading-none">Hello {name}<span aria-hidden className="ml-3 text-[17px] align-[2px]">👑</span></h1>
           <p className="text-[14px] text-white/70 mt-[9px] leading-none">Discipline builds freedom.</p>
