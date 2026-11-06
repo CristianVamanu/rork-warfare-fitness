@@ -4,7 +4,9 @@ export const dynamic = 'force-dynamic';
 import { nativeBillingBlocked } from '@/lib/native/billing';
 import { easedSets } from '@/lib/recoveryEase';
 import { maybeAskForReview } from '@/lib/native/review';
-import { newWorkoutEventId, queueWorkout, isOfflineError } from '@/lib/workoutOutbox';
+import { newWorkoutEventId, queueWorkout, dequeueWorkout, isOfflineError } from '@/lib/workoutOutbox';
+import { calcWorkoutXP, xpToPowerLevel } from '@/lib/xp';
+import { lbsToKg } from '@/lib/utils';
 import { ExerciseProgressCard } from '@/components/workout/ExerciseProgressCard';
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -1934,40 +1936,37 @@ function WorkoutSessionPageInner() {
       const unit = weightUnit === 'lbs' ? 'lbs' : 'kg';
       const eventId = newWorkoutEventId();
       const queued = { eventId, uid: user.uid, logs, duration, programId, dayIndex: dow ?? undefined, unit, finishedAt: Date.now() } as const;
-      // No signal (basement gyms): keep the finished workout on the phone and
-      // let the outbox upload it later, instead of failing the save. Also
-      // used when the save hangs or fails for lack of a connection.
-      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-        queueWorkout(queued);
-        draftStore.remove(sessionKey);
-        setSaved(true);
-        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: profile?.powerLevel ?? 0, newQuests: [] });
-        toast.success('No connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
-        return;
-      }
-      let result;
-      try {
-        result = await Promise.race([
-          completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, unit, { eventId }),
-          new Promise<never>((_, reject) => setTimeout(() => reject(Object.assign(new Error('Save timed out'), { name: 'OfflineTimeout' })), 20_000)),
-        ]);
-      } catch (err) {
-        if (!isOfflineError(err)) throw err;
-        queueWorkout(queued);
-        draftStore.remove(sessionKey);
-        setSaved(true);
-        setWorkoutResult({ duration, xpEarned: 0, newAchievements: [], newPowerLevel: profile?.powerLevel ?? 0, newQuests: [] });
-        toast.success('Weak connection. Workout saved on this phone and it will upload automatically.', { duration: 6000 });
-        return;
-      }
+      // Saved on the phone first, shown as saved at once, uploaded in the
+      // background. The outbox copy means nothing is lost if the upload is
+      // slow, fails for lack of signal, or the app is closed: the outbox
+      // flusher sends it later. The fixed eventId makes a double upload
+      // (background + flusher) count once: the event doc is written by id,
+      // XP is guarded by lastXpEventId, program days by dayIndex.
+      queueWorkout(queued);
       draftStore.remove(sessionKey);
-      trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0) });
+      const doneSets = logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).length, 0);
+      const liftedRaw = logs.reduce((n, l) => n + l.sets.filter((x) => x.completed).reduce((m, x) => m + x.weight * x.reps, 0), 0);
+      const xpEarned = calcWorkoutXP(duration, doneSets, unit === 'lbs' ? lbsToKg(liftedRaw) : liftedRaw);
+      trackEvent('WorkoutCompleted', { programId: programId ?? 'free', dow, duration, sets: doneSets });
       setSaved(true);
-      setWorkoutResult({ duration, ...result });
-      // A good moment to ask for a store rating: a workout just finished.
-      // Delayed so the summary card shows first.
+      setWorkoutResult({ duration, xpEarned, newAchievements: [], newPowerLevel: xpToPowerLevel((profile?.xp ?? 0) + xpEarned), newQuests: [] });
       const total = (profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0) + 1;
       setTimeout(() => { maybeAskForReview(total).catch(() => {}); }, 2500);
+      // Background upload. New achievements / quests arrive with it.
+      completeWorkout(user.uid, logs, duration, programId, dow ?? undefined, unit, { eventId })
+        .then((result) => {
+          dequeueWorkout(eventId);
+          const unlocked = [...result.newAchievements, ...result.newQuests].length;
+          if (unlocked) {
+            setWorkoutResult((r) => r ? { ...r, newAchievements: result.newAchievements, newQuests: result.newQuests, newPowerLevel: result.newPowerLevel || r.newPowerLevel } : r);
+            toast.success(`🏆 ${unlocked} new ${unlocked === 1 ? 'unlock' : 'unlocks'}!`);
+          }
+        })
+        .catch((err) => {
+          // Offline or slow: it stays queued and the flusher retries. Anything
+          // else is logged; the queued copy is still retried once more later.
+          if (!isOfflineError(err)) console.error('[session] background save failed', err);
+        });
     } catch (err: unknown) {
       const e = err as Error & { code?: string };
       toast.error(`Failed to save: ${e?.message || String(err)}`, { duration: 8000 });

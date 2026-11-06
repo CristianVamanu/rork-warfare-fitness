@@ -44,6 +44,11 @@ export function queueWorkout(w: QueuedWorkout) {
   write([...read().filter((x) => x.eventId !== w.eventId), w]);
 }
 
+/** Removes one queued workout once it is known to be on the server. */
+export function dequeueWorkout(eventId: string) {
+  write(read().filter((x) => x.eventId !== eventId));
+}
+
 export function pendingWorkouts(uid: string): QueuedWorkout[] {
   return read().filter((x) => x.uid === uid);
 }
