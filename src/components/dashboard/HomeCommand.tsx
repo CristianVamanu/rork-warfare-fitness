@@ -96,6 +96,9 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
 
       {/* Readiness / weekly score */}
       <div className="relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
+        {/* Faint mountain behind the right half of the card. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/home/mountain.webp" alt="" aria-hidden className="absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" />
         <span className="absolute left-[22px] top-[17px] flex items-center gap-[7px] text-[9.5px] font-semibold tracking-[0.04em] text-white/75 uppercase">
           <Activity className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> {hasWatch ? "Today's readiness" : 'This week'}
         </span>
