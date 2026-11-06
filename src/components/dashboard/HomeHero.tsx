@@ -66,23 +66,16 @@ export function HomeHero({ name, photoURL, greeting, badges }: {
 
   return (
     <div className="flex flex-col gap-4 pt-1">
-      {/* Hero art: "Discipline builds freedom." The headline is part of the
-          image; the bottom fades into the page. The greeting and badges sit
-          over that fade. */}
-      <div className="relative -mx-4 -mt-2 overflow-hidden" style={{ aspectRatio: '1122 / 1180' }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/hero/home.webp" alt="Discipline builds freedom." className="absolute inset-0 w-full h-full object-cover object-top" fetchPriority="high" />
-        <div aria-hidden className="absolute inset-x-0 bottom-0 h-1/2" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.75) 55%, var(--background) 100%)' }} />
-        <div className="absolute inset-x-4 bottom-3 flex items-end gap-3">
-          <Link href="/profile" aria-label="Profile" className="rounded-full p-[2px] bg-accent/70 flex-shrink-0" style={{ boxShadow: '0 0 14px rgba(245,166,35,0.5)' }}>
-            <Avatar src={photoURL ?? undefined} name={name} size="md" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <p className="text-[19px] font-extrabold text-white tracking-tight leading-tight truncate">{greeting}, {name}</p>
-            <div className="mt-1">{badges}</div>
-          </div>
+      <div className="flex items-center gap-3">
+        <Link href="/profile" aria-label="Profile" className="rounded-full p-[2px] bg-accent/60 flex-shrink-0">
+          <Avatar src={photoURL ?? undefined} name={name} size="md" />
+        </Link>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-[22px] font-extrabold text-white tracking-tight leading-tight truncate">Hello {name} 👋</h1>
+          <p className="text-text-secondary text-sm">{greeting}</p>
         </div>
       </div>
+      {badges}
 
       {challenge && (
         <Link

@@ -85,19 +85,15 @@ function AppNav({ pathname }: { pathname: string }) {
     <nav className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main">
       <div
         className="pointer-events-auto mx-auto mb-2 max-w-lg flex items-center justify-around rounded-[28px] px-1.5 h-[68px] backdrop-blur-xl"
-        style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--glow-border)', boxShadow: '0 12px 40px rgba(0,0,0,.55), 0 0 24px rgba(245,166,35,0.12), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+        style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}
       >
         {appItems.map(({ href, icon: Icon, label }, i) => {
           const active = pathname === href || pathname.startsWith(href + '/');
           if (i === 2) {
             return (
               <Link key={href} href={href} aria-label={label} aria-current={active ? 'page' : undefined} className="relative -mt-9 flex flex-col items-center gap-1">
-                {/* Dark core, glowing amber ring, the W mark. */}
-                <span className="wf-dark w-[62px] h-[62px] rounded-full flex items-center justify-center active:scale-95 transition-transform"
-                  style={{ background: 'radial-gradient(circle at 50% 35%, #2a2116, #0c0b0a 70%)', border: '2px solid #F5A623', boxShadow: '0 0 0 5px var(--background), 0 0 22px rgba(245,166,35,0.65), inset 0 0 12px rgba(245,166,35,0.25)' }}>
-                  <svg viewBox="0 0 40 28" className="w-[30px] h-[22px]" aria-hidden>
-                    <path d="M2 3h7l5 14 6-14 6 14 5-14h7L28 25h-5l-3-8-3 8h-5z" fill="#fff" style={{ filter: 'drop-shadow(0 0 4px rgba(245,166,35,0.8))' }} />
-                  </svg>
+                <span className="w-[62px] h-[62px] rounded-full bg-accent flex items-center justify-center active:scale-95 transition-transform" style={{ boxShadow: '0 0 0 6px var(--background), 0 8px 28px rgba(var(--accent-rgb) / 0.45)' }}>
+                  <Icon strokeWidth={2.25} className="w-[26px] h-[26px] text-black" />
                 </span>
                 <span className={cn('text-[11px] font-semibold', active ? 'text-accent' : 'text-foreground/70')}>{label}</span>
               </Link>
