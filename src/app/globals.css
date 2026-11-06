@@ -819,3 +819,13 @@ html:not(.light) .wf-round {
   box-shadow: 0 0 24px rgba(245,150,30,0.6), inset 0 1px 0 rgba(255,255,255,0.45);
   color: #0A0A0A;
 }
+
+/* Card art: an image on the right of a card, fading in from the left.
+   Set the image with style={{ '--art': 'url(...)' }}. */
+html:not(.light) .wf-art { position: relative; isolation: isolate; overflow: hidden; }
+html:not(.light) .wf-art::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--art) right center / cover no-repeat;
+  -webkit-mask-image: linear-gradient(90deg, transparent 15%, #000 65%);
+  mask-image: linear-gradient(90deg, transparent 15%, #000 65%);
+}

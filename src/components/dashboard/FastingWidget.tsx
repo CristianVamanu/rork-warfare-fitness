@@ -115,7 +115,7 @@ export function FastingWidget() {
     return (
       <>
         <button onClick={() => setStartModal(true)} className="w-full text-left">
-          <Card glass className="p-4 flex items-center gap-3.5 card-float">
+          <Card glass className="wf-art p-4 flex items-center gap-3.5 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
             <Medallion><Hourglass className="w-6 h-6" strokeWidth={2} /></Medallion>
             <div className="flex-1 min-w-0">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Fasting</span>
@@ -176,7 +176,7 @@ export function FastingWidget() {
   return (
     <>
       <button onClick={() => setDetailModal(true)} className="w-full text-left">
-        <Card glass className="p-4 flex items-center gap-4 card-float">
+        <Card glass className="wf-art p-4 flex items-center gap-4 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
           <CircularProgress pct={pct} size={72} strokeWidth={7} color="var(--accent)">
             <Timer className="w-6 h-6 text-accent" />
           </CircularProgress>

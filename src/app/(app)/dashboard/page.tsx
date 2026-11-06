@@ -703,7 +703,7 @@ export default function DashboardPage() {
           {/* Level — personal progression, not a ranking. */}
           <motion.div variants={stagger.item}>
             <Link href="/achievements" className="block h-full">
-              <div className="wf-glow rounded-2xl p-4 h-full flex items-center gap-2 card-float">
+              <div className="wf-glow wf-art rounded-2xl p-4 h-full flex items-center gap-2 card-float" style={{ '--art': "url('/home/cards/level.webp')" } as React.CSSProperties}>
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
                   <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
@@ -720,7 +720,7 @@ export default function DashboardPage() {
           </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
-              <div className="wf-glow rounded-2xl p-4 h-full flex flex-col gap-1 card-float">
+              <div className="wf-glow wf-art rounded-2xl p-4 h-full flex flex-col gap-1 card-float" style={{ '--art': "url('/home/cards/prwall.webp')" } as React.CSSProperties}>
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
                   <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.6))' }} />
@@ -740,7 +740,7 @@ export default function DashboardPage() {
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
           <motion.div variants={stagger.item}>
             <Link href="/pt-test" className="block h-full">
-              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float">
+              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-art" style={{ '--art': "url('/home/cards/pttest.webp')" } as React.CSSProperties}>
                 <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full border-[10px] border-accent/10" aria-hidden />
                 <div className="absolute right-4 bottom-4 w-10 h-10 rounded-full border-4 border-accent/25" aria-hidden />
                 <div className="flex items-start justify-between">
@@ -758,7 +758,7 @@ export default function DashboardPage() {
 
           <motion.div variants={stagger.item}>
             <Link href="/breathing" className="block h-full">
-              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float">
+              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-art" style={{ '--art': "url('/home/cards/breathing.webp')" } as React.CSSProperties}>
                 <motion.div
                   aria-hidden
                   animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.35, 0.7, 0.35] }}
