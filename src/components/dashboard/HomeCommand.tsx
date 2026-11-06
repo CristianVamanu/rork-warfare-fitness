@@ -7,7 +7,7 @@
  * challenge and the streak. Dark glass with amber glow, same on web and apps.
  */
 import Link from 'next/link';
-import { Activity, Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2 } from 'lucide-react';
+import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealthHistory } from '@/lib/useHealthHistory';
 import { readiness } from '@/lib/healthTrends';
@@ -60,9 +60,10 @@ function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { h
   );
 }
 
-export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek }: {
+export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy }: {
   name: string; kcal: number; kcalGoal: number; waterMl: number; waterGoalMl: number; workouts: number; streak: number;
   startHref: string; sessionsThisWeek: number; daysPerWeek: number;
+  onAddWater: () => void; onRemoveWater: () => void; waterBusy: boolean;
 }) {
   const { user } = useAuth();
   const { days } = useHealthHistory(user?.uid, 15);
@@ -98,14 +99,23 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
       <div className="relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
         {/* Faint mountain behind the right half of the card. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/home/mountain.webp" alt="" aria-hidden className="absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" />
+        <img src="/home/mountain.webp" alt="" aria-hidden className="absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)' }} />
         <span className="absolute left-[22px] top-[17px] flex items-center gap-[7px] text-[9.5px] font-semibold tracking-[0.04em] text-white/75 uppercase">
-          <Activity className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> {hasWatch ? "Today's readiness" : 'This week'}
+          <Flame className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> Your streak
         </span>
         <span className="absolute right-[14px] top-[11px] h-[20px] px-[8px] rounded-full flex items-center gap-[4px] text-[7.5px] font-bold text-white" style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.14)' }}>
           <Sparkles className="w-[10px] h-[10px] text-accent" /> AI COACH
         </span>
-        <div className="absolute left-[18px] top-[36px]"><Gauge value={score} /></div>
+        {/* Streak: the flame with the day count over it. */}
+        <div className="absolute left-[14px] top-[34px] w-[136px] h-[130px]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/home/flame.webp" alt="" aria-hidden className="absolute left-1/2 -translate-x-1/2 top-0 h-full w-auto object-contain"
+            style={{ mixBlendMode: 'screen', maskImage: 'radial-gradient(closest-side, #000 55%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 55%, transparent)', filter: streak > 0 ? 'brightness(1.35) saturate(1.2)' : 'grayscale(0.6) brightness(0.8)' }} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center pt-3">
+            <span className="text-[46px] font-black italic text-white leading-none" style={{ textShadow: '0 2px 14px rgba(0,0,0,0.75)' }}>{streak}</span>
+            <span className="text-[10px] font-bold text-white/85 uppercase tracking-[0.18em] mt-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{streak === 1 ? 'day' : 'days'}</span>
+          </div>
+        </div>
         <div aria-hidden className="absolute left-[164px] top-[44px] bottom-[20px] w-px bg-white/10" />
         <div className="absolute left-[184px] right-[14px] top-[44px]">
           <p className="text-[17px] font-bold text-white leading-[1.15]">{headline}</p>
@@ -151,13 +161,25 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
           <span aria-hidden className="absolute left-[15px] right-[45px] top-[105px] h-[2px] rounded-full bg-white/12" />
           <span className="absolute right-[12px] top-[86px] w-[23px] h-[23px] rounded-full flex items-center justify-center" style={ROUND_BTN}><ChevronRight className="w-[12px] h-[12px] text-white" strokeWidth={2.5} /></span>
         </Link>
-        <div className="relative rounded-[17px] h-[119px] overflow-hidden" style={GLOW_CARD}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/home/flame.webp" alt="" aria-hidden className="absolute -right-[6px] top-[16px] h-[90%] w-auto object-contain"
-            style={{ mixBlendMode: 'screen', maskImage: 'radial-gradient(closest-side, #000 55%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 55%, transparent)', filter: 'brightness(1.35) saturate(1.2)' }} />
-          <span className="absolute left-[14px] top-[14px] flex items-center gap-[6px] text-[9px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Flame className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> Your streak</span>
-          <p className="absolute left-[16px] top-[40px] flex items-baseline gap-[7px]"><span className="text-[38px] font-black italic text-white leading-none">{streak}</span><span className="text-[10px] font-bold text-white leading-none">{streak === 1 ? 'day' : 'days'}</span></p>
-          <p className="absolute left-[15px] top-[98px] text-[9px] font-medium text-accent leading-none">{streak > 0 ? 'Keep it burning!' : "Let's get started!"}</p>
+        <div className="flex flex-col gap-[8px] h-[119px]">
+          {/* Calories today */}
+          <Link href="/nutrition" className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
+            <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Flame className="w-[13px] h-[13px] text-accent" strokeWidth={2} /> Calories</span>
+            <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{kcal.toLocaleString()}</span><span className="text-[9px] text-white/55"> /{kcalGoal.toLocaleString()}</span></p>
+            <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${kcalGoal ? Math.min(100, (kcal / kcalGoal) * 100) : 0}%`, background: AMBER, boxShadow: '0 0 6px rgba(245,166,35,0.8)' }} /></span>
+          </Link>
+          {/* Water today, with − / + */}
+          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Droplet className="w-[13px] h-[13px] text-[#3B9BFF]" strokeWidth={2} /> Water</span>
+              <span className="flex gap-[5px]">
+                <button type="button" onClick={onRemoveWater} disabled={waterBusy || !waterMl} aria-label="Remove water" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35" style={ROUND_BTN}><Minus className="w-[10px] h-[10px] text-white" strokeWidth={2.6} /></button>
+                <button type="button" onClick={onAddWater} disabled={waterBusy} aria-label="Add water" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35" style={{ background: 'rgba(59,155,255,0.18)', border: '1px solid rgba(59,155,255,0.55)' }}><Plus className="w-[10px] h-[10px] text-[#7DBBFF]" strokeWidth={2.6} /></button>
+              </span>
+            </div>
+            <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{litres}</span><span className="text-[9px] text-white/55"> /{(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 1 : 0)}L</span></p>
+            <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${waterGoalMl ? Math.min(100, (waterMl / waterGoalMl) * 100) : 0}%`, background: '#3B9BFF', boxShadow: '0 0 6px rgba(59,155,255,0.8)' }} /></span>
+          </div>
         </div>
       </div>
     </div>

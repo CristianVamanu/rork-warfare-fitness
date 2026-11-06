@@ -409,6 +409,9 @@ export default function DashboardPage() {
             streak={streak}
             sessionsThisWeek={sessionsThisWeek}
             daysPerWeek={programSource?.daysPerWeek ?? 0}
+            onAddWater={handleAddWater}
+            onRemoveWater={handleRemoveWater}
+            waterBusy={adjustingWater}
             startHref={activeProgram?.programId && !isRestToday ? `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}` : '/training'}
           />
         </motion.div>
