@@ -199,11 +199,6 @@ export default function ChallengePage() {
             <Board board={board} challenge={challenge} meUid={user?.uid} />
           ) : (
             <>
-              {/* Composer: the first thing in the feed, not a bar over the nav.
-                  Only for entrants (or admins). */}
-              {user && (entry || isAdmin) && (
-                <Composer challengeId={challenge.id} user={{ uid: user.uid, displayName: profile?.displayName || 'Athlete', photoURL: profile?.photoURL, isAdmin: profile?.role === 'admin' }} />
-              )}
               {posts.length === 0 ? (
                 <Card className="p-8 text-center">
                   <p className="text-white font-bold">Nothing posted yet</p>
@@ -218,6 +213,13 @@ export default function ChallengePage() {
             </>
           )}
         </div>
+
+        {/* Message bar docked where the nav sits (the nav is hidden on this
+            screen), so it is always in reach however long the feed gets.
+            Only for entrants (or admins), only on the feed. */}
+        {tab === 'feed' && user && (entry || isAdmin) && (
+          <Composer challengeId={challenge.id} user={{ uid: user.uid, displayName: profile?.displayName || 'Athlete', photoURL: profile?.photoURL, isAdmin: profile?.role === 'admin' }} />
+        )}
 
 
         {user && (
@@ -409,9 +411,10 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
     }
   };
   return (
-    // Inline in the feed: a glass card with attach, message and a glowing send.
-    <div className="rounded-[22px] p-1.5 flex items-end gap-1 transition-colors focus-within:border-accent/50"
-      style={{ background: 'var(--card-glass-bg)', border: '1px solid rgba(var(--accent-rgb) / 0.22)' }}>
+    // Docked in the nav's place, in the nav's own shape: one bar, always in reach.
+    <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
+    <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] p-1.5 flex items-end gap-1 backdrop-blur-xl transition-colors focus-within:border-accent/50"
+      style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
         <div className="flex items-end gap-1 flex-shrink-0 [&_button]:!rounded-full [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!p-2.5">
           <MediaPicker value={media} onChange={setMedia} max={PROOF_MAX} compact />
         </div>
@@ -424,6 +427,7 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
           style={canSend ? { boxShadow: '0 0 16px rgba(var(--accent-rgb) / 0.55)' } : undefined}>
           {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
+    </div>
     </div>
   );
 }
