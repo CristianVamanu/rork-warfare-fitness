@@ -20,11 +20,11 @@ const GLOW_CARD: React.CSSProperties = {
   boxShadow: '0 0 26px rgba(245,166,35,0.18), inset 0 1px 0 rgba(255,255,255,0.06)',
 };
 
-function Gauge({ value }: { value: number }) {
+function Gauge({ value, size = 150 }: { value: number; size?: number }) {
   // 270° arc, open at the bottom.
   const R = 62, C = 2 * Math.PI * R, ARC = C * 0.75;
   return (
-    <svg width="150" height="150" viewBox="0 0 150 150" role="img" aria-label={`${value} out of 100`}>
+    <svg width={size} height={size} viewBox="0 0 150 150" role="img" aria-label={`${value} out of 100`}>
       <circle cx="75" cy="75" r={R} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="10" strokeLinecap="round"
         strokeDasharray={`${ARC} ${C}`} transform="rotate(135 75 75)" />
       <circle cx="75" cy="75" r={R} fill="none" stroke={AMBER} strokeWidth="10" strokeLinecap="round"
@@ -40,7 +40,7 @@ function PhotoCard({ href, img, icon: Icon, title, sub }: { href: string; img: s
   return (
     <Link href={href} className="relative rounded-[20px] overflow-hidden h-[150px] p-3 flex flex-col justify-end active:scale-[.98] transition-transform" style={GLOW_CARD}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={img} alt="" className="absolute -right-3 -top-2 h-[78%] aspect-square object-cover" style={{ maskImage: 'radial-gradient(closest-side, #000 60%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 60%, transparent)' }} />
+      <img src={img} alt="" className="absolute -right-2 -top-1 h-[60%] aspect-square object-cover" style={{ maskImage: 'radial-gradient(closest-side, #000 60%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 60%, transparent)' }} />
       <span className="absolute left-3 top-3 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(245,166,35,0.3)' }}>
         <Icon className="w-[18px] h-[18px] text-accent" strokeWidth={1.8} />
       </span>
@@ -76,15 +76,15 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
   return (
     <div className="flex flex-col gap-3">
       {/* Hero: greeting on the left, athlete on the right fading into the page */}
-      <div className="relative -mx-4 -mt-2 h-[230px] overflow-hidden">
+      <div className="relative -mx-4 -mt-2 h-[168px] overflow-hidden">
         {/* The art is dark on the left by design, so the greeting sits on it. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover object-[70%_25%]" />
         <div aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, var(--background))' }} />
-        <div className="absolute left-4 top-9">
-          <h1 className="text-[28px] font-black text-white tracking-tight leading-none">Hello {name} <span aria-hidden>👑</span></h1>
-          <p className="text-[15px] text-white/65 mt-2">Discipline builds freedom.</p>
-          <span aria-hidden className="block mt-3 h-[3px] w-24 rounded-full" style={{ background: AMBER, boxShadow: '0 0 10px rgba(245,166,35,0.8)' }} />
+        <div className="absolute left-4 top-7">
+          <h1 className="text-[26px] font-black text-white tracking-tight leading-none">Hello {name} <span aria-hidden>👑</span></h1>
+          <p className="text-[14px] text-white/65 mt-1.5">Discipline builds freedom.</p>
+          <span aria-hidden className="block mt-2.5 h-[3px] w-20 rounded-full" style={{ background: AMBER, boxShadow: '0 0 10px rgba(245,166,35,0.8)' }} />
         </div>
       </div>
 
@@ -92,19 +92,25 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
       <div className="relative rounded-[24px] p-4 overflow-hidden" style={GLOW_CARD}>
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-2 text-[11px] font-bold tracking-wider text-white/70 uppercase">
-            <Activity className="w-4 h-4 text-accent" /> {hasWatch ? "Today's readiness" : 'This week'}
+            <Flame className="w-4 h-4 text-accent" /> Your streak
           </span>
           <span className="flex items-center gap-1 text-[10px] font-bold text-white rounded-full px-2.5 py-1" style={{ background: 'rgba(0,0,0,0.5)', border: '1px solid rgba(255,255,255,0.12)' }}>
             <Sparkles className="w-3 h-3 text-accent" /> AI COACH
           </span>
         </div>
         <div className="flex items-center gap-3 mt-2">
-          <div className="flex-shrink-0 -ml-1"><Gauge value={score} /></div>
+          {/* The streak flame: glowing when lit, dimmed embers at 0. */}
+          <div className="relative flex-shrink-0 w-[132px] h-[140px] flex flex-col items-center justify-center">
+            <div aria-hidden className="absolute inset-2 rounded-full" style={{ background: streak > 0 ? 'radial-gradient(circle, rgba(245,166,35,0.45), transparent 70%)' : 'radial-gradient(circle, rgba(120,113,108,0.3), transparent 70%)' }} />
+            <span aria-hidden className={`absolute text-[104px] leading-none ${streak > 0 ? 'flame-glow flame-flicker' : 'ember-pulse'}`} style={{ opacity: streak > 0 ? 0.9 : 0.35, filter: streak > 0 ? 'drop-shadow(0 0 18px rgba(245,166,35,0.8))' : 'grayscale(0.8) brightness(0.7)' }}>🔥</span>
+            <span className="relative text-[46px] font-black italic text-white leading-none mt-6" style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7)' }}>{streak}</span>
+            <span className="relative text-[10px] font-bold tracking-[0.18em] text-white/80 uppercase mt-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{streak === 1 ? 'day' : 'days'}</span>
+          </div>
           <div className="w-px self-stretch bg-white/10" aria-hidden />
           <div className="min-w-0 flex-1">
             <p className="text-[19px] font-extrabold text-white leading-tight">{headline}</p>
             <p className="text-[12.5px] text-white/60 mt-1.5 leading-snug">{sub}</p>
-            <Link href={startHref} className="mt-3 h-11 rounded-full flex items-center justify-center gap-2 text-[13px] font-black text-black active:scale-[.98] transition-transform"
+            <Link href={startHref} className="mt-3 h-11 px-3 rounded-full flex items-center justify-center gap-1.5 whitespace-nowrap text-[12px] font-black text-black active:scale-[.98] transition-transform"
               style={{ background: 'linear-gradient(180deg, #FFB84A, #F5A623)', boxShadow: '0 0 22px rgba(245,166,35,0.6), inset 0 1px 0 rgba(255,255,255,0.4)' }}>
               <Play className="w-4 h-4 fill-black" /> START WORKOUT <ChevronRight className="w-4 h-4" />
             </Link>
@@ -147,11 +153,9 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
             <span className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)', border: '1px solid rgba(255,255,255,0.15)' }}><ChevronRight className="w-3.5 h-3.5 text-white" /></span>
           </div>
         </Link>
-        <div className="relative rounded-[20px] p-3.5 overflow-hidden" style={GLOW_CARD}>
-          <span aria-hidden className="absolute -right-3 bottom-0 text-[90px] leading-none opacity-60" style={{ filter: streak > 0 ? 'drop-shadow(0 0 16px rgba(245,166,35,0.8))' : 'grayscale(0.7) brightness(0.7)' }}>🔥</span>
-          <span className="relative flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-white/70 uppercase"><Flame className="w-4 h-4 text-accent" /> Your streak</span>
-          <p className="relative mt-2"><span className="text-[44px] font-black italic text-white leading-none">{streak}</span> <span className="text-[15px] font-bold text-white/80">{streak === 1 ? 'day' : 'days'}</span></p>
-          <p className="relative text-[12px] font-semibold text-accent mt-2">{streak > 0 ? 'Keep it burning!' : "Let's get started!"}</p>
+        <div className="relative rounded-[20px] p-3.5 overflow-hidden flex flex-col" style={GLOW_CARD}>
+          <span className="flex items-center gap-1.5 text-[10px] font-bold tracking-wider text-white/70 uppercase"><Activity className="w-4 h-4 text-accent" /> {hasWatch ? 'Readiness' : 'This week'}</span>
+          <div className="flex justify-center -mb-3 mt-0.5"><Gauge value={score} size={112} /></div>
         </div>
       </div>
     </div>
