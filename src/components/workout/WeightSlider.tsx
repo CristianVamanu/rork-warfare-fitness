@@ -104,7 +104,7 @@ export function WeightSlider({
         <button
           onClick={() => handleSlide(Math.max(0, parseFloat((value - step).toFixed(2))))}
           disabled={disabled}
-          className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all flex-shrink-0"
+          className="w-11 h-11 rounded-full wf-round flex items-center justify-center active:scale-95 transition-all flex-shrink-0"
         >
           −
         </button>
@@ -130,7 +130,7 @@ export function WeightSlider({
         <button
           onClick={() => handleSlide(Math.min(max, parseFloat((value + step).toFixed(2))))}
           disabled={disabled}
-          className="w-9 h-9 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all flex-shrink-0"
+          className="w-11 h-11 rounded-full wf-round flex items-center justify-center active:scale-95 transition-all flex-shrink-0"
         >
           +
         </button>

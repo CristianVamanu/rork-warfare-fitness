@@ -374,10 +374,10 @@ function CardioTimerRow({
       <motion.button
         layout
         onClick={onActivate}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-4 rounded-[20px] wf-glow transition-colors text-left"
       >
-        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg text-text-secondary font-black">{setNum}</span>
         </div>
         <span className="text-sm text-text-secondary flex-1">Set {setNum}</span>
         <span className="text-xs text-text-tertiary">tap to activate</span>
@@ -391,13 +391,13 @@ function CardioTimerRow({
       layout
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="rounded-2xl border border-accent/40 bg-accent/5"
+      className="rounded-[22px] wf-set-active"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
-            <span className="text-xs font-black text-accent">{setNum}</span>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #5a3510, #3a220a)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+            <span className="text-xl font-black text-accent">{setNum}</span>
           </div>
           <span className="text-sm font-semibold text-foreground">Set {setNum} — Active</span>
         </div>
@@ -479,7 +479,7 @@ function CardioTimerRow({
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onComplete}
-          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors"
+          className="w-full py-3.5 rounded-full wf-cta font-bold text-[15px] flex items-center justify-center gap-2 transition-transform"
         >
           <CheckCircle className="w-4 h-4" />
           Done — Mark Complete
@@ -612,10 +612,10 @@ function DistanceLogRow({
       <motion.button
         layout
         onClick={onActivate}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-4 rounded-[20px] wf-glow transition-colors text-left"
       >
-        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg text-text-secondary font-black">{setNum}</span>
         </div>
         <span className="text-sm text-text-secondary flex-1">Set {setNum}</span>
         <span className="text-xs text-text-tertiary">tap to activate</span>
@@ -628,12 +628,12 @@ function DistanceLogRow({
       layout
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="rounded-2xl border border-accent/40 bg-accent/5"
+      className="rounded-[22px] wf-set-active"
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
-            <span className="text-xs font-black text-accent">{setNum}</span>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #5a3510, #3a220a)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+            <span className="text-xl font-black text-accent">{setNum}</span>
           </div>
           <span className="text-sm font-semibold text-foreground">Target: {targetDistanceValue}{targetDistanceUnit}</span>
         </div>
@@ -846,7 +846,7 @@ function HiitTimerRow({
       <motion.button
         layout
         onClick={onActivate}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-4 rounded-[20px] wf-glow transition-colors text-left"
       >
         <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
           <Zap className="w-3.5 h-3.5 text-text-tertiary" />
@@ -935,7 +935,7 @@ function HiitTimerRow({
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onComplete}
-          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors"
+          className="w-full py-3.5 rounded-full wf-cta font-bold text-[15px] flex items-center justify-center gap-2 transition-transform"
         >
           <CheckCircle className="w-4 h-4" />
           Done — Mark Complete
@@ -1029,10 +1029,10 @@ function SetRow({
       <motion.button
         layout
         onClick={onActivate}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-border bg-surface hover:bg-surface-elevated transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-4 rounded-[20px] wf-glow transition-colors text-left"
       >
-        <div className="w-7 h-7 rounded-lg bg-white/8 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs text-text-tertiary font-bold">{setNum}</span>
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0">
+          <span className="text-lg text-text-secondary font-black">{setNum}</span>
         </div>
         <span className="text-sm text-text-secondary flex-1">Set {setNum}</span>
         <span className="text-xs text-text-tertiary">tap to activate</span>
@@ -1046,13 +1046,13 @@ function SetRow({
       layout
       initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="rounded-2xl border border-accent/40 bg-accent/5 overflow-hidden"
+      className="rounded-[22px] wf-set-active overflow-hidden"
     >
       {/* Set header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-accent/20 flex items-center justify-center">
-            <span className="text-xs font-black text-accent">{setNum}</span>
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: 'linear-gradient(180deg, #5a3510, #3a220a)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}>
+            <span className="text-xl font-black text-accent">{setNum}</span>
           </div>
           <span className="text-sm font-semibold text-foreground">Set {setNum} — Active</span>
         </div>
@@ -1117,7 +1117,7 @@ function SetRow({
         <div className="flex items-center justify-center gap-5">
           <button
             onClick={() => onRepsChange(-1)}
-            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full wf-round flex items-center justify-center active:scale-95 transition-all"
           >
             <Minus className="w-4 h-4" />
           </button>
@@ -1162,7 +1162,7 @@ function SetRow({
           </div>
           <button
             onClick={() => onRepsChange(1)}
-            className="w-11 h-11 rounded-full bg-surface-elevated border border-border flex items-center justify-center text-foreground hover:bg-border active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full wf-round flex items-center justify-center active:scale-95 transition-all"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -1177,7 +1177,7 @@ function SetRow({
         <motion.button
           whileTap={{ scale: 0.97 }}
           onClick={onComplete}
-          className="w-full py-3.5 rounded-xl bg-accent text-black font-bold text-sm flex items-center justify-center gap-2 shadow-glow-sm hover:bg-amber-400 transition-colors"
+          className="w-full py-3.5 rounded-full wf-cta font-bold text-[15px] flex items-center justify-center gap-2 transition-transform"
         >
           <CheckCircle className="w-4 h-4" />
           Complete Set {setNum}
@@ -2022,12 +2022,12 @@ function WorkoutSessionPageInner() {
     // stay legible over changing content scrolling behind it.
     <div className="min-h-screen flex flex-col">
       {/* ── Sticky header ─────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
-        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
+      <div className="sticky top-0 z-30 pt-2 pb-1 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="mx-3 px-3 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl md:mx-auto rounded-[22px] wf-glow">
           <div className="flex items-center justify-between mb-2">
             <button
               onClick={() => setQuitModal(true)}
-              className="p-2 rounded-xl text-text-secondary hover:text-danger hover:bg-danger/10 transition-colors"
+              className="w-10 h-10 rounded-full wf-round flex items-center justify-center hover:text-danger transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -2217,8 +2217,8 @@ function WorkoutSessionPageInner() {
       )}
 
       {/* ── Exercise nav ──────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-xl border-t border-white/8 pb-safe">
-        <div className="px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto flex items-center gap-3">
+      <div className="fixed bottom-0 left-0 right-0 z-40 px-3 chat-dock pointer-events-none">
+        <div className="pointer-events-auto px-3 py-2.5 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto flex items-center gap-3 rounded-full wf-glow">
           <Button
             variant="ghost"
             size="sm"
