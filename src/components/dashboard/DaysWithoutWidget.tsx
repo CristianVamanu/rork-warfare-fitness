@@ -22,6 +22,7 @@ function toMillis(ts: unknown): number {
 }
 
 function formatElapsed(ms: number): string {
+  ms = Math.max(0, ms);
   const days = Math.floor(ms / 86400000);
   const hours = Math.floor((ms % 86400000) / 3600000);
   if (days > 0) return `${days}d ${hours}h`;
@@ -98,7 +99,7 @@ export function DaysWithoutWidget() {
               <p className="text-[15px] font-extrabold text-white leading-tight">Habits you are quitting</p>
             </div>
           </div>
-          <button onClick={() => setAddModal(true)} className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors">
+          <button onClick={() => setAddModal(true)} className="w-8 h-8 rounded-full wf-round flex items-center justify-center">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -110,20 +111,20 @@ export function DaysWithoutWidget() {
         ) : (
           <div className="space-y-2">
             {goals.map((g) => {
-              const elapsedMs = now - toMillis(g.startedAt);
+              const elapsedMs = Math.max(0, now - toMillis(g.startedAt));
               const days = Math.floor(elapsedMs / 86400000);
               return (
                 <button
                   key={g.id}
                   onClick={() => setDetailGoal(g)}
-                  className="w-full flex items-center gap-3 p-3 bg-gradient-to-br from-danger/5 via-surface-elevated to-surface-elevated rounded-xl hover:bg-white/5 transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[18px] wf-glow active:scale-[.99] transition-transform"
                 >
-                  <div className="w-11 h-11 rounded-full bg-danger/10 border-2 border-danger/30 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-black text-danger">{days}</span>
+                  <div className="w-11 h-11 rounded-full wf-round flex flex-col items-center justify-center flex-shrink-0">
+                    <span className="text-[15px] font-black italic text-white leading-none">{days}</span><span className="text-[7px] font-bold tracking-wider text-accent uppercase">{days === 1 ? 'day' : 'days'}</span>
                   </div>
                   <div className="flex-1 min-w-0 text-left">
-                    <p className="text-xs font-bold text-white truncate">{g.label}</p>
-                    <p className="text-[10px] text-text-tertiary">{formatElapsed(elapsedMs)} clean</p>
+                    <p className="text-[13px] font-bold text-white truncate">{g.label}</p>
+                    <p className="text-[11px] text-accent/90">{formatElapsed(elapsedMs)} clean</p>
                   </div>
                 </button>
               );
@@ -140,7 +141,7 @@ export function DaysWithoutWidget() {
                 key={p}
                 onClick={() => handleAdd(p)}
                 disabled={adding}
-                className="px-3 py-2 rounded-full border border-white/10 bg-surface hover:border-accent/40 text-xs text-white transition-colors"
+                className="px-4 py-2.5 rounded-full wf-glow text-[13px] font-semibold text-white active:scale-95 transition-transform"
               >
                 {p}
               </button>
@@ -152,8 +153,9 @@ export function DaysWithoutWidget() {
               onChange={(e) => setCustomGoal(e.target.value)}
               placeholder="Custom goal (a few words)"
               maxLength={40}
+              className="!rounded-full !px-5 wf-glow"
             />
-            <Button disabled={!customGoal.trim()} loading={adding} onClick={() => handleAdd(customGoal)}>
+            <Button disabled={!customGoal.trim()} loading={adding} onClick={() => handleAdd(customGoal)} className="!rounded-full !px-7 wf-cta">
               Add
             </Button>
           </div>
@@ -164,14 +166,14 @@ export function DaysWithoutWidget() {
         {detailGoal && (
           <div className="space-y-4">
             <div className="flex flex-col items-center py-4">
-              <div className="w-28 h-28 rounded-full bg-danger/10 border-4 border-danger/30 flex flex-col items-center justify-center">
-                <Flame className="w-5 h-5 text-danger mb-1" />
-                <span className="text-2xl font-black text-white">{Math.floor((now - toMillis(detailGoal.startedAt)) / 86400000)}</span>
+              <div className="w-28 h-28 rounded-full wf-round flex flex-col items-center justify-center">
+                <Flame className="w-5 h-5 text-accent mb-1" />
+                <span className="text-2xl font-black text-white">{Math.floor(Math.max(0, now - toMillis(detailGoal.startedAt)) / 86400000)}</span>
                 <span className="text-[9px] text-text-tertiary uppercase tracking-wide">days</span>
               </div>
               <p className="text-xs text-text-tertiary mt-3">{formatElapsed(now - toMillis(detailGoal.startedAt))} and counting</p>
             </div>
-            <div className="p-3 bg-surface-elevated rounded-xl flex items-start gap-2">
+            <div className="p-3 rounded-2xl wf-glow flex items-start gap-2">
               <Quote className="w-4 h-4 text-accent flex-shrink-0 mt-0.5" />
               <p className="text-xs text-text-secondary italic leading-relaxed">{quote}</p>
             </div>
