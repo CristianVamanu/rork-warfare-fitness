@@ -35,7 +35,7 @@ export interface StreakInput {
   lastWorkoutDate?: string;
   /** statsCache.streak — last computed at completion time, never decayed. */
   cachedStreak: number;
-  /** Workouts completed on the active program. */
+  /** Workouts completed on the account (all programs). */
   completedWorkouts: number;
   /** An unspent freeze absorbs exactly one missed day. */
   freezeAvailable: boolean;

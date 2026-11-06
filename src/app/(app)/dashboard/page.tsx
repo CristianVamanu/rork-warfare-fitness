@@ -162,7 +162,9 @@ export default function DashboardPage() {
     today: localDateStr,
     lastWorkoutDate: profile?.statsCache?.lastWorkoutDate as string | undefined,
     cachedStreak: profile?.statsCache?.streak ?? profile?.stats?.streak ?? 0,
-    completedWorkouts: profile?.activeProgram?.completedWorkouts ?? 0,
+    // Account-wide, not the active program's count: after a program switch
+    // that is 0, which made a workout done today read as "not trained".
+    completedWorkouts: profile?.statsCache?.totalWorkouts ?? profile?.stats?.totalWorkouts ?? 0,
     freezeAvailable: profile?.streakFreeze?.available ?? true,
   });
   const { streak, flameState, workedOutToday, savedByFreeze: streakSavedByFreeze } = streakView;
