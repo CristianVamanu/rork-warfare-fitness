@@ -378,8 +378,8 @@ export default function DashboardPage() {
       </Suspense>
     <div className="relative">
       <div className="relative">
-      <Header />
-      <div className="px-4 py-4 space-y-3.5">
+      <Header overlay />
+      <div className="relative px-4 pt-[76px] pb-4 space-y-3.5">
         {/* Browser-only: disappears once opened from the home screen. */}
         <InstallAppStrip />
         {/* Streak Urgency Banner */}

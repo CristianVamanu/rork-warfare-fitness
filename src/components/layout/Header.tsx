@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bell, MessageCircle, LifeBuoy, ChevronLeft } from 'lucide-react';
+import { Bell, MessageCircle, LifeBuoy, ChevronLeft, Settings } from 'lucide-react';
 import Image from 'next/image';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,9 +14,11 @@ interface HeaderProps {
   showActions?: boolean;
   rightElement?: React.ReactNode;
   showBack?: boolean;
+  /** Home: transparent, sits over the hero art; round icon buttons and a settings cog. */
+  overlay?: boolean;
 }
 
-export function Header({ title, showActions = true, rightElement, showBack = false }: HeaderProps) {
+export function Header({ title, showActions = true, rightElement, showBack = false, overlay = false }: HeaderProps) {
   const { profile } = useAuth();
   const router = useRouter();
   // Shared conversations/notifications/branding data lives in
@@ -39,9 +41,9 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
       // sticky + backdrop-blur, so scrolled content underneath stays
       // legible (frosted-glass, not a hard-edged bar) without a border
       // to draw a line between "header" and "background."
-      className="sticky top-0 z-30 backdrop-blur-xl"
+      className={overlay ? 'absolute inset-x-0 top-0 z-30' : 'sticky top-0 z-30 backdrop-blur-xl'}
     >
-      <div className="flex items-center justify-between px-4 py-3 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto">
+      <div className={`flex items-center justify-between px-4 ${overlay ? 'pt-1 pb-3' : 'py-3'} max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto`}>
         {title ? (
           <div className="flex items-center gap-1">
             {showBack && (
@@ -60,11 +62,11 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
             {/* The Warfare Fitness wordmark (W mark + name). Its black backing
                 blends away on the dark header. */}
             <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={165} height={38} priority
-              className="h-[34px] w-auto" style={{ mixBlendMode: 'lighten' }} />
+              className={overlay ? 'h-[28px] w-auto' : 'h-[34px] w-auto'} style={{ mixBlendMode: 'lighten' }} />
           </div>
         )}
 
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center ${overlay ? 'gap-[10px] [&_.wf-icon-tile]:!w-[35px] [&_.wf-icon-tile]:!h-[35px] [&_.wf-icon-tile]:!rounded-full [&_.wf-icon-tile]:!bg-black/45 [&_.wf-icon-tile]:!border-white/20 [&_.wf-icon-tile]:!text-white' : 'gap-2'}`}>
           {rightElement}
           {showActions && (
             <>
@@ -102,7 +104,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   support request, and permanently for staff (who always have
                   an inbox to check). Separate from the message icon above so
                   each one goes somewhere unambiguous. */}
-              {hasSupportTicket && (
+              {hasSupportTicket && !overlay && (
                 <Link
                   href={isAdmin ? '/admin?tab=support' : '/support'}
                   aria-label={unreadSupport > 0 ? `Support, ${unreadSupport} unread` : 'Support'}
@@ -118,13 +120,19 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
               )}
               {/* The avatar keeps its photo but sits in the same tile as the
                   rest of the row, so the four actions read as one set. */}
-              <Link
-                href="/settings"
-                aria-label="Settings"
-                className="wf-icon-tile overflow-hidden p-[3px]"
-              >
-                <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
-              </Link>
+              {overlay ? (
+                <Link href="/settings" aria-label="Settings" className="wf-icon-tile">
+                  <Settings className="w-[18px] h-[18px]" strokeWidth={1.75} />
+                </Link>
+              ) : (
+                <Link
+                  href="/settings"
+                  aria-label="Settings"
+                  className="wf-icon-tile overflow-hidden p-[3px]"
+                >
+                  <Avatar src={profile?.photoURL} name={profile?.displayName} size="sm" />
+                </Link>
+              )}
             </>
           )}
         </div>
