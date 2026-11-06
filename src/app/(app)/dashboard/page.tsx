@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
+import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { sessionsIntoWeek } from '@/lib/programWeek';
@@ -256,6 +256,25 @@ export default function DashboardPage() {
   // until the next week's first session. See lib/programWeek.
   const sessionsThisWeek = sessionsIntoWeek(completedWorkouts, programSource?.daysPerWeek ?? 0);
 
+  // Workouts logged since Monday 00:00 local, across every program. The
+  // program position above resets on a switch; the Home "this week" line
+  // must count what was actually trained this calendar week, the same
+  // account-wide history the streak counts.
+  const [weekWorkouts, setWeekWorkouts] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    const now = new Date();
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7)).getTime();
+    getUserWorkouts(user.uid, 30).then((rows) => {
+      if (!alive) return;
+      const n = (rows as unknown as { completedAt?: { toDate?: () => Date } }[])
+        .filter((w) => (w.completedAt?.toDate?.()?.getTime() ?? 0) >= monday).length;
+      setWeekWorkouts(n);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [user, totalWorkouts, localDateStr]);
+
   // getNextSession is the single shared answer to "what's next" — the next
   // slot after the last completed one, with rest days shown on the day they
   // fall and expiring at the user's own midnight.
@@ -391,7 +410,7 @@ export default function DashboardPage() {
             waterGoalMl={goals.water}
             workouts={totalWorkouts}
             streak={streak}
-            sessionsThisWeek={sessionsThisWeek}
+            sessionsThisWeek={weekWorkouts ?? sessionsThisWeek}
             daysPerWeek={programSource?.daysPerWeek ?? 0}
             onAddWater={handleAddWater}
             onRemoveWater={handleRemoveWater}
