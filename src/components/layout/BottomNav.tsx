@@ -92,7 +92,10 @@ export function LegacyBottomNav() {
 
 function AppNav({ pathname }: { pathname: string }) {
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main">
+    <nav className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main"
+      // The strip under the floating bar is filled, so content never shows
+      // through between the bar and the bottom of the screen.
+      style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.92) 45%, #0A0A0A 100%)', paddingTop: 18 }}>
       <div
         className="pointer-events-auto mx-auto mb-2 max-w-lg flex items-center justify-around rounded-[28px] px-1.5 h-[68px] backdrop-blur-xl"
         style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid rgba(245,166,35,0.28)', boxShadow: '0 12px 40px rgba(0,0,0,.55), 0 0 22px rgba(245,166,35,0.12), inset 0 1px 0 rgba(255,255,255,0.06)' }}
