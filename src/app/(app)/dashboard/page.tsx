@@ -458,7 +458,7 @@ export default function DashboardPage() {
         ) : (
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.1 }} className="mb-3">
             {activeProgram ? (
-              <Card className={`p-5 h-full relative overflow-hidden flex flex-col card-float ${isRestToday ? '' : 'border-accent/45 shadow-[0_0_40px_-8px_rgba(245,166,35,0.5)]'}`}>
+              <Card className="p-5 h-full relative overflow-hidden flex flex-col card-float wf-mtn">
                 {/* The same ember wash and hairline grid the Next Workout
                     card on the program screen uses. The two cards show the
                     same session; they had no business looking like they came
@@ -689,7 +689,7 @@ export default function DashboardPage() {
             <motion.div key={action.label} variants={stagger.item}>
               <Link href={action.href} className="block">
                 {/* Glass tool tile with the amber edge glow; white line icon, amber for the reward tools. */}
-                <div className="wf-glow rounded-2xl h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                <div className="wf-glow rounded-[18px] h-[84px] flex flex-col items-center justify-center gap-2 card-float">
                   <action.icon className={`w-6 h-6 ${action.tone || 'text-foreground'}`} strokeWidth={1.6} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.35))' }} />
                   <span className="text-[10px] font-semibold text-foreground/85 text-center leading-tight px-1">{action.label}</span>
                 </div>
@@ -719,7 +719,7 @@ export default function DashboardPage() {
           </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
-              <div className="wf-glow rounded-2xl p-4 h-full flex flex-col gap-1 card-float">
+              <div className="wf-glow wf-mtn rounded-2xl p-4 h-full flex flex-col gap-1 card-float">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
                   <Trophy className="w-5 h-5 text-accent" strokeWidth={1.75} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.6))' }} />
@@ -739,7 +739,7 @@ export default function DashboardPage() {
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
           <motion.div variants={stagger.item}>
             <Link href="/pt-test" className="block h-full">
-              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float">
+              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-mtn">
                 <div className="absolute -right-6 -bottom-6 w-28 h-28 rounded-full border-[10px] border-accent/10" aria-hidden />
                 <div className="absolute right-4 bottom-4 w-10 h-10 rounded-full border-4 border-accent/25" aria-hidden />
                 <div className="flex items-start justify-between">
@@ -757,7 +757,7 @@ export default function DashboardPage() {
 
           <motion.div variants={stagger.item}>
             <Link href="/breathing" className="block h-full">
-              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float">
+              <Card glass className="relative overflow-hidden p-4 h-[156px] flex flex-col justify-between card-float wf-mtn">
                 <motion.div
                   aria-hidden
                   animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.35, 0.7, 0.35] }}
