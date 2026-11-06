@@ -37,6 +37,14 @@ import { IdeaStatusBadge } from '@/components/community/IdeaStatusBadge';
  * has no such field — sniffing the extension keeps those rendering as
  * images instead of guessing video and showing an empty player.
  */
+/** **bold** in a post (admins write announcements that way). Text only, no HTML. */
+function RichText({ text }: { text: string }) {
+  const parts = text.split(/(\*\*[^*\n]+\*\*)/g);
+  return <>{parts.map((p, i) => (p.startsWith('**') && p.endsWith('**') && p.length > 4
+    ? <strong key={i} className="font-bold text-white">{p.slice(2, -2)}</strong>
+    : <span key={i}>{p}</span>))}</>;
+}
+
 function mediaKindOf(post: { imageURL?: string; mediaType?: 'image' | 'video' }): 'image' | 'video' {
   if (post.mediaType) return post.mediaType;
   return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(post.imageURL ?? '') ? 'video' : 'image';
@@ -411,7 +419,7 @@ function PostCard({
         </div>
       ) : (
         <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
-          {post.content}
+          <RichText text={post.content} />
           {/* Shown for the same reason the replies show it: a post whose text
               changed after people replied to it should say so. */}
           {!!post.editedAt && <span className="ml-1.5 text-[10px] text-text-tertiary align-middle">edited</span>}
@@ -794,7 +802,7 @@ export default function ChannelPage() {
         setSlowModeBlocked(new Date(Date.now() + channel.slowModeDays * 86400000));
       }
       setTimeout(() => {
-        postsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        postsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
         setShowJumpToLatest(false);
         setUnreadCount(0);
       }, 100);
@@ -997,7 +1005,7 @@ export default function ChannelPage() {
       <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto"
-        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 26}px + env(safe-area-inset-bottom, 0px))` }}
+        style={{ paddingBottom: `calc(${COMPOSE_HEIGHT + 22}px + max(env(safe-area-inset-bottom, 0px), 12px))` }}
       >
         <div className="px-4 py-4 space-y-3 max-w-2xl mx-auto w-full">
           {/* What the channel is for, in full. It lived in the sticky header
@@ -1032,7 +1040,7 @@ export default function ChannelPage() {
               <p className="text-[11px] text-text-tertiary">From the start</p>
               <button
                 type="button"
-                onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
+                onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); setUnreadCount(0); }}
                 className="inline-flex items-center gap-1 text-[11px] font-semibold text-accent hover:underline"
               >
                 Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
@@ -1058,7 +1066,7 @@ export default function ChannelPage() {
                   <p className="text-sm text-white font-bold">{pinnedPost.userDisplayName}</p>
                   {pinnedPost.userIsAdmin && <Badge variant="danger">Admin</Badge>}
                 </div>
-                <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap">{pinnedPost.content}</p>
+                <p className="text-sm text-text-secondary mt-0.5 whitespace-pre-wrap"><RichText text={pinnedPost.content} /></p>
                 {pinnedPost.imageURL && (
                   <FeedMedia url={pinnedPost.imageURL} kind={mediaKindOf(pinnedPost)} poster={pinnedPost.posterURL} alt="Media attached to the pinned post" compact className="mt-2" />
                 )}
@@ -1118,9 +1126,9 @@ export default function ChannelPage() {
             initial={{ opacity: 0, scale: 0.8, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
-            onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth' }); setUnreadCount(0); }}
+            onClick={() => { postsEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); setUnreadCount(0); }}
             className="fixed z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-accent text-black text-xs font-bold shadow-lg"
-            style={{ bottom: `calc(${COMPOSE_HEIGHT + 22}px + env(safe-area-inset-bottom, 0px))`, left: '50%', transform: 'translateX(-50%)' }}
+            style={{ bottom: `calc(${COMPOSE_HEIGHT + 34}px + max(env(safe-area-inset-bottom, 0px), 12px))`, left: '50%', transform: 'translateX(-50%)' }}
           >
             <ChevronsDown className="w-3.5 h-3.5" />
             Jump to latest{unreadCount > 0 ? ` · ${unreadCount} new` : ''}
@@ -1130,15 +1138,15 @@ export default function ChannelPage() {
 
       {/* ── Compose box (fixed above tab bar) ── */}
       {channel.allowUserPosts === false && !isAdmin ? (
-        <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
-          <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] backdrop-blur-xl px-4 py-3.5 flex items-center gap-2 text-sm text-text-secondary" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
+        <div className="fixed bottom-0 inset-x-0 z-40 px-3 chat-dock pointer-events-none">
+          <div className="pointer-events-auto mx-auto max-w-lg rounded-[28px] backdrop-blur-xl px-4 py-3.5 flex items-center gap-2 text-sm text-text-secondary" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
             <Megaphone className="w-4 h-4 flex-shrink-0" />
             Announcement-only channel — only admins can post here.
           </div>
         </div>
       ) : (
-      <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
-        <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] backdrop-blur-xl p-1.5 space-y-1.5 focus-within:border-accent/50 transition-colors" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
+      <div className="fixed bottom-0 inset-x-0 z-40 px-3 chat-dock pointer-events-none">
+        <div className="pointer-events-auto mx-auto max-w-lg rounded-[28px] backdrop-blur-xl p-1.5 space-y-1.5 focus-within:border-accent/50 transition-colors" style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
           {isBlocked && (
             <div className="flex items-center gap-2 text-xs text-yellow-400 bg-yellow-400/10 rounded-lg px-3 py-2">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />

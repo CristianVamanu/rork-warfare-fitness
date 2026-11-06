@@ -150,7 +150,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         <WorkoutOutboxFlusher />
         {!hideNav && <ChatDrawer />}
-        <main className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
+        <main data-chat={/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname) ? '' : undefined} className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           {/* The warm wash behind every screen's header. Painted once here
               rather than per page, so a page cannot forget it or double it. */}
           <div

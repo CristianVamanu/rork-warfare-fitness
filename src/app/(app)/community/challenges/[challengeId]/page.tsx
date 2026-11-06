@@ -412,8 +412,8 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
   };
   return (
     // Docked in the nav's place, in the nav's own shape: one bar, always in reach.
-    <div className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none">
-    <div className="pointer-events-auto mx-auto mb-2 max-w-lg rounded-[28px] p-1.5 flex items-end gap-1 backdrop-blur-xl transition-colors focus-within:border-accent/50"
+    <div className="fixed bottom-0 inset-x-0 z-40 px-3 chat-dock pointer-events-none">
+    <div className="pointer-events-auto mx-auto max-w-lg rounded-[28px] p-1.5 flex items-end gap-1 backdrop-blur-xl transition-colors focus-within:border-accent/50"
       style={{ backgroundColor: 'var(--nav-bg)', border: '1px solid var(--border-subtle)', boxShadow: '0 12px 40px rgba(0,0,0,.55)' }}>
         <div className="flex items-end gap-1 flex-shrink-0 [&_button]:!rounded-full [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!p-2.5">
           <MediaPicker value={media} onChange={setMedia} max={PROOF_MAX} compact />

@@ -736,3 +736,9 @@ html .rounded-xl { border-radius: 1rem; }
 html .text-\[10px\] { font-size: 11px; }
 /* Room for the floating nav and its raised centre button. */
 html main.wf-app-main { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom, 0px)); }
+/* Chat screens (channels, challenge rooms) have no nav; their own message
+   bar reserves the space it needs. */
+html main.wf-app-main[data-chat] { padding-bottom: 0; }
+/* A docked chat bar: lifted clear of the iPhone home indicator, so a tap on
+   the box never lands on the swipe-home area. */
+.chat-dock { padding-bottom: calc(max(env(safe-area-inset-bottom, 0px), 12px) + 10px); }
