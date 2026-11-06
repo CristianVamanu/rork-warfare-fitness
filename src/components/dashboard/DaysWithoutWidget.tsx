@@ -91,7 +91,7 @@ export function DaysWithoutWidget() {
 
   return (
     <>
-      <Card glass className="wf-art p-4 space-y-3" style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
+      <Card glass className="wf-art p-4 space-y-3 cursor-pointer active:scale-[.99] transition-transform" onClick={() => { if (goals.length === 0) setAddModal(true); }} style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div>
@@ -99,7 +99,7 @@ export function DaysWithoutWidget() {
               <p className="text-[15px] font-extrabold text-white leading-tight">Habits you are quitting</p>
             </div>
           </div>
-          <button onClick={() => setAddModal(true)} className="w-8 h-8 rounded-full wf-round flex items-center justify-center">
+          <button onClick={(e) => { e.stopPropagation(); setAddModal(true); }} aria-label="Add a habit" className="w-10 h-10 -m-1 rounded-full wf-round flex items-center justify-center">
             <Plus className="w-4 h-4" />
           </button>
         </div>
@@ -116,7 +116,7 @@ export function DaysWithoutWidget() {
               return (
                 <button
                   key={g.id}
-                  onClick={() => setDetailGoal(g)}
+                  onClick={(e) => { e.stopPropagation(); setDetailGoal(g); }}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-[18px] wf-glow active:scale-[.99] transition-transform"
                 >
                   <div className="w-11 h-11 rounded-full wf-round flex flex-col items-center justify-center flex-shrink-0">
