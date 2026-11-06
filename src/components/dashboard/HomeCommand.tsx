@@ -40,7 +40,7 @@ function PhotoCard({ href, img, icon: Icon, title, sub }: { href: string; img: s
   return (
     <Link href={href} className="relative rounded-[20px] overflow-hidden h-[150px] p-3 flex flex-col justify-end active:scale-[.98] transition-transform" style={GLOW_CARD}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={img} alt="" className="absolute right-0 top-0 h-[70%] w-[75%] object-cover" style={{ maskImage: 'linear-gradient(90deg, transparent, #000 35%), linear-gradient(0deg, transparent, #000 40%)', WebkitMaskImage: 'linear-gradient(90deg, transparent, #000 35%)', maskComposite: 'intersect' }} />
+      <img src={img} alt="" className="absolute -right-3 -top-2 h-[78%] aspect-square object-cover" style={{ maskImage: 'radial-gradient(closest-side, #000 60%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 60%, transparent)' }} />
       <span className="absolute left-3 top-3 w-9 h-9 rounded-full flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(245,166,35,0.3)' }}>
         <Icon className="w-[18px] h-[18px] text-accent" strokeWidth={1.8} />
       </span>
@@ -76,10 +76,10 @@ export function HomeCommand({ name, kcal, kcalGoal, waterMl, waterGoalMl, workou
   return (
     <div className="flex flex-col gap-3">
       {/* Hero: greeting on the left, athlete on the right fading into the page */}
-      <div className="relative -mx-4 -mt-2 h-[200px] overflow-hidden">
+      <div className="relative -mx-4 -mt-2 h-[230px] overflow-hidden">
+        {/* The art is dark on the left by design, so the greeting sits on it. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute right-0 top-0 h-full w-[62%] object-cover object-left"
-          style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 30%), linear-gradient(0deg, transparent 0%, #000 30%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 30%)' }} />
+        <img src="/home/hero.webp" alt="" fetchPriority="high" className="absolute inset-0 w-full h-full object-cover object-[70%_25%]" />
         <div aria-hidden className="absolute inset-x-0 bottom-0 h-16" style={{ background: 'linear-gradient(180deg, transparent, var(--background))' }} />
         <div className="absolute left-4 top-9">
           <h1 className="text-[28px] font-black text-white tracking-tight leading-none">Hello {name} <span aria-hidden>👑</span></h1>
