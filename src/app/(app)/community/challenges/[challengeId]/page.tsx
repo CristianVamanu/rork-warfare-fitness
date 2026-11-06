@@ -111,7 +111,7 @@ export default function ChallengePage() {
 
   return (
     <PaywallGate feature="community" noTaste>
-      <div className={`min-h-screen ${tab === 'feed' && user && (entry || isAdmin) ? 'pb-48' : 'pb-32'}`}>
+      <div className="min-h-screen pb-32">
         <div className="sticky top-0 z-30 backdrop-blur-xl border-b border-white/8">
           <div className="flex items-center gap-3 px-4 py-3 max-w-2xl mx-auto w-full">
             <button onClick={() => router.push('/community/challenges')} className="p-2 rounded-xl text-text-secondary hover:text-white hover:bg-white/5 transition-colors flex-shrink-0" aria-label="Back">
@@ -199,6 +199,11 @@ export default function ChallengePage() {
             <Board board={board} challenge={challenge} meUid={user?.uid} />
           ) : (
             <>
+              {/* Composer: the first thing in the feed, not a bar over the nav.
+                  Only for entrants (or admins). */}
+              {user && (entry || isAdmin) && (
+                <Composer challengeId={challenge.id} user={{ uid: user.uid, displayName: profile?.displayName || 'Athlete', photoURL: profile?.photoURL, isAdmin: profile?.role === 'admin' }} />
+              )}
               {posts.length === 0 ? (
                 <Card className="p-8 text-center">
                   <p className="text-white font-bold">Nothing posted yet</p>
@@ -214,10 +219,6 @@ export default function ChallengePage() {
           )}
         </div>
 
-        {/* Compose bar: only for entrants (or admins), only on the feed. */}
-        {tab === 'feed' && user && (entry || isAdmin) && (
-          <Composer challengeId={challenge.id} user={{ uid: user.uid, displayName: profile?.displayName || 'Athlete', photoURL: profile?.photoURL, isAdmin: profile?.role === 'admin' }} />
-        )}
 
         {user && (
           <SubmitModal
@@ -408,10 +409,9 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
     }
   };
   return (
-    // A floating glass pill over the feed: attach, message, glowing send.
-    <div className="fixed above-bottom-nav left-3 right-3 z-20 pointer-events-none">
-      <div className="pointer-events-auto max-w-2xl mx-auto flex items-end gap-1 rounded-[26px] p-1.5 backdrop-blur-xl focus-within:border-accent/50 transition-colors"
-        style={{ background: 'color-mix(in srgb, var(--background) 82%, transparent)', border: '1px solid rgba(var(--accent-rgb) / 0.22)', boxShadow: '0 12px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.03) inset' }}>
+    // Inline in the feed: a glass card with attach, message and a glowing send.
+    <div className="rounded-[22px] p-1.5 flex items-end gap-1 transition-colors focus-within:border-accent/50"
+      style={{ background: 'var(--card-glass-bg)', border: '1px solid rgba(var(--accent-rgb) / 0.22)' }}>
         <div className="flex items-end gap-1 flex-shrink-0 [&_button]:!rounded-full [&_button]:!border-0 [&_button]:!bg-transparent [&_button]:!p-2.5">
           <MediaPicker value={media} onChange={setMedia} max={PROOF_MAX} compact />
         </div>
@@ -424,7 +424,6 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
           style={canSend ? { boxShadow: '0 0 16px rgba(var(--accent-rgb) / 0.55)' } : undefined}>
           {posting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
         </button>
-      </div>
     </div>
   );
 }
