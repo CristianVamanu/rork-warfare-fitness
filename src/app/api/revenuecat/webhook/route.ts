@@ -49,8 +49,8 @@ export async function POST(req: NextRequest) {
     // Only end a membership that Google Play is paying for. A member who
     // (also) pays by card on the website keeps their Stripe membership when
     // an old Play subscription expires.
-    const m = user.data()?.membership as { source?: string; stripeSubscriptionId?: string; status?: string } | undefined;
-    if (m?.status === 'active' && (m.source !== 'google_play' || m.stripeSubscriptionId)) {
+    const m = user.data()?.membership as { source?: string; status?: string } | undefined;
+    if (m?.status === 'active' && m.source !== 'google_play') {
       return NextResponse.json({ ok: true, ignored: 'membership is paid outside Google Play' });
     }
     await setSubscriptionStatus(db, change.uid, 'membership', 'none', undefined, undefined, undefined,

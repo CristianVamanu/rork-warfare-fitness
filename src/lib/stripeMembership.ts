@@ -57,6 +57,9 @@ export async function setSubscriptionStatus(
     ...(expiresAt ? { expiresAt } : {}),
     ...(planId ? { planId, planName: planName ?? '' } : {}),
     ...(subscriptionId ? { stripeSubscriptionId: subscriptionId } : {}),
+    // Who pays for it, so Google Play (RevenueCat) and Stripe never end each
+    // other's membership. Only an active Stripe subscription claims it.
+    ...(subscriptionId && status === 'active' && source !== 'RevenueCat webhook' ? { source: 'stripe' } : {}),
     ...(cancelAtPeriodEnd !== undefined ? { cancelAtPeriodEnd } : {}),
   };
   // Ordering guard. Stripe does not guarantee delivery order, and the event

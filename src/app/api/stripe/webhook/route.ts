@@ -189,6 +189,12 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.userId;
         if (!userId) { console.warn('[Stripe webhook] subscription.deleted: no userId in metadata'); break; }
+        // A member who moved to an in-app (Google Play) subscription must not
+        // lose it when their old website subscription ends.
+        if (fieldFromMetadata(sub.metadata) === 'membership') {
+          const cur = (await getAdminDb()?.collection('users').doc(userId).get())?.data()?.membership as { source?: string; status?: string } | undefined;
+          if (cur?.source === 'google_play' && cur.status === 'active') { console.log('[Stripe webhook] subscription.deleted: membership is paid via Google Play, kept'); break; }
+        }
         await setSubscriptionStatus(userId, fieldFromMetadata(sub.metadata), 'none', undefined, undefined, undefined, undefined, undefined, undefined, event.created);
         break;
       }
@@ -489,7 +495,14 @@ export async function POST(req: NextRequest) {
           }
           if (userId) {
             const field = fieldFromMetadata(sub.metadata);
-            await setSubscriptionStatus(userId, field, 'none', undefined, undefined, undefined, undefined, undefined, undefined, event.created);
+            // A refund of an old website charge must not end a membership
+            // that Google Play is now paying for.
+            const cur = field === 'membership'
+              ? (await getAdminDb()?.collection('users').doc(userId).get())?.data()?.membership as { source?: string; status?: string } | undefined
+              : undefined;
+            if (!(cur?.source === 'google_play' && cur.status === 'active')) {
+              await setSubscriptionStatus(userId, field, 'none', undefined, undefined, undefined, undefined, undefined, undefined, event.created);
+            }
             // Firestore status alone doesn't stop Stripe from continuing
             // to bill this subscription — a refund/dispute is exactly the
             // moment we want that to stop, not just hide app access while
