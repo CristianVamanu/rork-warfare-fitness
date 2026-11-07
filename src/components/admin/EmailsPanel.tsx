@@ -55,11 +55,18 @@ export function EmailsPanel() {
   // them before the overrides. Without them here a sequence switched off
   // in config showed as on in this panel while never sending.
   const [toggles, setToggles] = useState<SequenceToggles>(SEQUENCE_DEFAULTS);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     (async () => {
+      setLoading(true); setLoadFailed(false);
+      // A read that never answers (weak signal, a stuck cache on iPhone)
+      // used to leave this on "Loading…" for ever. Give up after 12s and
+      // offer a retry instead.
+      const timeout = <T,>(p: Promise<T>) => Promise.race([p, new Promise<never>((_, rej) => setTimeout(() => rej(new Error('timeout')), 12_000))]);
       try {
-        const [o, s, cfg] = await Promise.all([getDoc(OVERRIDES_REF()), getDoc(STATS_REF()), getSystemConfig().catch(() => null)]);
+        const [o, s, cfg] = await timeout(Promise.all([getDoc(OVERRIDES_REF()), getDoc(STATS_REF()), getSystemConfig().catch(() => null)]));
         setToggles(sequenceToggles(cfg as { emailSequences?: Partial<SequenceToggles> } | null));
         const ov = (o.exists() ? o.data() : {}) as SequenceOverrides;
         setOverrides(ov);
@@ -70,10 +77,10 @@ export function EmailsPanel() {
         const c = (s.exists() ? s.data()?.counts : null) as Record<string, Record<string, number>> | null;
         if (c) for (const [seq, steps] of Object.entries(c)) for (const [step, n] of Object.entries(steps)) flat[`${seq}.${step}`] = n;
         setCounts(flat);
-      } catch { toast.error('Could not load email settings'); }
+      } catch { setLoadFailed(true); toast.error('Could not load email settings'); }
       finally { setLoading(false); }
     })();
-  }, []);
+  }, [attempt]);
 
   const resolved = resolveSequences(overrides, toggles);
 
@@ -145,6 +152,13 @@ export function EmailsPanel() {
   }
 
   if (loading) return <Card className="p-5 text-sm text-text-secondary">Loading…</Card>;
+  if (loadFailed) return (
+    <Card className="p-5 space-y-3">
+      <p className="text-sm text-white font-bold">Email settings didn&apos;t load</p>
+      <p className="text-xs text-text-secondary">Check your connection and try again.</p>
+      <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+    </Card>
+  );
 
   return (
     <div className="space-y-4">
