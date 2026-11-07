@@ -2664,15 +2664,18 @@ export function subscribeChannelPosts(
   );
 }
 
-export async function createChannelPost(channelId: string, data: {
+export function createChannelPost(channelId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
   content: string; imageURL?: string; mediaType?: 'image' | 'video'; posterURL?: string;
   media?: PostMedia[];
-}): Promise<string> {
+}): { id: string; saved: Promise<void> } {
   // undefined is not a Firestore value: a carousel item with no poster
   // would fail the whole write.
   const media = data.media?.map((m) => Object.fromEntries(Object.entries(m).filter(([, v]) => v !== undefined)) as PostMedia);
-  const ref = await addDoc(collection(db, 'channels', channelId, 'posts'), {
+  // Id made locally and the write not awaited: the post shows at once from
+  // the local cache and a weak signal can't leave the send button spinning.
+  const ref = doc(collection(db, 'channels', channelId, 'posts'));
+  const saved = setDoc(ref, {
     ...data,
     ...(media ? { media } : {}),
     channelId,
@@ -2690,14 +2693,14 @@ export async function createChannelPost(channelId: string, data: {
   // an error on every single post (and re-sent, double-posting), even
   // though the post itself went through fine and appeared in the feed.
   // The count is cosmetic; the post is what matters.
-  await updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) }).catch(() => {});
+  updateDoc(doc(db, 'channels', channelId), { postCount: increment(1) }).catch(() => {});
   invalidateChannelsCache();
   // Track last post time for slow mode. Also best-effort: it must not be
   // able to fail the post either — but note that if this DOES fail, slow
   // mode silently stops applying to that member, since the timestamp it
   // reads back is never written.
-  await setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true }).catch(() => {});
-  return ref.id;
+  setDoc(doc(db, 'channels', channelId, 'members', data.userId), { lastPostAt: serverTimestamp() }, { merge: true }).catch(() => {});
+  return { id: ref.id, saved };
 }
 
 export async function likeChannelPost(channelId: string, postId: string, userId: string, liked: boolean) {
@@ -2712,13 +2715,14 @@ export async function getPostReplies(channelId: string, postId: string): Promise
   return snap.docs.map((d) => ({ id: d.id, channelId, replyTo: postId, ...d.data() }) as ChannelPost);
 }
 
-export async function createReply(channelId: string, postId: string, data: {
+export function createReply(channelId: string, postId: string, data: {
   userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
   /** Set to thread this under another reply instead of the post itself. */
   parentReplyId?: string;
-}): Promise<string> {
+}): { id: string; saved: Promise<void> } {
   const { parentReplyId, ...rest } = data;
-  const replyRef = await addDoc(collection(db, 'channels', channelId, 'posts', postId, 'replies'), {
+  const replyRef = doc(collection(db, 'channels', channelId, 'posts', postId, 'replies'));
+  const saved = setDoc(replyRef, {
     ...rest, channelId, likes: [], replyCount: 0, replyTo: postId,
     // Stored flat in the same subcollection and grouped client-side, so a
     // whole thread is still one read no matter how deep it looks.
@@ -2732,8 +2736,8 @@ export async function createReply(channelId: string, postId: string, data: {
   // reply" and left the reply box open, even though the reply itself was
   // saved. Replying to your own post happened to work, which is why this
   // survived: it only breaks for the case that actually matters.
-  await updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
-  return replyRef.id;
+  updateDoc(doc(db, 'channels', channelId, 'posts', postId), { replyCount: increment(1) }).catch(() => {});
+  return { id: replyRef.id, saved };
 }
 
 /**

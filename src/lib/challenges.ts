@@ -177,7 +177,7 @@ export async function createChallengePost(
   input: { content: string; media?: PostMedia[] },
 ) {
   const media = cleanMedia(input.media);
-  await addDoc(collection(db, 'challenges', challengeId, 'posts'), clean({
+  return addDoc(collection(db, 'challenges', challengeId, 'posts'), clean({
     challengeId,
     userId: user.uid,
     userDisplayName: user.displayName,

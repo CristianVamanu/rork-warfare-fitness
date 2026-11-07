@@ -400,15 +400,14 @@ function Composer({ challengeId, user }: { challengeId: string; user: { uid: str
   const canSend = (text.trim().length > 0 || media.length > 0) && !posting;
   const send = async () => {
     if (!canSend) return;
-    setPosting(true);
-    try {
-      await createChallengePost(challengeId, user, { content: text, media });
-      setText(''); setMedia([]);
-    } catch {
-      toast.error('Failed to post');
-    } finally {
-      setPosting(false);
-    }
+    // Instant: clear the box now, the post shows from the local cache; on a
+    // real failure put the message back so nothing typed is lost.
+    const sentText = text, sentMedia = media;
+    setText(''); setMedia([]);
+    createChallengePost(challengeId, user, { content: sentText, media: sentMedia }).catch(() => {
+      toast.error('Message not sent. Check your connection.');
+      setText((t) => t || sentText); setMedia((m) => (m.length ? m : sentMedia));
+    });
   };
   return (
     // Docked in the nav's place, in the nav's own shape: one bar, always in reach.

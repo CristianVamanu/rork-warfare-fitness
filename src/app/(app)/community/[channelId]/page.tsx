@@ -773,7 +773,8 @@ export default function ChannelPage() {
     }
     setPosting(true);
     try {
-      const newPostId = await createChannelPost(channelId, {
+      const sentText = text, sentMedia = pending;
+      const { id: newPostId, saved } = createChannelPost(channelId, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
@@ -790,7 +791,9 @@ export default function ChannelPage() {
         ...(pending[0]?.posterURL ? { posterURL: pending[0].posterURL } : {}),
         ...(pending.length > 0 ? { media: pending } : {}),
       });
-      notifyCommunity(user, { kind: 'post', channelId, postId: newPostId });
+      saved
+        .then(() => notifyCommunity(user, { kind: 'post', channelId, postId: newPostId }))
+        .catch(() => { toast.error('Message not sent. Check your connection.'); setText((t) => t || sentText); setPending((m) => (m.length ? m : sentMedia)); });
       setText('');
       setPending([]);
       if (textareaRef.current) { textareaRef.current.style.height = 'auto'; }
@@ -893,7 +896,7 @@ export default function ChannelPage() {
     if (!user || !profile || !replyTarget || !replyText.trim()) return;
     setSendingReply(true);
     try {
-      const newReplyId = await createReply(channelId, replyTarget.post.id, {
+      const { id: newReplyId, saved } = createReply(channelId, replyTarget.post.id, {
         userId: user.uid,
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
@@ -901,7 +904,10 @@ export default function ChannelPage() {
         content: replyText.trim(),
         ...(replyTarget.parent ? { parentReplyId: replyTarget.parent.id } : {}),
       });
-      notifyCommunity(user, { kind: 'reply', channelId, postId: replyTarget.post.id, replyId: newReplyId });
+      const target = replyTarget;
+      saved
+        .then(() => notifyCommunity(user, { kind: 'reply', channelId, postId: target.post.id, replyId: newReplyId }))
+        .catch(() => toast.error('Reply not sent. Check your connection.'));
       setPosts(prev => prev.map(p => p.id === replyTarget.post.id ? { ...p, replyCount: p.replyCount + 1 } : p));
       setReplyText('');
       setReplyTarget(null);
