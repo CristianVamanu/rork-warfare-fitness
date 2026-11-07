@@ -966,3 +966,39 @@ describe('channel replies — editable and deletable', () => {
   });
 });
 
+
+describe('reports and blocking (lib/moderation)', () => {
+  const report = (reporterId: string, extra: Record<string, unknown> = {}) => ({
+    target: { kind: 'channelPost', channelId: 'c1', postId: 'p1' }, reason: 'spam',
+    reporterId, reportedUserId: BOB, reportedUserName: 'Bob', excerpt: 'buy now', status: 'open',
+    createdAt: serverTimestamp(), ...extra,
+  });
+
+  it('a member can file a report as themselves', async () => {
+    await assertSucceeds(setDoc(doc(asAlice(), 'reports', 'r1'), report(ALICE)));
+  });
+  it('a member cannot file a report in someone else\'s name', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'reports', 'r1'), report(BOB)));
+  });
+  it('a report must start open and carry only known fields', async () => {
+    await assertFails(setDoc(doc(asAlice(), 'reports', 'r1'), report(ALICE, { status: 'resolved' })));
+    await assertFails(setDoc(doc(asAlice(), 'reports', 'r1'), report(ALICE, { role: 'admin' })));
+  });
+  it('signed-out visitors cannot report', async () => {
+    await assertFails(setDoc(doc(asAnon(), 'reports', 'r1'), report(ALICE)));
+  });
+  it('only admins can read and resolve reports', async () => {
+    await seed(async (db) => { await setDoc(doc(db, 'reports', 'r1'), report(ALICE)); });
+    await assertFails(getDoc(doc(asAlice(), 'reports', 'r1')));
+    await assertFails(getDoc(doc(asBob(), 'reports', 'r1')));
+    await assertFails(updateDoc(doc(asAlice(), 'reports', 'r1'), { status: 'dismissed' }));
+    await assertSucceeds(getDoc(doc(asAdmin(), 'reports', 'r1')));
+    await assertSucceeds(getDocs(query(collection(asAdmin(), 'reports'), where('status', '==', 'open'))));
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'reports', 'r1'), { status: 'resolved' }));
+  });
+  it('a member can block and unblock on their own profile only', async () => {
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { blockedUserIds: [BOB], 'blockedNames.bob': 'Bob' }));
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { blockedUserIds: [], 'blockedNames.bob': deleteField() }));
+    await assertFails(updateDoc(doc(asAlice(), 'users', BOB), { blockedUserIds: [ALICE] }));
+  });
+});

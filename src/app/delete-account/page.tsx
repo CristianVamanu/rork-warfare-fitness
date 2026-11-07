@@ -18,7 +18,7 @@ Your account is deleted straight away.
 
 ## Can't sign in?
 
-Contact us using the details at the bottom of this page from the email address on your account, and ask us to delete it. We delete it within 30 days and confirm by email.
+Reset your password from the sign-in page ("Forgot password") and then delete the account as above. If that doesn't work, use the in-app support chat or reply to any email from us from the address on your account, and ask us to delete it. We delete it within 30 days and confirm by email.
 
 ## What is deleted
 
