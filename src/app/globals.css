@@ -830,9 +830,9 @@ html:not(.light) .wf-art::after {
   mask-image: linear-gradient(90deg, transparent 15%, #000 65%);
 }
 
-/* Home hero. Phones: a solid dark band edge to edge (unchanged).
-   Desktop/tablet: the band would sit as a hard black box on the glowing
-   page, so it goes transparent and the athlete fades out on every edge. */
+/* Home hero. Phones: a solid dark band with the athlete (unchanged).
+   Desktop/tablet: no athlete image and no dark band, just the greeting
+   on the page background; the photo looked off at that width. */
 .home-hero-box { background: #0A0A0A; }
 .home-hero-img {
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
@@ -840,11 +840,5 @@ html:not(.light) .wf-art::after {
 }
 @media (min-width: 768px) {
   .home-hero-box { background: transparent; }
-  .home-hero-shade { display: none; }
-  .home-hero-img {
-    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 80%, transparent 100%), linear-gradient(180deg, #000 55%, transparent 79%);
-    -webkit-mask-composite: source-in;
-    mask-image: linear-gradient(90deg, transparent 0%, #000 45%, #000 80%, transparent 100%), linear-gradient(180deg, #000 55%, transparent 79%);
-    mask-composite: intersect;
-  }
+  .home-hero-shade, .home-hero-img { display: none; }
 }
