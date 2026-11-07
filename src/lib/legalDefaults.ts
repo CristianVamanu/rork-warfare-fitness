@@ -8,7 +8,7 @@ export const LEGAL_OPERATOR = {
   name: 'Davcris Ltd',
   number: '10181333',
   address: '',
-  email: '',
+  email: 'hello@warfarefitness.com',
 };
 
 /**
@@ -27,7 +27,7 @@ The camera is used only when you choose to scan a barcode or photograph a meal; 
 export const hasMobilePrivacySections = (text: string) => /Health Connect/i.test(text);
 
 export const DEFAULT_PRIVACY_POLICY = `## Who we are
-This platform is operated by Davcris Ltd, a company registered in England and Wales, which is the data controller for your personal data. Contact details are in the footer of every page.
+This platform is operated by Davcris Ltd, a company registered in England and Wales, which is the data controller for your personal data. You can contact us at hello@warfarefitness.com.
 
 ## 1. Data We Collect
 We collect information you provide directly: name, email address, weight unit preference, fitness goals, workout logs, nutrition logs, and any content you post in community channels.
@@ -42,7 +42,7 @@ Your data is stored securely in Google Firebase (Firestore and Authentication). 
 We do not sell your personal data. Your data may be shared with your assigned trainer/coach as part of the coaching relationship. Third-party services (Stripe for payments, OpenAI for AI features) receive only the minimum data necessary to function.
 
 ## 5. Your Rights
-Under UK and EU data protection law you may access, correct, export or delete your personal data, object to or restrict its processing, and withdraw consent at any time. You can delete your account and its data yourself from Settings. For anything else, contact us using the details in the footer. You also have the right to complain to the Information Commissioner's Office (ico.org.uk) or your local supervisory authority.
+Under UK and EU data protection law you may access, correct, export or delete your personal data, object to or restrict its processing, and withdraw consent at any time. You can delete your account and its data yourself from Settings. For anything else, email hello@warfarefitness.com. You also have the right to complain to the Information Commissioner's Office (ico.org.uk) or your local supervisory authority.
 
 ## 6. Cookies and Analytics
 Essential cookies keep you signed in and are always on. With your consent, given through the cookie banner, we also load the Meta Pixel and Google Analytics to measure our advertising and to understand how the site is used, and a third-party chat widget on public pages. You can change your choice at any time from Settings. Rejecting these never limits the app.
