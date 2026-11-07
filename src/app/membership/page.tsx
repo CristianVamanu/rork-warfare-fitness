@@ -23,14 +23,32 @@ function PlayPaywall({ uid }: { uid: string }) {
   const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState<'buy' | 'restore' | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let alive = true;
+    setFailed(null); setPkgs(null);
     loadPackages(uid).then((p) => { if (!alive) return; setPkgs(p); setPick(p.find((x) => x.period === 'year')?.id ?? p[0]?.id ?? null); })
-      .catch(() => { if (alive) setFailed(true); });
+      .catch((e: unknown) => {
+        if (!alive) return;
+        const err = e as { code?: string | number; message?: string };
+        console.error('[paywall] Google Play plans failed to load', e);
+        setFailed(String(err?.code ?? err?.message ?? 'unknown').slice(0, 80));
+      });
     return () => { alive = false; };
-  }, [uid]);
-  if (failed || (pkgs && pkgs.length === 0)) return null;
+  }, [uid, attempt]);
+  // Never a blank space: if Google Play returns nothing, say so, offer a
+  // retry, and show the reason code so support can tell what went wrong.
+  if (failed || (pkgs && pkgs.length === 0)) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-surface p-4 text-center space-y-2">
+        <p className="text-sm font-bold text-white">Plans couldn&apos;t load from Google Play</p>
+        <p className="text-xs text-text-secondary">Check you&apos;re signed in to the Play Store and installed the app from Google Play, then try again.</p>
+        <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+        <p className="text-[10px] text-text-tertiary">Code: {failed ?? 'no-plans'}</p>
+      </div>
+    );
+  }
   if (!pkgs) return <Loader2 className="w-5 h-5 animate-spin text-accent mx-auto" />;
   const chosen = pkgs.find((p) => p.id === pick) ?? null;
   const go = async () => {

@@ -8,14 +8,16 @@
  * App builds without the plugin reject the import; callers then fall back
  * to the plain membership notice.
  */
-import { isNativeApp } from '@/lib/native/health';
+import { nativePlatform } from '@/lib/native/health';
 
 // RevenueCat's public Google Play SDK key. Public by design (it ships inside
 // every app build); an env value overrides it.
 const KEY = process.env.NEXT_PUBLIC_REVENUECAT_ANDROID_KEY || 'goog_hybWGqQAoooKClEMBLOffJKUyld';
 
 export function inAppPurchasesEnabled(): boolean {
-  return !!KEY && isNativeApp();
+  // Android only: the key is a Google Play key, and the iPhone app has no
+  // in-app purchases set up.
+  return !!KEY && nativePlatform() === 'android';
 }
 
 let configuredFor: string | null = null;
