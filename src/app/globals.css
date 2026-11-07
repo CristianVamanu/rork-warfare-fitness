@@ -839,11 +839,12 @@ html:not(.light) .wf-art::after {
 }
 @media (min-width: 768px) {
   /* Desktop: a wide banner made for this width. */
-  .home-hero-box {
-    height: 250px;
+  .home-hero-box { height: 250px; background: transparent; }
+  /* The picture sits on a layer behind the greeting, so fading its edges
+     never fades the text. */
+  .home-hero-box::before {
+    content: ''; position: absolute; inset: 0;
     background: url('/home/hero-desktop.webp') right top / cover no-repeat;
-    /* No box: the banner melts into the page on the left, right and
-       bottom, so the streak card can sit over its lower edge cleanly. */
     -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%), linear-gradient(90deg, transparent 0%, #000 12%, #000 90%, transparent 100%);
     -webkit-mask-composite: source-in;
     mask-image: linear-gradient(180deg, #000 55%, transparent 100%), linear-gradient(90deg, transparent 0%, #000 12%, #000 90%, transparent 100%);
