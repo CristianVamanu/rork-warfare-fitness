@@ -833,6 +833,13 @@ html:not(.light) .wf-art::after {
 /* Home hero. Phones: a solid dark band with the athlete (unchanged).
    Desktop/tablet: its own wide banner image (hero-desktop.webp). */
 .home-hero-box { background: #0A0A0A; }
+/* Trying the wide banner on phones too (the tall hero.webp img is hidden).
+   Revert: delete these two rules to bring the old phone hero back. */
+.home-hero-img { display: none; }
+.home-hero-box::before {
+  content: ''; position: absolute; inset: 0;
+  background: url('/home/hero-desktop.webp') right top / cover no-repeat;
+}
 .home-hero-img {
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
   mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
