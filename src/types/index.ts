@@ -371,6 +371,9 @@ export interface UserProfile {
   };
   fasting?: FastingSession | null;
   daysWithoutGoals?: DaysWithoutGoal[];
+  /** Members this one has blocked (lib/moderation): their posts are hidden. */
+  blockedUserIds?: string[];
+  blockedNames?: Record<string, string>;
 }
 
 export interface FastingSession {

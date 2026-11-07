@@ -1091,6 +1091,17 @@ service cloud.firestore {
     // not a draft and may bump exactly one counter by exactly one, matching
     // the write they just made (an entry, a submission). Everything else on
     // the document is admin-only.
+    // Member reports of posts/replies (lib/moderation). Anyone signed in
+    // may file one as themselves; only admins read or act on them.
+    match /reports/{reportId} {
+      allow create: if isAuthed() && notTfaPending()
+        && request.resource.data.reporterId == uid()
+        && request.resource.data.status == 'open'
+        && request.resource.data.keys().hasOnly(['target', 'reason', 'note', 'reporterId', 'reportedUserId', 'reportedUserName', 'excerpt', 'status', 'createdAt'])
+        && request.resource.data.excerpt is string && request.resource.data.excerpt.size() <= 500;
+      allow read, update, delete: if isAdmin();
+    }
+
     match /challenges/{challengeId} {
       allow read: if isAuthed() && notTfaPending()
         && (isAdmin() || resource.data.get('status', 'draft') != 'draft');

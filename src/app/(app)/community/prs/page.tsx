@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
-import { Heart, Upload, MoreHorizontal, Trash2, BadgeCheck, BadgeMinus, EyeOff, Ban } from 'lucide-react';
+import { Heart, Upload, MoreHorizontal, Trash2, BadgeCheck, BadgeMinus, EyeOff, Ban, Flag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
@@ -14,12 +14,15 @@ import { VerificationBadge } from '@/components/ui/VerificationBadge';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { CommunityTabs } from '@/components/community/CommunityTabs';
 import { subscribePRFeed, likePRPost, deletePRPost, getSystemConfig, setPRPostModeration, unverifyPRPost, banUserFromPRWall } from '@/lib/firestore';
+import { ReportModal, type ReportSubject } from '@/components/community/ReportModal';
 import { PRComposer } from '@/components/community/PRComposer';
 import type { PRPost } from '@/types';
 import { FeedMedia } from '@/components/community/FeedMedia';
 
 export default function PRWallPage() {
   const { user, profile } = useAuth();
+  const [reportSubject, setReportSubject] = useState<ReportSubject | null>(null);
+  const blockedIds = profile?.blockedUserIds;
   const [posts, setPosts] = useState<PRPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -154,8 +157,9 @@ export default function PRWallPage() {
             <p className="text-text-secondary text-sm mt-1">Be the first to show off a lift.</p>
           </Card>
         ) : (
-          posts.map((post, i) => (
+          posts.filter((p) => !blockedIds?.includes(p.userId)).map((post, i) => (
             <PRCard
+              onReport={post.userId !== user?.uid ? () => setReportSubject({ target: { kind: 'prPost', postId: post.id }, authorId: post.userId, authorName: post.displayName, excerpt: `${post.exerciseName} ${post.weightKg}kg x ${post.reps}${post.note ? " — " + post.note : ""}` }) : undefined}
               key={post.id}
               post={post}
               index={i}
@@ -171,13 +175,15 @@ export default function PRWallPage() {
           ))
         )}
       </div>
+      <ReportModal subject={reportSubject} onClose={() => setReportSubject(null)} />
       </PaywallGate>
     </div>
   );
 }
 
-function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVerify, onHide, onBan }: {
+function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVerify, onHide, onBan, onReport }: {
   post: PRPost;
+  onReport?: () => void;
   index: number;
   liked: boolean;
   canDelete: boolean;
@@ -216,7 +222,7 @@ function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVe
             <p className="text-[15px] font-black text-white leading-none tabular-nums">{post.weightKg}<span className="text-[10px] font-bold text-text-secondary">kg</span></p>
             <p className="text-[10px] text-text-tertiary tabular-nums mt-0.5">× {post.reps}</p>
           </div>
-          {canDelete && (
+          {(canDelete || onReport) && (
             <div className="relative flex-shrink-0">
               <button
                 onClick={() => setShowMenu((v) => !v)}
@@ -253,12 +259,22 @@ function PRCard({ post, index, liked, canDelete, isAdmin, onLike, onDelete, onVe
                         <div className="border-t border-white/10" />
                       </>
                     )}
-                    <button
-                      onClick={() => { setShowMenu(false); onDelete(); }}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" /> Delete
-                    </button>
+                    {onReport && (
+                      <button
+                        onClick={() => { setShowMenu(false); onReport(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-white hover:bg-white/5 transition-colors"
+                      >
+                        <Flag className="w-3.5 h-3.5 text-text-secondary" /> Report or block
+                      </button>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={() => { setShowMenu(false); onDelete(); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-danger hover:bg-danger/10 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                      </button>
+                    )}
                   </div>
                 </>
               )}

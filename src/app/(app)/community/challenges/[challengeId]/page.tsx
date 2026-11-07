@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft, Users, CheckCircle2, Trophy, Heart, Trash2, Send, ShieldCheck, Clock, Flame, Loader2 } from 'lucide-react';
+import { ChevronLeft, Users, CheckCircle2, Trophy, Heart, Trash2, Send, ShieldCheck, Clock, Flame, Loader2, Flag } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
@@ -15,6 +15,7 @@ import { Modal } from '@/components/ui/Modal';
 import { PaywallGate } from '@/components/ui/PaywallGate';
 import { FeedCarousel } from '@/components/community/FeedCarousel';
 import { MediaPicker } from '@/components/community/MediaPicker';
+import { ReportModal, type ReportSubject } from '@/components/community/ReportModal';
 import { ShareChallengeButton } from '@/components/community/ShareChallengeButton';
 import { DEFAULT_CHALLENGE_XP } from '@/types';
 import { RESULT_TYPES, DIFFICULTY, timeline, bucket, betterFirst, toDate } from '@/components/community/challengeFormat';
@@ -42,6 +43,8 @@ export default function ChallengePage() {
   const params = useParams();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const [reportSubject, setReportSubject] = useState<ReportSubject | null>(null);
+  const blockedIds = profile?.blockedUserIds;
   const id = typeof params.challengeId === 'string' ? params.challengeId : '';
   const isAdmin = profile?.role === 'admin' || profile?.role === 'trainer';
 
@@ -205,11 +208,12 @@ export default function ChallengePage() {
                   <p className="text-text-secondary text-sm mt-1">{entry ? 'You entered. Say something, or post your result.' : 'Enter the challenge to post here.'}</p>
                 </Card>
               ) : (
-                posts.map((p) => (
+                posts.filter((p) => !blockedIds?.includes(p.userId)).map((p) => (
                   <PostCard key={p.id} post={p} challenge={challenge} meUid={user?.uid} canDelete={isAdmin || p.userId === user?.uid}
-                    entryStatus={entries.find((e) => e.userId === p.userId)?.status} />
+                    entryStatus={entries.find((e) => e.userId === p.userId)?.status} onReport={setReportSubject} />
                 ))
               )}
+              <ReportModal subject={reportSubject} onClose={() => setReportSubject(null)} />
             </>
           )}
         </div>
@@ -346,8 +350,9 @@ function Podium({ top, meUid }: { top: ChallengeEntry[]; meUid?: string }) {
   );
 }
 
-function PostCard({ post, challenge, meUid, canDelete, entryStatus }: {
+function PostCard({ post, challenge, meUid, canDelete, entryStatus, onReport }: {
   post: ChallengePost; challenge: Challenge; meUid?: string; canDelete: boolean; entryStatus?: ChallengeEntry['status'];
+  onReport?: (s: ReportSubject) => void;
 }) {
   const liked = !!meUid && post.likes.includes(meUid);
   const [busy, setBusy] = useState(false);
@@ -379,6 +384,10 @@ function PostCard({ post, challenge, meUid, canDelete, entryStatus }: {
               {entryStatus === 'verified' ? 'Verified' : entryStatus === 'rejected' ? 'Not verified' : 'Result · pending'}
             </p>
           </div>
+        )}
+        {onReport && meUid && post.userId !== meUid && (
+          <button onClick={() => onReport({ target: { kind: 'challengePost', challengeId: challenge.id, postId: post.id }, authorId: post.userId, authorName: post.userDisplayName, excerpt: post.content ?? '' })}
+            className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors" aria-label="Report or block"><Flag className="w-4 h-4" /></button>
         )}
         {canDelete && (
           <button onClick={del} className="p-1.5 rounded-lg text-text-tertiary hover:text-danger hover:bg-danger/10 transition-colors" aria-label="Delete post"><Trash2 className="w-4 h-4" /></button>

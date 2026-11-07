@@ -7,6 +7,7 @@ import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, Chec
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { unblockUser } from '@/lib/moderation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   updateUserDoc, subscribeUserConversations, getMembershipConfig, getCoachingPlans, getMembershipPlans,
@@ -865,6 +866,24 @@ export default function ProfilePage() {
 
         {/* Appearance */}
         {/* Theme toggle removed: the app is dark only. */}
+
+        {/* Blocked members (Report / Block in Community): undo a block. */}
+        {!!profile?.blockedUserIds?.length && user && (
+          <Card className="p-4 space-y-2">
+            <p className="text-xs text-text-secondary">Blocked members</p>
+            {profile.blockedUserIds.map((id) => (
+              <div key={id} className="flex items-center justify-between gap-3">
+                <p className="text-sm text-white truncate">{profile.blockedNames?.[id] ?? 'Member'}</p>
+                <button
+                  onClick={() => { unblockUser(user.uid, id).then(() => toast.success('Unblocked')).catch(() => toast.error('Could not unblock')); }}
+                  className="text-xs font-semibold text-accent hover:underline flex-shrink-0"
+                >
+                  Unblock
+                </button>
+              </div>
+            ))}
+          </Card>
+        )}
 
         {/* Member Since */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

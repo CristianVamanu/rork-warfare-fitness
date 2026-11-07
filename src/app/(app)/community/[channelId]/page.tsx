@@ -1,10 +1,10 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Pin, ChevronsDown, Megaphone, Pencil, ArrowBigUp, Lightbulb, Tag } from 'lucide-react';
+import { ChevronLeft, Heart, MessageCircle, Send, Image as ImageIcon, X, Clock, AlertTriangle, Trash2, MoreHorizontal, Loader2, Flag, Pin, ChevronsDown, Megaphone, Pencil, ArrowBigUp, Lightbulb, Tag } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompress';
 import { uploadUserContent, resolveStorageProvider } from '@/lib/uploadVideo';
 import { extractVideoThumbnail } from '@/lib/videoThumbnail';
@@ -12,6 +12,7 @@ import { getIdToken } from 'firebase/auth';
 import { FeedMedia } from '@/components/community/FeedMedia';
 import { FeedCarousel } from '@/components/community/FeedCarousel';
 import toast from 'react-hot-toast';
+import { ReportModal, type ReportSubject } from '@/components/community/ReportModal';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getChannels, subscribeChannelPosts, createChannelPost, deleteChannelPost, deleteReply, updateReply, updateChannelPost,
@@ -99,8 +100,10 @@ function fullTimestamp(ts: unknown): string | undefined {
  * quieter (smaller avatar, no card fill) so the eye reads the thread as
  * "answer to the thing above" rather than another top-level comment.
  */
-function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, onDelete }: {
+function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, onDelete, onReport }: {
   reply: ChannelPost;
+  /** Set for other members' replies: opens Report / Block. */
+  onReport?: () => void;
   nested?: boolean;
   onReply: () => void;
   /** Author only — an admin can remove a reply but never rewrite one. */
@@ -194,6 +197,14 @@ function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, 
                 Delete
               </button>
             )}
+            {onReport && (
+              <button
+                onClick={onReport}
+                className="text-[11px] font-medium text-text-tertiary hover:text-danger transition-colors"
+              >
+                Report
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -203,9 +214,13 @@ function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, 
 
 function PostCard({
   post, userId, isAdmin, channelId, pinnedPostId, ideas = false,
-  onLike, onReply, onDelete, onDeleteReply, onPin, onStatus,
+  onLike, onReply, onDelete, onDeleteReply, onPin, onStatus, onReport, blocked,
   replyRefreshToken,
 }: {
+  /** Opens Report / Block for someone else's post or reply. */
+  onReport: (s: ReportSubject) => void;
+  /** Members the viewer has blocked: their replies are hidden too. */
+  blocked: Set<string>;
   post: ChannelPost;
   userId: string;
   isAdmin: boolean;
@@ -300,11 +315,12 @@ function PostCard({
   // children. A reply to a child is stored against that child's parent (see
   // handleReply), so the tree can never grow a third indent level and run
   // off the side of a phone.
-  const topLevel = replies.filter((r) => !r.parentReplyId);
-  const childrenOf = (id: string) => replies.filter((r) => r.parentReplyId === id);
+  const shown = replies.filter((r) => !blocked.has(r.userId));
+  const topLevel = shown.filter((r) => !r.parentReplyId);
+  const childrenOf = (id: string) => shown.filter((r) => r.parentReplyId === id);
   // Anything whose parent is missing (deleted, or written before threading
   // existed) is shown at the top level rather than vanishing.
-  const orphans = replies.filter((r) => r.parentReplyId && !replies.some((x) => x.id === r.parentReplyId));
+  const orphans = shown.filter((r) => r.parentReplyId && !shown.some((x) => x.id === r.parentReplyId));
   const roots = [...topLevel, ...orphans].sort((a, b) => {
     const ta = (a.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
     const tb = (b.createdAt as { toMillis?: () => number })?.toMillis?.() ?? 0;
@@ -327,7 +343,7 @@ function PostCard({
         </div>
         <div className="flex items-center gap-1">
           {isPinned && <Pin className="w-3.5 h-3.5 text-accent flex-shrink-0" />}
-          {(canDelete || canEdit || isAdmin) && (
+          {(canDelete || canEdit || isAdmin || post.userId !== userId) && (
             <div className="relative">
               <button
                 onClick={() => setShowMenu((v) => !v)}
@@ -373,6 +389,14 @@ function PostCard({
                         className={`w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/8 transition-colors ${isAdmin ? '' : 'rounded-t-xl'}`}
                       >
                         <Pencil className="w-3.5 h-3.5" /> Edit
+                      </button>
+                    )}
+                    {post.userId !== userId && (
+                      <button
+                        onClick={() => { setShowMenu(false); onReport({ target: { kind: 'channelPost', channelId, postId: post.id }, authorId: post.userId, authorName: post.userDisplayName, excerpt: post.content }); }}
+                        className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-text-secondary hover:text-white hover:bg-white/8 transition-colors"
+                      >
+                        <Flag className="w-3.5 h-3.5" /> Report or block
                       </button>
                     )}
                     {canDelete && (
@@ -478,6 +502,7 @@ function PostCard({
                       canDelete={isAdmin || r.userId === userId}
                       onEdit={(text) => handleEditReply(r, text)}
                       onDelete={() => onDeleteReply(post, r)}
+                      onReport={r.userId !== userId ? () => onReport({ target: { kind: 'channelReply', channelId, postId: post.id, replyId: r.id }, authorId: r.userId, authorName: r.userDisplayName, excerpt: r.content }) : undefined}
                     />
                     {kids.length > 0 && (
                       /* Facebook-style thread rail: one vertical line down the
@@ -498,6 +523,7 @@ function PostCard({
                                 canDelete={isAdmin || c.userId === userId}
                                 onEdit={(text) => handleEditReply(c, text)}
                                 onDelete={() => onDeleteReply(post, c)}
+                                onReport={c.userId !== userId ? () => onReport({ target: { kind: 'channelReply', channelId, postId: post.id, replyId: c.id }, authorId: c.userId, authorName: c.userDisplayName, excerpt: c.content }) : undefined}
                               />
                             </div>
                           ))}
@@ -831,6 +857,12 @@ export default function ChannelPage() {
   // — and the trigger is one item in a small overflow menu next to Pin, which
   // is exactly the shape of a mis-tap.
   const [confirmDelete, setConfirmDelete] = useState<ChannelPost | null>(null);
+  // Report / Block (lib/moderation): the open sheet, and the members this
+  // viewer blocked, whose posts and replies are hidden from them.
+  const [reportSubject, setReportSubject] = useState<ReportSubject | null>(null);
+  const blockedKey = (profile?.blockedUserIds ?? []).join(',');
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the list's contents
+  const blocked = useMemo(() => new Set(profile?.blockedUserIds ?? []), [blockedKey]);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState<{ post: ChannelPost; reply: ChannelPost } | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -1090,7 +1122,7 @@ export default function ChannelPage() {
               <p className="text-white font-bold">{ideas ? 'No ideas yet' : 'No posts yet'}</p>
               <p className="text-text-secondary text-sm mt-1">{ideas ? 'What would make this app better for you? Say it below.' : 'Be the first to post!'}</p>
             </Card>
-          ) : shownPosts.map((post, i) => (
+          ) : shownPosts.filter((p) => !blocked.has(p.userId)).map((post, i) => (
             // id and data-post-id are not decoration: the scroll handler
             // above finds the topmost visible post with
             // querySelectorAll('[data-post-id]') and stores it as this
@@ -1119,6 +1151,8 @@ export default function ChannelPage() {
                 onDelete={setConfirmDelete}
                 onDeleteReply={(p, r) => setConfirmDeleteReply({ post: p, reply: r })}
                 onPin={handlePin}
+                onReport={setReportSubject}
+                blocked={blocked}
               />
             </div>
           ))}
@@ -1374,6 +1408,7 @@ export default function ChannelPage() {
         </p>
       </Modal>
 
+      <ReportModal subject={reportSubject} onClose={() => setReportSubject(null)} />
     </PaywallGate>
   );
 }
