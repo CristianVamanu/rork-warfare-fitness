@@ -37,14 +37,14 @@ import { RevealOffer } from './RevealOffer';
 
 // ─── Step data ────────────────────────────────────────────────────────────────
 
-const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType }[] = [
+const GOALS: { value: FitnessGoal; label: string; sub: string; icon: React.ElementType; art: string }[] = [
   // Everyday goals first. The test option still routes to the endurance
   // programs (SAS, Commando, Legion), which no other goal reaches.
-  { value: 'lose-fat',      label: 'Lose Fat',          sub: 'Burn fat, keep the muscle',         icon: Flame },
-  { value: 'build-muscle',  label: 'Build Muscle',      sub: 'Add size and shape',                icon: Dumbbell },
-  { value: 'recomposition', label: 'Get Lean & Toned',  sub: 'Lose fat and build muscle together', icon: RefreshCw },
-  { value: 'strength',      label: 'Get Stronger',      sub: 'Lift more, own the big lifts',      icon: Zap },
-  { value: 'military-prep', label: 'Pass a Fitness Test', sub: 'Military, police or fire: run, push-ups, pull-ups', icon: Shield },
+  { value: 'lose-fat',      label: 'Lose Fat',          sub: 'Burn fat, keep the muscle',         icon: Flame, art: '/home/flame.webp' },
+  { value: 'build-muscle',  label: 'Build Muscle',      sub: 'Add size and shape',                icon: Dumbbell, art: '/home/hero.webp' },
+  { value: 'recomposition', label: 'Get Lean & Toned',  sub: 'Lose fat and build muscle together', icon: RefreshCw, art: '/home/mountain.webp' },
+  { value: 'strength',      label: 'Get Stronger',      sub: 'Lift more, own the big lifts',      icon: Zap, art: '/home/cards/prwall.webp' },
+  { value: 'military-prep', label: 'Pass a Fitness Test', sub: 'Military, police or fire: run, push-ups, pull-ups', icon: Shield, art: '/home/cards/pttest.webp' },
 ];
 
 // Same three values the matcher has always scored on; the words are the
@@ -1552,8 +1552,10 @@ function StepEmail({ name, onName, email, onEmail, matchState, optIn, onOptIn }:
 // keeps icon-beside-text for options that carry a longer description
 // (Experience, Equipment) where stacking would force awkward line wraps.
 function OptionTile({
-  selected, onClick, icon: Icon, label, sub, layout = 'row',
+  selected, onClick, icon: Icon, label, sub, layout = 'row', art,
 }: {
+  /** Picture on the right of the tile, fading in from the left (as on Home). */
+  art?: string;
   selected: boolean;
   onClick: () => void;
   icon?: React.ElementType;
@@ -1561,15 +1563,14 @@ function OptionTile({
   sub?: string;
   layout?: 'row' | 'grid';
 }) {
-  const base = `w-full text-left rounded-2xl border transition-all ${
-    selected
-      ? 'border-accent bg-gradient-to-br from-accent/15 to-transparent shadow-[0_0_0_1px_rgba(245,166,35,0.15)]'
-      : 'border-white/8 bg-surface hover:border-white/20'
-  }`;
+  // Same cards as the rest of the app: the dark card with the amber edge,
+  // and the glowing "active" card when picked.
+  const base = `w-full text-left rounded-[20px] transition-all active:scale-[.99] ${selected ? 'wf-set-active' : 'wf-card'} ${art ? 'wf-art' : ''}`;
+  const artStyle = art ? ({ '--art': `url('${art}')` } as React.CSSProperties) : undefined;
 
   if (layout === 'grid') {
     return (
-      <button onClick={onClick} className={`${base} p-4 flex flex-col gap-3 min-h-[104px]`}>
+      <button onClick={onClick} style={artStyle} className={`${base} p-4 flex flex-col gap-3 min-h-[104px]`}>
         {Icon && (
           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}>
             <Icon className="w-[18px] h-[18px]" />
@@ -1591,22 +1592,22 @@ function OptionTile({
   }
 
   return (
-    <button onClick={onClick} className={`${base} p-4 flex items-center gap-4`}>
+    <button onClick={onClick} style={artStyle} className={`${base} p-4 flex items-center gap-4 ${art ? 'min-h-[84px]' : ''}`}>
       {Icon && (
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${selected ? 'bg-accent text-black' : 'bg-surface-elevated text-text-secondary'}`}>
+        <div className={`w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0 ${selected ? 'bg-accent text-black' : 'wf-round text-accent'}`}>
           <Icon className="w-5 h-5" />
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="font-bold text-white text-sm">{label}</p>
-        {sub && <p className="text-xs text-text-secondary mt-0.5">{sub}</p>}
+      <div className={`flex-1 min-w-0 ${art ? '[text-shadow:0_1px_8px_rgba(0,0,0,0.95)]' : ''}`}>
+        <p className={`font-bold text-white ${art ? 'text-[15px]' : 'text-sm'}`}>{label}</p>
+        {sub && <p className={`text-xs mt-0.5 ${art ? 'text-white/75 max-w-[78%]' : 'text-text-secondary'}`}>{sub}</p>}
       </div>
       {selected ? (
         <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center flex-shrink-0">
           <CheckCircle className="w-4 h-4 text-black" strokeWidth={3} />
         </div>
       ) : (
-        <div className="w-6 h-6 rounded-full border-2 border-white/15 flex-shrink-0" />
+        <div className="w-6 h-6 rounded-full border-2 border-white/25 bg-black/40 flex-shrink-0" />
       )}
     </button>
   );
@@ -1689,15 +1690,12 @@ function StepGoal({ selected, onSelect }: { selected: FitnessGoal | null; onSele
     <div>
       <h1 className="text-2xl font-black text-white mb-1">What&apos;s your goal?</h1>
       <p className="text-text-secondary text-sm mb-5">This determines your program structure and intensity.</p>
-      {/* Five options. The first is the one the product is named for, so it
-          takes the full width as a featured row and the other four sit in
-          an even 2x2 below — rather than a 2-column grid leaving one tile
-          orphaned at the bottom. */}
-      <div className="grid grid-cols-2 gap-3">
-        {GOALS.map(({ value, label, sub, icon: Icon }, i) => (
-          <div key={value} className={i === 0 ? 'col-span-2' : ''}>
+      {/* Five even rows, each a picture card like the ones on Home. */}
+      <div className="space-y-3">
+        {GOALS.map(({ value, label, sub, icon: Icon, art }) => (
+          <div key={value}>
             <OptionTile
-              layout={i === 0 ? 'row' : 'grid'}
+              art={art}
               icon={Icon}
               label={label}
               sub={sub}
