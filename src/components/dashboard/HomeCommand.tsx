@@ -6,6 +6,7 @@
  * today's numbers, the Nutrition / Hydration / Recovery cards, today's
  * challenge and the streak. Dark glass with amber glow, same on web and apps.
  */
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus, Beef } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,13 +67,25 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
   onAddWater: () => void; onRemoveWater: () => void; waterBusy: boolean;
 }) {
   const { user } = useAuth();
-  const { days } = useHealthHistory(user?.uid, 15);
+  const { days, loaded } = useHealthHistory(user?.uid, 15);
   const ready = readiness(days);
   const challenge = useHomeChallenge();
+  // The watch data arrives a moment after Home opens. Until it does, use the
+  // last known readiness from this device, so the card doesn't open on the
+  // weekly text and then flip to the watch text a few seconds later.
+  const cacheKey = user ? `wf-home-ready-${user.uid}` : null;
+  const [cachedScore] = useState<number | null>(() => {
+    try { const v = cacheKey ? localStorage.getItem(cacheKey) : null; return v ? Number(v) : null; } catch { return null; }
+  });
+  useEffect(() => {
+    if (!loaded || !cacheKey) return;
+    try { if (ready.score != null) localStorage.setItem(cacheKey, String(ready.score)); else localStorage.removeItem(cacheKey); } catch { /* storage blocked */ }
+  }, [loaded, cacheKey, ready.score]);
+  const readyScore = loaded ? ready.score : cachedScore;
   // Watch readiness when there is any; otherwise this week's sessions as a score.
-  const hasWatch = ready.score != null;
+  const hasWatch = readyScore != null;
   const weekScore = daysPerWeek > 0 ? Math.round(Math.min(1, sessionsThisWeek / daysPerWeek) * 100) : 0;
-  const score = hasWatch ? ready.score! : weekScore;
+  const score = hasWatch ? readyScore! : weekScore;
   const headline = hasWatch
     ? (score >= 80 ? "You're in prime shape." : score >= 60 ? 'Solid. Train smart today.' : 'Go lighter today.')
     : (daysPerWeek > 0 && sessionsThisWeek >= daysPerWeek ? 'Week done. Strong work.' : daysPerWeek > 0 ? `${sessionsThisWeek} of ${daysPerWeek} done this week.` : 'Pick a program to start.');
