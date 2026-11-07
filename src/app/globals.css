@@ -838,13 +838,16 @@ html:not(.light) .wf-art::after {
   mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
 }
 @media (min-width: 768px) {
-  /* Desktop: a wide banner made for this width, lined up with the cards
-     below (cancels the phone's edge-to-edge negative margins). */
+  /* Desktop: a wide banner made for this width. */
   .home-hero-box {
-    margin-left: 5px; margin-right: 5px;
-    height: 230px;
-    border-radius: 24px;
-    background: #050505 url('/home/hero-desktop.webp') right 30% / cover no-repeat;
+    height: 250px;
+    background: url('/home/hero-desktop.webp') right top / cover no-repeat;
+    /* No box: the banner melts into the page on the left, right and
+       bottom, so the streak card can sit over its lower edge cleanly. */
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%), linear-gradient(90deg, transparent 0%, #000 12%, #000 90%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(180deg, #000 55%, transparent 100%), linear-gradient(90deg, transparent 0%, #000 12%, #000 90%, transparent 100%);
+    mask-composite: intersect;
   }
   .home-hero-shade, .home-hero-img { display: none; }
 }
