@@ -853,3 +853,7 @@ html:not(.light) .wf-art::after {
   .home-hero-shade, .home-hero-img { display: none; }
 }
 
+
+/* Sideways chip rows: still swipeable, without the grey scrollbar line. */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

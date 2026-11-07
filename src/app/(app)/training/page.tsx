@@ -454,7 +454,7 @@ export default function TrainingPage() {
         {/* Filters */}
         {/* Free-standing chips, no track around them: the lit one is the
             filter, the rest sit quietly on glass. */}
-        <div className="-mx-4 px-4 overflow-x-auto">
+        <div className="-mx-4 px-4 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 w-max pb-0.5">
             {['all', 'strength', 'hypertrophy', 'weight-loss', 'beginner', 'intermediate', 'advanced'].map((f) => {
               const on = filter === f;

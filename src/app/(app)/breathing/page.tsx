@@ -410,7 +410,7 @@ export default function BreathingPage() {
             {music.enabled && (
               <>
                 {tracks.length > 1 && (
-                  <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 -mx-1 px-1">
                     {tracks.map((t) => (
                       <button key={t.id} type="button" onClick={() => pickTrack(t.id)} className={`flex-shrink-0 rounded-xl border px-3 py-2 text-left transition-colors ${t.id === track.id ? 'border-[#F5A623]/60 bg-[#F5A623]/10' : 'border-white/10 bg-white/[0.02]'}`}>
                         <p className={`text-xs font-semibold ${t.id === track.id ? 'text-[#FFE2B4]' : 'text-white/75'}`}>{t.title}</p>

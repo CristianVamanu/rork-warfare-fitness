@@ -40,7 +40,7 @@ export function FeedCarousel({ items, compact = false, className = '' }: {
       <div
         ref={ref}
         onScroll={onScroll}
-        className="flex overflow-x-auto snap-x snap-mandatory scrollbar-none rounded-xl"
+        className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory scrollbar-none rounded-xl"
         style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
         aria-roledescription="carousel"
         aria-label={`${items.length} attachments`}

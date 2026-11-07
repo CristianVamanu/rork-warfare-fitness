@@ -1199,7 +1199,7 @@ export default function ChannelPage() {
           {/* Attachment preview — a clip gets a real player rather than an
               <img> pointed at an .mp4, which renders as a broken thumbnail. */}
           {pending.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto py-1 pr-1" style={{ scrollbarWidth: 'none' }}>
+            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 pr-1" style={{ scrollbarWidth: 'none' }}>
               {pending.map((m, i) => (
                 <div key={m.url} className="relative flex-shrink-0 mt-1.5">
                   {m.type === 'video' ? (

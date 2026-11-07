@@ -324,7 +324,7 @@ export default function PtTestPage() {
             wrapping block. Eleven chips wrapped into four ragged rows and
             pushed the form itself off the screen, which is what made this
             page read as scattered. */}
-        <div className="-mx-4 px-4 overflow-x-auto">
+        <div className="-mx-4 px-4 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 w-max pb-1">
             <button
               onClick={() => { setStandardTouched(true); setStandardId('generic'); }}

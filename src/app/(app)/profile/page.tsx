@@ -755,7 +755,7 @@ export default function ProfilePage() {
                 <p className="text-sm font-medium text-white">Challenges finished</p>
                 <Link href="/community/challenges" className="text-xs text-accent font-semibold">See all</Link>
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1" style={{ scrollbarWidth: 'none' }}>
                 {[...(profile?.challengeBadges ?? [])].reverse().map((b) => (
                   <Link key={b.challengeId} href={`/community/challenges/${b.challengeId}`} className="flex-shrink-0 w-32 rounded-xl border border-accent/30 px-3 py-2.5" style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb) / 0.18), rgba(var(--accent-rgb) / 0.03))' }}>
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-accent">Verified</p>

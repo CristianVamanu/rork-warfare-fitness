@@ -118,7 +118,7 @@ export function MediaPicker({ value, onChange, max = 1, allowVideo = true, folde
   };
 
   const thumbs = value.length > 0 && (
-    <div className="flex gap-2 overflow-x-auto py-1 pr-1" style={{ scrollbarWidth: 'none' }}>
+    <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 pr-1" style={{ scrollbarWidth: 'none' }}>
       {value.map((m, i) => (
         <div key={m.url} className="relative flex-shrink-0 mt-1.5">
           {m.type === 'video' ? (
