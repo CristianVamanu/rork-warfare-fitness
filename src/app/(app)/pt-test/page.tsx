@@ -88,9 +88,9 @@ export default function PtTestPage() {
     if (!confirm('Delete this result? It cannot be restored.')) return;
     setDeletingId(id);
     try {
-      await deletePtTestResult(id);
       setHistory((prev) => prev.filter((r) => r.id !== id));
       toast.success('Result deleted');
+      deletePtTestResult(id).catch(() => toast.error('Could not delete that result. Check your connection.'));
     } catch {
       toast.error('Could not delete that result');
     } finally {
@@ -174,7 +174,8 @@ export default function PtTestPage() {
           ...(events.plankSeconds !== undefined ? { plankSeconds: plankTotal } : {}),
           ...(events.beepLevel !== undefined ? { beepLevel: beepLevelValue } : {}),
         };
-        const id = await createPtTestResult(data);
+        const { id, saved: pending } = createPtTestResult(data);
+        pending.catch(() => toast.error('Result not saved. Check your connection.'));
         const saved = { id, createdAt: new Date(), ...data };
         setResult(saved);
         setHistory((prev) => [saved, ...prev]);
@@ -209,7 +210,8 @@ export default function PtTestPage() {
         tier: tierFor(totalScore),
         standard: 'generic' as const,
       };
-      const id = await createPtTestResult(data);
+      const { id, saved: pending } = createPtTestResult(data);
+        pending.catch(() => toast.error('Result not saved. Check your connection.'));
       const saved = { id, createdAt: new Date(), ...data };
       setResult(saved);
       setHistory((prev) => [saved, ...prev]);

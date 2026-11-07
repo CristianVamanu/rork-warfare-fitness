@@ -3192,12 +3192,11 @@ export async function deleteGoal(goalId: string): Promise<void> {
 // ---------------------------------------------------------------------------
 import type { PtTestResult } from '@/types';
 
-export async function createPtTestResult(data: Omit<PtTestResult, 'id' | 'createdAt'>): Promise<string> {
-  const ref = await addDoc(collection(db, 'ptTestResults'), {
-    ...data,
-    createdAt: serverTimestamp(),
-  });
-  return ref.id;
+/** Id is made locally so the caller can show the result at once; `saved` settles when the server confirms. */
+export function createPtTestResult(data: Omit<PtTestResult, 'id' | 'createdAt'>): { id: string; saved: Promise<void> } {
+  const ref = doc(collection(db, 'ptTestResults'));
+  const saved = setDoc(ref, { ...data, createdAt: serverTimestamp() });
+  return { id: ref.id, saved };
 }
 
 /** Removes one of the member's own PT results. Owner or admin, per the rules. */
