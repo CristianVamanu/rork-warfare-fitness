@@ -25,11 +25,20 @@ import { HUD } from '@/components/hud/HudCharts';
 import { WatchHud, type LighterOffer } from '@/components/hud/WatchHud';
 
 
+// Remembered for the app session: coming back to Home shows the last state
+// and numbers straight away, and the phone is only re-read every few minutes.
+let lastAuth: HealthAuthState | 'unknown' = 'unknown';
+let lastToday: HealthDaySummary | null = null;
+let lastSyncAt = 0;
+const RESYNC_MS = 5 * 60_000;
+
 export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) {
   const { user } = useAuth();
   const [native] = useState(() => isNativeApp());
-  const [auth, setAuth] = useState<HealthAuthState | 'unknown'>('unknown');
-  const [liveToday, setToday] = useState<HealthDaySummary | null>(null);
+  const [auth, setAuthState] = useState<HealthAuthState | 'unknown'>(lastAuth);
+  const setAuth = (a: HealthAuthState | 'unknown') => { lastAuth = a; setAuthState(a); };
+  const [liveToday, setTodayState] = useState<HealthDaySummary | null>(lastToday);
+  const setToday = (t: HealthDaySummary | null) => { lastToday = t; setTodayState(t); };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
@@ -47,6 +56,7 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
       const t = await syncHealth(user, n);
       if (n > 3) markBackfilled();
       if (t) setToday(t);
+      lastSyncAt = Date.now();
       await reload();
     } catch (e) {
       setError((e as Error)?.message || 'Sync failed');
@@ -66,7 +76,8 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
       if (cancelled) return;
       setAuth(state);
       if (state === 'granted' || state === 'partial') {
-        if (!cancelled) await sync();
+        // Re-read the phone at most every 5 minutes; Sync now forces it.
+        if (!cancelled && Date.now() - lastSyncAt > RESYNC_MS) await sync();
       }
     })();
     return () => { cancelled = true; };
