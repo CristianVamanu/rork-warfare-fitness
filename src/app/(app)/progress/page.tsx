@@ -80,12 +80,32 @@ export default function ProgressPage() {
     return unsub;
   }, [user]);
 
-  const handlePhotoSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Picking a photo first asks for today's weight (pre-filled with the last
+  // one), so the photo carries a real number for the before/after compare
+  // instead of whatever the profile happened to hold.
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null);
+  const [photoWeight, setPhotoWeight] = useState('');
+
+  const handlePhotoSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !user) return;
     if (!file.type.startsWith('image/')) {
       toast.error('Please choose an image file');
+      return;
+    }
+    const cur = profile?.currentWeightKg;
+    setPhotoWeight(cur ? String(+(weightUnit === 'lbs' ? kgToLbs(cur) : cur).toFixed(1)) : '');
+    setPendingPhoto(file);
+  };
+
+  const savePendingPhoto = async () => {
+    const file = pendingPhoto;
+    if (!file || !user) return;
+    const entered = parseFloat(photoWeight);
+    const kg = Number.isFinite(entered) ? (weightUnit === 'lbs' ? lbsToKg(entered) : entered) : null;
+    if (photoWeight.trim() && (kg === null || kg < 20 || kg > 400)) {
+      toast.error('Enter a valid weight');
       return;
     }
     setUploadingPhoto(true);
@@ -96,8 +116,15 @@ export default function ProgressPage() {
       await createProgressPhoto({
         userId: user.uid,
         photoUrl,
-        weightKg: profile?.currentWeightKg,
+        ...(kg ? { weightKg: +kg.toFixed(2) } : {}),
       });
+      // A new number also goes in the weight log, like Log Weight.
+      if (kg && Math.abs(kg - (profile?.currentWeightKg ?? 0)) >= 0.05) {
+        await recordWeight(user.uid, kg).catch(() => {});
+        getWeightHistory(user.uid, 30).then(setWeightHistory).catch(() => {});
+        refreshProfile().catch(() => {});
+      }
+      setPendingPhoto(null);
       toast.success('Progress photo saved');
     } catch {
       toast.error('Failed to upload photo');
@@ -480,6 +507,28 @@ export default function ProgressPage() {
         {/* Waist, chest, hips, arm, thigh over time */}
         <MeasurementsCard />
       </div>
+
+      {/* New progress photo: today's weight */}
+      <Modal open={!!pendingPhoto} onClose={() => { if (!uploadingPhoto) setPendingPhoto(null); }} title="Your weight today?">
+        <div className="space-y-4">
+          <p className="text-xs text-text-secondary">Saved with this photo so your before / after shows the real change. It also updates your weight log.</p>
+          <div className="relative">
+            <input
+              type="number"
+              step="0.1"
+              inputMode="decimal"
+              value={photoWeight}
+              onChange={(e) => setPhotoWeight(e.target.value)}
+              placeholder={weightUnit === 'lbs' ? 'e.g. 180' : 'e.g. 82.5'}
+              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 pr-14 text-white text-lg font-bold focus:outline-none focus:border-accent/50"
+            />
+            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-text-tertiary">{weightUnit}</span>
+          </div>
+          <Button fullWidth loading={uploadingPhoto} onClick={savePendingPhoto} className="wf-cta">
+            Save photo
+          </Button>
+        </div>
+      </Modal>
 
       {/* Log Weight Modal */}
       <Modal open={weightModal} onClose={() => setWeightModal(false)} title="Log Body Weight">
