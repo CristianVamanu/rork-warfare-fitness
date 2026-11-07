@@ -131,6 +131,9 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white">Connect {sourceName}</p>
           <p className="text-xs text-text-secondary">Steps, sleep and heart rate from your watch, on this dashboard.</p>
+          {nativePlatform() === 'android' && (
+            <p className="text-[10px] text-text-tertiary mt-1 leading-snug">Using Samsung Health? Turn on Samsung Health → Settings → Health Connect.</p>
+          )}
         </div>
         <button
           onClick={connect}
