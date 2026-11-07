@@ -400,9 +400,7 @@ export default function DashboardPage() {
       <Suspense fallback={null}>
         <SubscribeSuccess onSuccess={() => { void refreshProfile(); }} />
       </Suspense>
-    {/* Home is designed as a phone screen; on a wide screen it stays a
-        centred phone-width column instead of stretching. */}
-    <div className="relative md:max-w-lg md:mx-auto">
+    <div className="relative">
       <div className="relative">
       <Header overlay />
       <div className="relative px-4 pt-0 pb-4 space-y-3.5">
