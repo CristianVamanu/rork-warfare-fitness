@@ -38,7 +38,7 @@ export function WeeklyReportCard() {
     (async () => {
       try {
         const token = await getIdToken(user);
-        const res = await fetch(`/api/ai/weekly-report?today=${dayKey(new Date())}`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await fetch(`/api/ai/weekly-report?today=${dayKey(new Date())}&tzo=${new Date().getTimezoneOffset()}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) return;
         const json = await res.json() as { report: WeeklyReport | null };
         cache = { key, report: json.report };

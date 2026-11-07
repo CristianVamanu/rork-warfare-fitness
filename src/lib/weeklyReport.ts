@@ -107,7 +107,7 @@ export function computeWeekStats(
 
 /** True when there is nothing to report on. */
 /** Bumped when the report's content or rules change, so stored reports from the old version are rebuilt once. */
-export const REPORT_VERSION = 2;
+export const REPORT_VERSION = 3;
 
 export const quietWeek = (s: WeekStats) => s.workouts === 0 && s.mealDays === 0 && s.weightStartKg == null && s.avgSleepMin == null && s.avgSteps == null;
 
@@ -116,7 +116,7 @@ const h = (m: number) => `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0
 /** Used when the AI is off or fails. Plain, factual, still useful. */
 export function rulesReport(s: WeekStats): Omit<WeeklyReport, 'stats' | 'generatedBy' | 'week'> {
   const wins: string[] = [];
-  const planned = s.plannedPerWeek ?? 3;
+  const planned = s.plannedPerWeek || 3;
   if (s.workouts > 0) wins.push(`${s.workouts} workout${s.workouts === 1 ? '' : 's'} done, ${s.sets} sets in ${s.minutes} minutes.`);
   if (s.workouts > s.prevWorkouts && s.prevWorkouts > 0) wins.push(`More sessions than the week before (${s.prevWorkouts} → ${s.workouts}).`);
   if (s.volumeKg > s.prevVolumeKg && s.prevVolumeKg > 0) wins.push(`Total weight lifted up ${Math.round(((s.volumeKg - s.prevVolumeKg) / s.prevVolumeKg) * 100)}%.`);
@@ -167,7 +167,7 @@ export interface ScoreAxis { key: string; label: string; score: number }
 export function weekScore(s: WeekStats): { score: number | null; axes: ScoreAxis[] } {
   const axes: ScoreAxis[] = [];
   const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
-  const planned = s.plannedPerWeek ?? 3;
+  const planned = s.plannedPerWeek || 3;
   axes.push({ key: 'training', label: 'Training', score: clamp((s.workouts / planned) * 100) });
   if (s.mealDays) axes.push({ key: 'logging', label: 'Food log', score: clamp((s.mealDays / 7) * 100) });
   if (s.avgKcal != null && s.kcalGoal && s.mealDays >= 3) axes.push({ key: 'calories', label: 'Calories', score: clamp(100 - (Math.abs(s.avgKcal - s.kcalGoal) / s.kcalGoal) * 200) });

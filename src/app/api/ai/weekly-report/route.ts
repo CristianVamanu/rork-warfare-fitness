@@ -47,20 +47,32 @@ export async function GET(req: NextRequest) {
   const [userSnap, eventsSnap, healthSnaps] = await Promise.all([
     db.doc(`users/${auth.uid}`).get(),
     db.collection('events').where('userId', '==', auth.uid)
-      .where('createdAt', '>=', Timestamp.fromMillis(start - 7 * DAY))
+      .where('createdAt', '>=', Timestamp.fromMillis(start - 8 * DAY))
       .orderBy('createdAt', 'desc').limit(600).get(),
     db.getAll(...Array.from({ length: 7 }, (_, i) => db.doc(`healthDays/${auth.uid}_${new Date(start + i * DAY).toISOString().slice(0, 10)}`))),
   ]);
   const u = (userSnap.data() ?? {}) as Record<string, unknown>;
-  const ap = u.activeProgram as { programName?: string; completedWorkouts?: number; totalWorkouts?: number } | undefined;
+  const ap = u.activeProgram as { programId?: string; programName?: string; completedWorkouts?: number; totalWorkouts?: number } | undefined;
+  // The member's planned sessions a week, from their program; without it
+  // the report assumed 3 and told a 5-day member they hit "5 of 3".
+  const prog = ap?.programId ? await db.doc(`programs/${ap.programId}`).get().catch(() => null) : null;
+  const dpw = Number(prog?.data()?.daysPerWeek);
+  const plannedPerWeek = Number.isFinite(dpw) && dpw > 0 ? Math.min(7, dpw) : null;
+  // Week and day buckets in the member's own time zone (tzo = the browser's
+  // getTimezoneOffset). In UTC a Sunday-evening session in the US fell into
+  // the next week and an evening meal counted on the following day.
+  const tzoRaw = Number(req.nextUrl.searchParams.get('tzo'));
+  const tzoMs = (Number.isFinite(tzoRaw) && Math.abs(tzoRaw) <= 840 ? tzoRaw : 0) * 60_000;
   const events: RawEvent[] = eventsSnap.docs.map((d) => {
     const e = d.data();
-    return { type: String(e.type), at: (e.createdAt as Timestamp | undefined)?.toMillis() ?? 0, payload: (e.payload ?? {}) as Record<string, unknown> };
+    const at = (e.createdAt as Timestamp | undefined)?.toMillis() ?? 0;
+    return { type: String(e.type), at: at ? at - tzoMs : 0, payload: (e.payload ?? {}) as Record<string, unknown> };
   });
   const health: RawHealthDay[] = healthSnaps.filter((s) => s.exists).map((s) => s.data() as RawHealthDay);
 
   const stats = computeWeekStats(week, events, health, {
     goals: u.goals as { calories?: number; protein?: number } | undefined,
+    plannedPerWeek,
     streak: Number((u.statsCache as { streak?: number } | undefined)?.streak ?? 0),
     programName: ap?.programName ?? null,
     programPct: ap?.totalWorkouts ? Math.round(((ap.completedWorkouts ?? 0) / ap.totalWorkouts) * 100) : null,
