@@ -29,7 +29,7 @@ interface PartnerRow {
   uid: string; code: string; status: string; profile: { name: string; email: string; channels: string; audience: string; about: string; website?: string };
   percent: number; percentOverride: number | null; capMonths: number; capMonthsOverride: number | null;
   connect: boolean; connectReady: boolean; membershipGranted: boolean; notes: string; createdAt: string | null; reviewedAt: string | null; agreementVersion: number;
-  stats: { clicks: number; signups: number; members: number; revenueCents: number; conversion: number }; balance: Balance; reviewCount: number;
+  stats?: { clicks: number; signups: number; members: number; revenueCents: number; conversion: number }; balance: Balance; reviewCount: number;
 }
 interface ReviewRow { id: string; partnerId: string; partnerCode: string; memberUid: string; commissionCents: number; grossCents: number; flags: string[]; createdAt: string | null; planName: string | null }
 interface Payout { id: string; partnerId: string; partnerCode: string; amountCents: number; currency: string; status: string; method: string; period: string; createdAt: string | null; transferId: string | null }
@@ -198,8 +198,8 @@ export default function AdminPartnersPage() {
                     <button key={p.uid} onClick={() => openDetail(p.uid)} className="w-full flex items-center gap-3 py-2 text-left hover:bg-white/5 rounded-lg px-1">
                       <span className="font-mono text-xs font-bold text-accent w-20 truncate">{p.code}</span>
                       <span className="flex-1 text-sm text-white truncate">{p.profile?.name}</span>
-                      <span className="text-xs text-text-secondary">{p.stats.members} members</span>
-                      <span className="text-sm font-bold text-white w-20 text-right">{formatCents(p.stats.revenueCents)}</span>
+                      <span className="text-xs text-text-secondary">{p.stats?.members ?? 0} members</span>
+                      <span className="text-sm font-bold text-white w-20 text-right">{formatCents(p.stats?.revenueCents ?? 0)}</span>
                     </button>
                   ))}
                   {!data.partners.some((p) => p.status === 'active') && <p className="text-xs text-text-secondary py-2">No active partners yet. Share /partners to get applications.</p>}
@@ -244,11 +244,11 @@ export default function AdminPartnersPage() {
                       <td className="px-4 py-2.5"><p className="text-white font-medium truncate max-w-[220px]">{p.profile?.name}</p><p className="font-mono text-xs text-accent">{p.code}</p></td>
                       <td className="py-2.5"><Pill tone={STATUS_PILL[p.status] ?? 'muted'}>{p.status}</Pill></td>
                       <td className="py-2.5 text-right text-white">{p.percent}{p.percentOverride !== null && <span className="text-text-tertiary">*</span>}</td>
-                      <td className="py-2.5 text-right text-text-secondary">{p.stats.clicks}</td>
-                      <td className="py-2.5 text-right text-text-secondary">{p.stats.signups}</td>
-                      <td className="py-2.5 text-right text-white font-semibold">{p.stats.members}</td>
-                      <td className="py-2.5 text-right text-text-secondary">{p.stats.conversion}%</td>
-                      <td className="py-2.5 text-right text-white">{formatCents(p.stats.revenueCents)}</td>
+                      <td className="py-2.5 text-right text-text-secondary">{p.stats?.clicks ?? 0}</td>
+                      <td className="py-2.5 text-right text-text-secondary">{p.stats?.signups ?? 0}</td>
+                      <td className="py-2.5 text-right text-white font-semibold">{p.stats?.members ?? 0}</td>
+                      <td className="py-2.5 text-right text-text-secondary">{p.stats?.conversion ?? 0}%</td>
+                      <td className="py-2.5 text-right text-white">{formatCents(p.stats?.revenueCents ?? 0)}</td>
                       <td className="py-2.5 text-right text-white">{formatCents(p.balance.payableCents)}</td>
                       <td className="px-4 py-2.5 text-right">{p.reviewCount > 0 ? <Pill tone="danger">{p.reviewCount}</Pill> : <span className="text-text-tertiary">—</span>}</td>
                     </tr>
@@ -382,7 +382,7 @@ export default function AdminPartnersPage() {
               <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/p/${detail.partner.code}`).then(() => toast.success('Link copied')); }} className="ml-auto text-xs text-text-secondary hover:text-white inline-flex items-center gap-1"><Copy className="w-3.5 h-3.5" /> Link</button>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              <KV k="Clicks" v={detail.partner.stats.clicks} /><KV k="Sign-ups" v={detail.partner.stats.signups} /><KV k="Members" v={detail.partner.stats.members} /><KV k="Revenue" v={formatCents(detail.partner.stats.revenueCents)} />
+              <KV k="Clicks" v={detail.partner.stats?.clicks ?? 0} /><KV k="Sign-ups" v={detail.partner.stats?.signups ?? 0} /><KV k="Members" v={detail.partner.stats?.members ?? 0} /><KV k="Revenue" v={formatCents(detail.partner.stats?.revenueCents ?? 0)} />
               <KV k="Owed" v={formatCents(detail.balance.payableCents)} /><KV k="Pending" v={formatCents(detail.balance.pendingCents + detail.balance.reviewCents)} /><KV k="Paid" v={formatCents(detail.balance.paidCents)} /><KV k="Clawed back" v={formatCents(detail.balance.clawbackCents)} />
             </div>
             <div className="grid sm:grid-cols-2 gap-2">
