@@ -3,12 +3,11 @@
 /**
  * "Your week" on Home: the weekly coach report (/api/ai/weekly-report).
  * Shows the headline and key numbers, expands to wins, the one fix and
- * next week's targets. Hidden for a week with nothing logged, and once the
- * member closes it for that week.
+ * next week's targets. Hidden only for a week with nothing logged.
  */
 import { useEffect, useState } from 'react';
 import { getIdToken } from 'firebase/auth';
-import { ChevronDown, X, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
@@ -23,7 +22,6 @@ export function WeeklyReportCard() {
   const { user, profile } = useAuth();
   const [report, setReport] = useState<WeeklyReport | null>(null);
   const [open, setOpen] = useState(false);
-  const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -31,7 +29,8 @@ export function WeeklyReportCard() {
     const key = `${user.uid}:${dayKey(new Date())}`;
     const show = (r: WeeklyReport | null) => {
       if (!alive || !r) return;
-      try { if (localStorage.getItem(HIDE_KEY) === r.week) setHidden(true); } catch { /* storage blocked */ }
+      // The card can no longer be hidden; clear any old "hidden" flag.
+      try { localStorage.removeItem(HIDE_KEY); } catch { /* storage blocked */ }
       setReport(r);
     };
     if (cache?.key === key) { show(cache.report); return () => { alive = false; }; }
@@ -48,7 +47,7 @@ export function WeeklyReportCard() {
     return () => { alive = false; };
   }, [user]);
 
-  if (!report || hidden) return null;
+  if (!report) return null;
   const s = report.stats;
   const lbs = profile?.weightUnit === 'lbs';
   const vol = lbs ? Math.round(s.volumeKg * 2.20462) : s.volumeKg;
@@ -102,9 +101,6 @@ export function WeeklyReportCard() {
           </span>
           <span className="flex items-center gap-1">
             <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-wider">Week of {weekLabel}</span>
-            <button aria-label="Hide this week's report" onClick={() => { setHidden(true); try { localStorage.setItem(HIDE_KEY, report.week); } catch { /* storage blocked */ } }} className="text-text-tertiary hover:text-white p-1 -mr-1">
-              <X className="w-3.5 h-3.5" />
-            </button>
           </span>
         </div>
 
