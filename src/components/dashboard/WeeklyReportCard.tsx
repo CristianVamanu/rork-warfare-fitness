@@ -73,7 +73,7 @@ export function WeeklyReportCard() {
     s.avgSleepMin != null ? { label: 'Sleep / night', value: hm(s.avgSleepMin), sub: null, icon: Moon, color: '#A5B4FC' } : null,
     s.avgSteps != null ? { label: 'Steps / day', value: s.avgSteps.toLocaleString(), sub: null, icon: Footprints, color: '#4ADE80', pct: pct(s.avgSteps, 10000) } : null,
     s.avgRestingHr != null ? { label: 'Resting HR', value: `${s.avgRestingHr} bpm`, sub: null, icon: HeartPulse, color: '#F87171' } : null,
-    s.streak ? { label: 'Streak', value: `${s.streak} days`, sub: null, icon: Zap, color: '#F5A623' } : null,
+    s.streak ? { label: 'Streak', value: `${s.streak} ${s.streak === 1 ? 'day' : 'days'}`, sub: null, icon: Zap, color: '#F5A623' } : null,
   ] as (Tile | null)[]).filter((t): t is Tile => !!t);
   // Four tiles by default (an even bento), everything when expanded.
   // Calories and macros live in the nutrition ring above, not as tiles.
@@ -157,9 +157,11 @@ export function WeeklyReportCard() {
               </div>
             )}
             {numTiles.length > 4 && (
-              <div className="grid grid-cols-3 gap-2">
-                {numTiles.slice(4).map((t) => { const Icon = t.icon; return (
-                  <div key={t.label} className="rounded-xl bg-surface-elevated p-2.5 min-w-0">
+              // The last row stretches to fill: one leftover tile goes full
+              // width, two share the row, so there's never an empty gap.
+              <div className="grid grid-cols-6 gap-2">
+                {numTiles.slice(4).map((t, i, arr) => { const Icon = t.icon; const rest = arr.length % 3; const inLast = i >= arr.length - rest; return (
+                  <div key={t.label} className={`rounded-xl bg-surface-elevated p-2.5 min-w-0 ${inLast ? (rest === 1 ? 'col-span-6' : 'col-span-3') : 'col-span-2'}`}>
                     <Icon className="w-3.5 h-3.5" style={{ color: t.color }} />
                     <p className="text-sm font-black text-white tabular-nums mt-1 truncate">{t.value}</p>
                     <p className="text-[9px] text-text-tertiary uppercase tracking-wide truncate">{t.label}</p>
