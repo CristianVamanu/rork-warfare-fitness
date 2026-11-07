@@ -72,32 +72,22 @@ export function FastingWidget() {
     return () => clearInterval(id);
   }, [fasting]);
 
-  const handleStart = async (hours: number) => {
-    if (!user) return;
-    setStarting(true);
-    try {
-      await startFasting(user.uid, hours);
-      setStartModal(false);
-      toast.success(`Fast started — goal ${hours}h`);
-    } catch {
-      toast.error('Failed to start fast');
-    } finally {
-      setStarting(false);
-    }
+  // Instant: the write lands in the local cache at once (the live profile
+  // updates the card) and syncs in the background, so a weak signal can't
+  // leave the button spinning. Only a real failure shows, as a toast.
+  const handleStart = (hours: number) => {
+    if (!user || !Number.isFinite(hours) || hours <= 0) return;
+    setStartModal(false);
+    setCustomHours('');
+    toast.success(`Fast started — goal ${hours}h`);
+    startFasting(user.uid, Math.min(72, hours)).catch(() => toast.error('Could not start the fast. Check your connection.'));
   };
 
-  const handleStop = async () => {
+  const handleStop = () => {
     if (!user) return;
-    setStopping(true);
-    try {
-      await stopFasting(user.uid);
-      setDetailModal(false);
-      toast.success('Fast ended — nice work!');
-    } catch {
-      toast.error('Failed to end fast');
-    } finally {
-      setStopping(false);
-    }
+    setDetailModal(false);
+    toast.success('Fast ended — nice work!');
+    stopFasting(user.uid).catch(() => toast.error('Could not end the fast. Check your connection.'));
   };
 
   if (accessLoaded && fastingLocked) {
