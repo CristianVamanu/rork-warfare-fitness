@@ -217,10 +217,13 @@ export async function completeWorkout(
   let streakAdvanced = false;
 
   try {
-    const now = new Date();
+    // When the workout was FINISHED: a queued (offline) workout uploaded
+    // the next morning must count for the day it was done, for the streak,
+    // "trained today" and the time-of-day achievements.
+    const now = opts.completedAt ?? new Date();
     const workoutHour = now.getHours();
     const isWeekend = now.getDay() === 0 || now.getDay() === 6;
-    const today = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD local
+    const today = now.toLocaleDateString('sv-SE'); // YYYY-MM-DD local, the finish day
 
     let totalWorkouts = 0;
     let newStreak = 1;
@@ -259,8 +262,8 @@ export async function completeWorkout(
         : null;
       const freeze = (data.streakFreeze as { available?: boolean } | undefined)?.available ?? true;
       const maxGap = STREAK_REST_DAYS + 1 + (freeze ? 1 : 0);
-      if (lastWorkoutDate === today) {
-        newStreak = streak; // same day — streak unchanged
+      if (lastWorkoutDate === today || (lastWorkoutDate && lastWorkoutDate > today)) {
+        newStreak = streak; // same day, or an older upload — streak unchanged
       } else if (gapDays !== null && gapDays >= 1 && gapDays <= maxGap && streak > 0) {
         newStreak = streak + 1; // within the rest-day allowance — extend streak
         streakAdvanced = true;
@@ -288,8 +291,10 @@ export async function completeWorkout(
         // just aren't persisted from two places anymore.
         statsCache: {
           ...(statsCache ?? {}),
-          lastWorkoutDate: today,
-          cacheDate: today,
+          // Never move it backwards: an older queued workout uploaded after a
+          // newer one must not rewind the last workout date.
+          lastWorkoutDate: lastWorkoutDate && lastWorkoutDate > today ? lastWorkoutDate : today,
+          cacheDate: new Date().toLocaleDateString('sv-SE'),
         },
         stats: {
           ...(data.stats as Record<string, unknown> ?? {}),
@@ -387,7 +392,9 @@ export async function logMealAction(
   }).then(sendAchievementEmail).catch(console.error);
 
   checkAndAwardQuests(userId, {
-    totalWorkouts: prevStats?.totalWorkouts ?? 0,
+    // statsCache holds the live workout count; stats.totalWorkouts is no
+    // longer written, so it lagged and held back mixed workout+meal quests.
+    totalWorkouts: (data.statsCache as Record<string, number> | undefined)?.totalWorkouts ?? prevStats?.totalWorkouts ?? 0,
     streak: (data.statsCache as Record<string, number> | undefined)?.streak ?? prevStats?.streak ?? 0,
     powerLevel: (data.powerLevel as number) ?? 0,
     totalWeightLifted: prevStats?.totalWeightLifted ?? 0,
