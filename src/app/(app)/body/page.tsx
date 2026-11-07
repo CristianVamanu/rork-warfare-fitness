@@ -59,7 +59,7 @@ export default function BodyPage() {
 
   return (
     <div className="min-h-screen">
-      <Header title="Body" showBack />
+      <Header title="Trends" showBack />
       <div className="px-4 py-4 max-w-lg md:max-w-2xl mx-auto flex flex-col gap-3">
         <HudLabel color={HUD.signal}>Last 30 days · from your watch</HudLabel>
 
