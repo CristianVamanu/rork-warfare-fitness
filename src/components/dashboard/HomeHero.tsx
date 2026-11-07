@@ -10,14 +10,34 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Trophy, ChevronRight } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
-import { getChallenges } from '@/lib/challenges';
+import { collection, onSnapshot, query, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 import { bucket } from '@/components/community/challengeFormat';
 import type { Challenge } from '@/types';
 
-// The banner only changes when an admin flips it, so one read per five
-// minutes is plenty; returning to Home must not wait on Firestore again.
-let cached: { at: number; c: Banner | null } | null = null;
-const TTL = 5 * 60_000;
+// Live: one shared Firestore listener on the featured challenge, so when an
+// admin switches the Home challenge every open app updates within a second.
+// (It used to be read once and cached for 5 minutes, so the old challenge
+// stayed on Home until the app was closed and reopened.)
+let current: Banner | null | undefined;
+const listeners = new Set<(b: Banner | null) => void>();
+let unsub: (() => void) | null = null;
+function ensureSubscribed() {
+  if (unsub) return;
+  unsub = onSnapshot(
+    query(collection(db, 'challenges'), where('featuredOnHome', '==', true), where('status', 'in', ['live', 'closed'])),
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Challenge);
+      const ms = (v: unknown) => (v as { toMillis?: () => number })?.toMillis?.() ?? 0;
+      const live = list.sort((x, y) => ms(y.createdAt) - ms(x.createdAt)).find((x) => bucket(x) === 'live');
+      const c: Banner | null = live ? { id: live.id, title: live.title, endMs: toMs(live.endsAt) } : null;
+      current = c;
+      try { if (c) localStorage.setItem(STORE, JSON.stringify(c)); else localStorage.removeItem(STORE); } catch { /* storage blocked */ }
+      listeners.forEach((fn) => fn(c));
+    },
+    () => { unsub = null; },
+  );
+}
 // The last banner is also kept on the device, so a cold start (opening the
 // app) draws it straight away instead of popping in after the Firestore
 // read. It is refreshed in the background and dropped once its end passes.
@@ -43,21 +63,12 @@ function weekDates(now = new Date()) {
 
 /** The live challenge featured on Home: drawn from the last known one at once, refreshed in the background. */
 export function useHomeChallenge(): Banner | null {
-  const [challenge, setChallenge] = useState<Banner | null>(cached?.c ?? null);
+  const [challenge, setChallenge] = useState<Banner | null>(current ?? null);
   useEffect(() => {
-    if (cached && Date.now() - cached.at < TTL) return;
-    if (!cached) { const b = readStored(); if (b) setChallenge(b); }
-    let alive = true;
-    getChallenges()
-      .then((list) => {
-        const live = list.find((x) => x.featuredOnHome && bucket(x) === 'live');
-        const c: Banner | null = live ? { id: live.id, title: live.title, endMs: toMs(live.endsAt) } : null;
-        cached = { at: Date.now(), c };
-        try { if (c) localStorage.setItem(STORE, JSON.stringify(c)); else localStorage.removeItem(STORE); } catch { /* storage blocked */ }
-        if (alive) setChallenge(c);
-      })
-      .catch(() => { /* no banner */ });
-    return () => { alive = false; };
+    if (current === undefined) { const b = readStored(); if (b) setChallenge(b); }
+    listeners.add(setChallenge);
+    ensureSubscribed();
+    return () => { listeners.delete(setChallenge); };
   }, []);
   return challenge;
 }
