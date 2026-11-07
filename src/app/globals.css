@@ -831,20 +831,21 @@ html:not(.light) .wf-art::after {
 }
 
 /* Home hero. Phones: a solid dark band with the athlete (unchanged).
-   Desktop/tablet: no dark band; the athlete is a faint, soft-edged
-   backdrop so it blends into the page instead of sitting in a box. */
+   Desktop/tablet: its own wide banner image (hero-desktop.webp). */
 .home-hero-box { background: #0A0A0A; }
 .home-hero-img {
   -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
   mask-image: linear-gradient(90deg, transparent 0%, #000 40%);
 }
 @media (min-width: 768px) {
-  .home-hero-box { background: transparent; }
-  .home-hero-shade { display: none; }
-  /* A faint backdrop rather than a photo: low opacity, soft on every edge. */
-  .home-hero-img {
-    opacity: .35;
-    -webkit-mask-image: radial-gradient(ellipse 48% 42% at 58% 42%, #000 35%, transparent 100%);
-    mask-image: radial-gradient(ellipse 48% 42% at 58% 42%, #000 35%, transparent 100%);
+  /* Desktop: a wide banner made for this width, lined up with the cards
+     below (cancels the phone's edge-to-edge negative margins). */
+  .home-hero-box {
+    margin-left: 5px; margin-right: 5px;
+    height: 230px;
+    border-radius: 24px;
+    background: #050505 url('/home/hero-desktop.webp') right 30% / cover no-repeat;
   }
+  .home-hero-shade, .home-hero-img { display: none; }
 }
+
