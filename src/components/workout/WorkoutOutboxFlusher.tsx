@@ -25,7 +25,7 @@ export function WorkoutOutboxFlusher() {
       const n = await flushWorkouts(uid);
       count();
       if (n > 0) {
-        toast.success(n === 1 ? 'Your offline workout is saved' : `${n} offline workouts saved`);
+        toast.success(n === 1 ? 'Your workout is saved' : `${n} workouts saved`);
         refreshProfile().catch(() => {});
       }
     };
