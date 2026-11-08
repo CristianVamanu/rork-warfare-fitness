@@ -15,7 +15,7 @@ import type { HealthDaySummary } from '@/lib/native/health';
 // Kept for the whole app session, so going to another screen and back shows
 // the numbers at once instead of reloading them every time.
 const memo = new Map<string, { days: DayMap; at: number }>();
-const FRESH_MS = 5 * 60_000;
+const FRESH_MS = 2 * 60_000;
 
 export function useHealthHistory(uid: string | undefined, n = 30) {
   const key = `${uid ?? ''}:${n}`;

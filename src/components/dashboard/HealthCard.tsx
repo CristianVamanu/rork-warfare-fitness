@@ -30,7 +30,7 @@ import { WatchHud, type LighterOffer } from '@/components/hud/WatchHud';
 let lastAuth: HealthAuthState | 'unknown' = 'unknown';
 let lastToday: HealthDaySummary | null = null;
 let lastSyncAt = 0;
-const RESYNC_MS = 5 * 60_000;
+const RESYNC_MS = 2 * 60_000;
 
 export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) {
   const { user } = useAuth();
@@ -76,12 +76,30 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
       if (cancelled) return;
       setAuth(state);
       if (state === 'granted' || state === 'partial') {
-        // Re-read the phone at most every 5 minutes; Sync now forces it.
+        // Re-read the phone at most every 2 minutes; Sync now forces it.
         if (!cancelled && Date.now() - lastSyncAt > RESYNC_MS) await sync();
       }
     })();
     return () => { cancelled = true; };
   }, [native, user, sync]);
+
+  // Keep it live without reopening the app: re-read the phone every 2
+  // minutes while Home is on screen, and straight away when the app comes
+  // back to the front (after checking the watch app, a call, etc.).
+  useEffect(() => {
+    if (!native || !user || (auth !== 'granted' && auth !== 'partial')) return;
+    let running = false;
+    const tick = async () => {
+      if (running || document.visibilityState !== 'visible' || Date.now() - lastSyncAt < RESYNC_MS) return;
+      running = true;
+      try { await sync(); } finally { running = false; }
+    };
+    const onVisible = () => { if (document.visibilityState === 'visible' && Date.now() - lastSyncAt > 30_000) { lastSyncAt = 0; tick(); } };
+    const id = setInterval(tick, 30_000);
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', onVisible); };
+  }, [native, user, auth, sync]);
 
   // Diagnostics while the native shells are being brought up: the UA marker
   // is set by the shell itself, so this shows inside the app even when the
