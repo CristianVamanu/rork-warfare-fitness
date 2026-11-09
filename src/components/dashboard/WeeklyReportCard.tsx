@@ -7,12 +7,11 @@
  */
 import { useEffect, useState } from 'react';
 import { getIdToken } from 'firebase/auth';
-import { ChevronDown, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, BicepsFlexed, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
 import { weekScore, type WeeklyReport } from '@/lib/weeklyReport';
-import { ScoreRadar } from './CoachVisuals';
 
 const HIDE_KEY = 'wf-weekly-report-hidden';
 // One fetch per week per session: the report for a past week never changes.
@@ -121,28 +120,30 @@ export function WeeklyReportCard() {
         </div>
 
         {strip.length > 0 && (
-          <div className="mt-3 grid rounded-xl bg-surface-elevated" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
-            {strip.map((t) => (
-              <div key={t.label} className="px-1.5 py-2 text-center min-w-0 [&:not(:first-child)]:border-l" style={{ borderColor: 'var(--border-subtle)' }}>
-                <p className="text-[15px] font-black text-white tabular-nums leading-none truncate">{t.value}</p>
-                <p className="text-[9px] font-semibold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
-              </div>
-            ))}
+          <div className="mt-3 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
+            {strip.map((t) => { const Icon = t.icon; return (
+              <div key={t.label} className="rounded-xl px-1.5 py-2 text-center min-w-0 border" style={{ background: 'linear-gradient(180deg,#161411,#0d0c0b)', borderColor: 'rgba(255,255,255,0.07)' }}>
+                <div className="flex items-center justify-center gap-1 min-w-0">
+                  <Icon className="w-3.5 h-3.5 flex-shrink-0 text-text-secondary" strokeWidth={2.2} />
+                  <p className="text-[14px] font-black text-white tabular-nums leading-none truncate">{t.value}</p>
+                </div>
+                <p className="text-[8.5px] font-bold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
+              </div>); })}
           </div>
         )}
 
         {s.avgKcal != null && (
           <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-2">
             {[
-              { k: 'Calories', v: `${s.avgKcal.toLocaleString()}${s.kcalGoal ? ` / ${s.kcalGoal.toLocaleString()}` : ''}`, p: kcalPct, c: '#F5A623' },
-              { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein}${s.proteinGoal ? ` / ${s.proteinGoal}` : ''} g` : '—', p: protPct, c: '#F87171' },
+              { k: 'Calories', v: `${s.avgKcal.toLocaleString()}${s.kcalGoal ? ` / ${s.kcalGoal.toLocaleString()}` : ''}`, p: kcalPct, c: '#F5A623', I: Flame },
+              { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein}${s.proteinGoal ? ` / ${s.proteinGoal}` : ''} g` : '—', p: protPct, c: '#F87171', I: BicepsFlexed },
               ...(open ? [
-                { k: 'Carbs', v: s.avgCarbs != null ? `${s.avgCarbs}${carbGoal ? ` / ${carbGoal}` : ''} g` : '—', p: pct(s.avgCarbs, carbGoal), c: '#FACC15' },
-                { k: 'Fat', v: s.avgFat != null ? `${s.avgFat}${fatGoal ? ` / ${fatGoal}` : ''} g` : '—', p: pct(s.avgFat, fatGoal), c: '#60A5FA' },
+                { k: 'Carbs', v: s.avgCarbs != null ? `${s.avgCarbs}${carbGoal ? ` / ${carbGoal}` : ''} g` : '—', p: pct(s.avgCarbs, carbGoal), c: '#FACC15', I: Wheat },
+                { k: 'Fat', v: s.avgFat != null ? `${s.avgFat}${fatGoal ? ` / ${fatGoal}` : ''} g` : '—', p: pct(s.avgFat, fatGoal), c: '#60A5FA', I: Droplet },
               ] : []),
             ].map((m) => (
               <div key={m.k} className="min-w-0">
-                <div className="flex justify-between text-[10px]"><span className="text-text-tertiary font-semibold uppercase tracking-wide">{m.k}</span><span className="text-white font-bold tabular-nums truncate ml-1">{m.v}</span></div>
+                <div className="flex justify-between items-center text-[10px]"><span className="flex items-center gap-1.5 text-text-tertiary font-semibold uppercase tracking-wide"><m.I className="w-3.5 h-3.5" style={{ color: m.c }} strokeWidth={2.2} />{m.k}</span><span className="text-white font-bold tabular-nums truncate ml-1">{m.v}</span></div>
                 <div className="h-1 mt-1 rounded-full overflow-hidden" style={{ background: 'var(--progress-track)' }}><div className="h-full rounded-full" style={{ width: `${m.p ?? 0}%`, background: m.c, boxShadow: `0 0 6px ${m.c}` }} /></div>
               </div>
             ))}
@@ -151,9 +152,35 @@ export function WeeklyReportCard() {
 
         {open && (
           <div className="mt-3.5 space-y-3.5">
-            {ws.axes.length >= 3 && (
-              <div className="rounded-2xl bg-surface-elevated pt-1">
-                <ScoreRadar axes={ws.axes} />
+            {s.avgKcal != null && (
+              // The day's fuel around the athlete: the four macro cards in the
+              // corners, the week score as the amber ring in the middle.
+              <div className="rounded-[22px] p-2.5 border" style={{ background: 'radial-gradient(120% 90% at 50% 50%, #17130f 0%, #0b0a09 70%)', borderColor: 'rgba(245,166,35,0.18)' }}>
+                <div className="grid grid-cols-[1fr_auto_1fr] grid-rows-2 gap-2 items-stretch">
+                  {[
+                    { k: 'Calories', v: s.avgKcal.toLocaleString(), g: s.kcalGoal ? `/ ${s.kcalGoal.toLocaleString()}` : '', p: kcalPct, c: '#F5A623', I: Flame, col: 1, row: 1 },
+                    { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein} g` : '—', g: s.proteinGoal ? `/ ${s.proteinGoal} g` : '', p: protPct, c: '#F87171', I: BicepsFlexed, col: 3, row: 1 },
+                    { k: 'Carbs', v: s.avgCarbs != null ? `${s.avgCarbs} g` : '—', g: carbGoal ? `/ ${carbGoal} g` : '', p: pct(s.avgCarbs, carbGoal), c: '#FACC15', I: Wheat, col: 1, row: 2 },
+                    { k: 'Fat', v: s.avgFat != null ? `${s.avgFat} g` : '—', g: fatGoal ? `/ ${fatGoal} g` : '', p: pct(s.avgFat, fatGoal), c: '#60A5FA', I: Droplet, col: 3, row: 2 },
+                  ].map((m) => (
+                    <div key={m.k} className="rounded-2xl p-2.5 min-w-0 border" style={{ gridColumn: m.col, gridRow: m.row, background: 'linear-gradient(180deg,#171411,#0c0b0a)', borderColor: 'rgba(255,255,255,0.07)' }}>
+                      <div className="flex items-center gap-1.5"><m.I className="w-4 h-4 flex-shrink-0" style={{ color: m.c }} strokeWidth={2.2} /><span className="text-[10px] font-bold text-text-secondary truncate">{m.k}</span></div>
+                      <p className="text-[18px] font-black text-white tabular-nums leading-none mt-1.5 truncate">{m.v}</p>
+                      <p className="text-[10px] text-text-tertiary tabular-nums mt-0.5 truncate">{m.g}</p>
+                      <div className="h-1 mt-1.5 rounded-full overflow-hidden" style={{ background: 'var(--progress-track)' }}><div className="h-full rounded-full" style={{ width: `${m.p ?? 0}%`, background: m.c, boxShadow: `0 0 6px ${m.c}` }} /></div>
+                    </div>
+                  ))}
+                  <div className="row-span-2 flex items-center justify-center" style={{ gridColumn: 2, gridRow: '1 / span 2' }}>
+                    <div className="relative w-[112px] h-[112px]">
+                      <svg width="112" height="112" viewBox="0 0 112 112" className="absolute inset-0" aria-hidden>
+                        <circle cx="56" cy="56" r="51" fill="none" stroke="var(--progress-track)" strokeWidth="5" />
+                        <circle cx="56" cy="56" r="51" fill="none" stroke="#F5A623" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(sc / 100) * 2 * Math.PI * 51} ${2 * Math.PI * 51}`} transform="rotate(-90 56 56)" style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.75))' }} />
+                      </svg>
+                      {/* eslint-disable-next-line @next/next/no-img-element -- small decorative crop */}
+                      <img src="/home/hero.webp" alt="" className="absolute inset-[9px] w-[94px] h-[94px] rounded-full object-cover" style={{ objectPosition: '68% 20%', boxShadow: 'inset 0 0 12px #000' }} />
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
             {numTiles.length > 4 && (
@@ -161,9 +188,10 @@ export function WeeklyReportCard() {
               // width, two share the row, so there's never an empty gap.
               <div className="grid grid-cols-6 gap-2">
                 {numTiles.slice(4).map((t, i, arr) => { const Icon = t.icon; const rest = arr.length % 3; const inLast = i >= arr.length - rest; return (
-                  <div key={t.label} className={`rounded-xl bg-surface-elevated p-2.5 min-w-0 ${inLast ? (rest === 1 ? 'col-span-6' : 'col-span-3') : 'col-span-2'}`}>
-                    <Icon className="w-3.5 h-3.5" style={{ color: t.color }} />
-                    <p className="text-sm font-black text-white tabular-nums mt-1 truncate">{t.value}</p>
+                  <div key={t.label} className={`rounded-xl p-2.5 min-w-0 border ${inLast ? (rest === 1 ? 'col-span-6' : 'col-span-3') : 'col-span-2'}`}
+                    style={{ background: 'linear-gradient(180deg,#161411,#0d0c0b)', borderColor: 'rgba(255,255,255,0.07)', boxShadow: `inset 0 -2px 0 ${t.color}, 0 8px 16px -12px ${t.color}` }}>
+                    <Icon className="w-4 h-4" style={{ color: t.color }} />
+                    <p className="text-[15px] font-black text-white tabular-nums mt-1 truncate">{t.value}</p>
                     <p className="text-[9px] text-text-tertiary uppercase tracking-wide truncate">{t.label}</p>
                   </div>); })}
               </div>
