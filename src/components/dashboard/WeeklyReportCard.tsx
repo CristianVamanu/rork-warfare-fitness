@@ -62,7 +62,7 @@ export function WeeklyReportCard() {
     { label: 'Workouts', value: String(s.workouts), sub: s.prevWorkouts ? `${s.prevWorkouts} the week before` : null, icon: Dumbbell, color: '#F5A623' },
     { label: 'Sets done', value: String(s.sets), sub: null, icon: Layers, color: '#F5A623' },
     s.minutes ? { label: 'Training', value: s.minutes >= 60 ? hm(s.minutes) : `${s.minutes} min`, sub: null, icon: Timer, color: '#60A5FA' } : null,
-    vol > 0 ? { label: `Weight lifted`, value: `${vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString()} ${unit}`, sub: null, icon: Weight, color: '#F5A623' } : null,
+    vol > 0 ? { label: `${unit} lifted`, value: vol.toLocaleString(), sub: null, icon: Weight, color: '#F5A623' } : null,
     s.avgKcal != null ? { label: 'Calories / day', value: s.avgKcal.toLocaleString(), sub: goal(s.avgKcal, s.kcalGoal, 'kcal'), icon: Flame, color: '#FB923C', pct: pct(s.avgKcal, s.kcalGoal) } : null,
     s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g'), icon: Beef, color: '#F87171', pct: pct(s.avgProtein, s.proteinGoal) } : null,
     s.avgCarbs != null ? { label: 'Carbs / day', value: `${s.avgCarbs} g`, sub: null, icon: Wheat, color: '#FACC15' } : null,
