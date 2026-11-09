@@ -73,6 +73,27 @@ const STEPS_AUTHED: StepId[] = ['goal', 'body', 'you', 'experience', 'days', 'eq
 // for it (Beginner Full Body, Alpha Bulk).
 const DAYS = [3, 4, 5, 6];
 
+// The Terms, the sign-up tick box and the Play listing all say 18+. The
+// quiz itself used to accept 13, so a 15-year-old could type their real age
+// and still be let through to an account.
+const MIN_AGE = 18;
+
+/**
+ * Pounds and feet for visitors whose phone or browser is set to the US or
+ * Canada (the two main markets), kg and cm for everyone else. Before this
+ * every visitor started on kg/cm: an American typing "180" got a 180 kg
+ * profile (it is inside the accepted range) and calorie targets to match.
+ * A saved draft always wins over this guess.
+ */
+function localeUnits(): { weight: 'kg' | 'lbs'; height: 'cm' | 'ftin' } {
+  try {
+    const langs = [navigator.language, ...(navigator.languages ?? [])].filter(Boolean).map((l) => l.toUpperCase());
+    if (langs.some((l) => /-(US|CA)\b/.test(l))) return { weight: 'lbs', height: 'ftin' };
+    if (langs.some((l) => /-(GB|IE)\b/.test(l))) return { weight: 'kg', height: 'ftin' };
+  } catch { /* no navigator (server render) */ }
+  return { weight: 'kg', height: 'cm' };
+}
+
 /** Age brackets for the one-tap age step; `mid` is what the matcher and calorie targets use. */
 const AGE_BRACKETS = [
   { label: '18–24', min: 18, max: 24, mid: 21 },
@@ -190,8 +211,11 @@ function OnboardingPageInner() {
   const [heightCm, setHeightCm] = useState(draft.heightCm ?? '');
   const [weightKg, setWeightKg] = useState(draft.weightKg ?? '');
   const [targetWeightKg, setTargetWeightKg] = useState(draft.targetWeightKg ?? '');
-  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(draft.weightUnit ?? 'kg');
-  const [heightUnit, setHeightUnit] = useState<'cm' | 'ftin'>(draft.heightUnit ?? 'cm');
+  // A draft that has not reached the biometrics step yet carries the old
+  // kg/cm default rather than a choice, so the locale guess still applies.
+  const draftHasBody = !!(draft.weightKg || draft.heightCm);
+  const [weightUnit, setWeightUnit] = useState<'kg' | 'lbs'>(() => (draftHasBody && draft.weightUnit) || localeUnits().weight);
+  const [heightUnit, setHeightUnit] = useState<'cm' | 'ftin'>(() => (draftHasBody && draft.heightUnit) || localeUnits().height);
   const [medicalHistory, setMedicalHistory] = useState<MedicalHistoryAnswers>(draft.medicalHistory ?? {});
   const [name, setName] = useState(draft.name ?? '');
   const [email, setEmail] = useState(draft.email ?? '');
@@ -238,7 +262,7 @@ function OnboardingPageInner() {
   });
   const [hadPrefilledAge] = useState(() => {
     const qAge = searchParams.get('age');
-    return !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
+    return !!qAge && /^\d+$/.test(qAge) && +qAge >= MIN_AGE && +qAge <= 100;
   });
 
   // Persists every answer as it changes — cheap (localStorage writes are
@@ -268,7 +292,7 @@ function OnboardingPageInner() {
     const qSex = searchParams.get('sex');
     const qAge = searchParams.get('age');
     const validSex = qSex === 'male' || qSex === 'female';
-    const validAge = !!qAge && /^\d+$/.test(qAge) && +qAge >= 13 && +qAge <= 100;
+    const validAge = !!qAge && /^\d+$/.test(qAge) && +qAge >= MIN_AGE && +qAge <= 100;
     if (validSex) setSex(qSex);
     if (validAge) setAge(qAge!);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -393,7 +417,7 @@ function OnboardingPageInner() {
   // whether that happened via the landing page's query params or the quick
   // picker on step 0 below. Drives both "hide the redundant question on the
   // About You step" and "don't block step 0 on it once it's answered."
-  const sexAgeAnswered = !!sex && ageNum >= 13 && ageNum <= 100;
+  const sexAgeAnswered = !!sex && ageNum >= MIN_AGE && ageNum <= 100;
   // Goal weight is mandatory alongside current weight — without both there's
   // no timeline to estimate and no accurate program-duration match, which
   // was the whole point of asking (see estimateWeightGoalTimeline in
@@ -960,7 +984,8 @@ function OnboardingPageInner() {
     // were sent, not on a dashboard they have to search from. Relative
     // paths only — an absolute URL here would be an open redirect.
     const next = searchParams.get('next');
-    router.replace(next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard');
+    // A backslash is read as a slash by browsers, so "/\\evil.com" is "//evil.com".
+    router.replace(next && next.startsWith('/') && !next.startsWith('//') && !next.includes('\\') ? next : '/dashboard');
   }
 
   const isGenerating = status === 'generating' || status === 'saving';
@@ -1200,7 +1225,7 @@ function OnboardingPageInner() {
     goal ? (GOALS.find((g) => g.value === goal)?.label ?? '') : '',
     bodyType ? (BODY_TYPES.find((c) => c.value === bodyType)?.label ?? '') : '',
     sex ? (sex === 'male' ? 'Male' : 'Female') : '',
-    Number.isFinite(ageNum) && ageNum >= 13 ? (AGE_BRACKETS.find((b) => ageNum >= b.min && ageNum <= b.max)?.label ?? `${ageNum}`) : '',
+    Number.isFinite(ageNum) && ageNum >= MIN_AGE ? (AGE_BRACKETS.find((b) => ageNum >= b.min && ageNum <= b.max)?.label ?? `${ageNum}`) : '',
     experience ? (EXPERIENCE_CHOICES.find((c) => c.value === experience)?.label.split(',')[0] ?? '') : '',
     trainingDays ? `${trainingDays} days/wk` : '',
     equipmentItems.length ? `${equipmentItems.length} kit item${equipmentItems.length === 1 ? '' : 's'}` : '',
@@ -1668,6 +1693,7 @@ function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
           </div>
           <details className="mt-3">
             <summary className="text-[11px] text-text-tertiary cursor-pointer select-none">Type your exact age instead</summary>
+            {age !== '' && parseInt(age, 10) < MIN_AGE && <p className="text-xs text-red-400 mt-2">You need to be 18 or over to use Warfare Fitness.</p>}
             <input
               type="number"
               inputMode="numeric"
@@ -1955,6 +1981,7 @@ function StepBiometrics({
         </>
       )}
 
+      {!sexAgeAnswered && age !== '' && parseInt(age, 10) < MIN_AGE && <p className="text-xs text-red-400 mb-3">You need to be 18 or over to use Warfare Fitness.</p>}
       <div className={`grid ${sexAgeAnswered ? 'grid-cols-2' : 'grid-cols-3'} gap-3 mb-5`}>
         {!sexAgeAnswered && (
           <div>
