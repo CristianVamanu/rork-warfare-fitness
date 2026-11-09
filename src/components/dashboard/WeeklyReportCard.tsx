@@ -62,7 +62,7 @@ export function WeeklyReportCard() {
     { label: 'Workouts', value: String(s.workouts), sub: s.prevWorkouts ? `${s.prevWorkouts} the week before` : null, icon: Dumbbell, color: '#F5A623' },
     { label: 'Sets done', value: String(s.sets), sub: null, icon: Layers, color: '#F5A623' },
     s.minutes ? { label: 'Training', value: s.minutes >= 60 ? hm(s.minutes) : `${s.minutes} min`, sub: null, icon: Timer, color: '#60A5FA' } : null,
-    vol > 0 ? { label: `${unit} lifted`, value: vol >= 100000 ? `${Math.round(vol / 1000)}k` : vol.toLocaleString(), sub: null, icon: Weight, color: '#F5A623' } : null,
+    vol > 0 ? { label: `${unit} lifted`, value: vol >= 10000 ? `${+(vol / 1000).toFixed(vol >= 100000 ? 0 : 1)}k` : vol.toLocaleString(), sub: null, icon: Weight, color: '#F5A623' } : null,
     s.avgKcal != null ? { label: 'Calories / day', value: s.avgKcal.toLocaleString(), sub: goal(s.avgKcal, s.kcalGoal, 'kcal'), icon: Flame, color: '#FB923C', pct: pct(s.avgKcal, s.kcalGoal) } : null,
     s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g'), icon: Beef, color: '#F87171', pct: pct(s.avgProtein, s.proteinGoal) } : null,
     s.avgCarbs != null ? { label: 'Carbs / day', value: `${s.avgCarbs} g`, sub: null, icon: Wheat, color: '#FACC15' } : null,
@@ -125,7 +125,7 @@ export function WeeklyReportCard() {
               <div key={t.label} className="rounded-xl px-1.5 py-2 text-center min-w-0 border" style={{ background: 'linear-gradient(180deg,#161411,#0d0c0b)', borderColor: 'rgba(255,255,255,0.07)' }}>
                 <div className="flex items-center justify-center gap-1 min-w-0">
                   <Icon className="w-3.5 h-3.5 flex-shrink-0 text-text-secondary" strokeWidth={2.2} />
-                  <p className={`${t.value.length > 7 ? 'text-[11px]' : t.value.length > 5 ? 'text-[12.5px]' : 'text-[14px]'} font-black text-white tabular-nums leading-none truncate`}>{t.value}</p>
+                  <p className={`text-[14px] font-black text-white tabular-nums leading-none truncate`}>{t.value}</p>
                 </div>
                 <p className="text-[8.5px] font-bold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
               </div>); })}
