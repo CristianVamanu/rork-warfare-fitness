@@ -62,7 +62,7 @@ export function WeeklyReportCard() {
     { label: 'Workouts', value: String(s.workouts), sub: s.prevWorkouts ? `${s.prevWorkouts} the week before` : null, icon: Dumbbell, color: '#F5A623' },
     { label: 'Sets done', value: String(s.sets), sub: null, icon: Layers, color: '#F5A623' },
     s.minutes ? { label: 'Training', value: s.minutes >= 60 ? hm(s.minutes) : `${s.minutes} min`, sub: null, icon: Timer, color: '#60A5FA' } : null,
-    vol > 0 ? { label: `Weight lifted`, value: `${vol >= 10000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString()} ${unit}`, sub: null, icon: Weight, color: '#F5A623' } : null,
+    vol > 0 ? { label: `Weight lifted`, value: `${vol >= 1000 ? `${(vol / 1000).toFixed(1)}k` : vol.toLocaleString()} ${unit}`, sub: null, icon: Weight, color: '#F5A623' } : null,
     s.avgKcal != null ? { label: 'Calories / day', value: s.avgKcal.toLocaleString(), sub: goal(s.avgKcal, s.kcalGoal, 'kcal'), icon: Flame, color: '#FB923C', pct: pct(s.avgKcal, s.kcalGoal) } : null,
     s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g'), icon: Beef, color: '#F87171', pct: pct(s.avgProtein, s.proteinGoal) } : null,
     s.avgCarbs != null ? { label: 'Carbs / day', value: `${s.avgCarbs} g`, sub: null, icon: Wheat, color: '#FACC15' } : null,
@@ -152,37 +152,6 @@ export function WeeklyReportCard() {
 
         {open && (
           <div className="mt-3.5 space-y-3.5">
-            {s.avgKcal != null && (
-              // The day's fuel around the athlete: the four macro cards in the
-              // corners, the week score as the amber ring in the middle.
-              <div className="rounded-[22px] p-2.5 border" style={{ background: 'radial-gradient(120% 90% at 50% 50%, #17130f 0%, #0b0a09 70%)', borderColor: 'rgba(245,166,35,0.18)' }}>
-                <div className="grid grid-cols-[1fr_auto_1fr] grid-rows-2 gap-2 items-stretch">
-                  {[
-                    { k: 'Calories', v: s.avgKcal.toLocaleString(), g: s.kcalGoal ? `/ ${s.kcalGoal.toLocaleString()}` : '', p: kcalPct, c: '#F5A623', I: Flame, col: 1, row: 1 },
-                    { k: 'Protein', v: s.avgProtein != null ? `${s.avgProtein} g` : '—', g: s.proteinGoal ? `/ ${s.proteinGoal} g` : '', p: protPct, c: '#F87171', I: BicepsFlexed, col: 3, row: 1 },
-                    { k: 'Carbs', v: s.avgCarbs != null ? `${s.avgCarbs} g` : '—', g: carbGoal ? `/ ${carbGoal} g` : '', p: pct(s.avgCarbs, carbGoal), c: '#FACC15', I: Wheat, col: 1, row: 2 },
-                    { k: 'Fat', v: s.avgFat != null ? `${s.avgFat} g` : '—', g: fatGoal ? `/ ${fatGoal} g` : '', p: pct(s.avgFat, fatGoal), c: '#60A5FA', I: Droplet, col: 3, row: 2 },
-                  ].map((m) => (
-                    <div key={m.k} className="rounded-2xl p-2.5 min-w-0 border" style={{ gridColumn: m.col, gridRow: m.row, background: 'linear-gradient(180deg,#171411,#0c0b0a)', borderColor: 'rgba(255,255,255,0.07)' }}>
-                      <div className="flex items-center gap-1.5"><m.I className="w-4 h-4 flex-shrink-0" style={{ color: m.c }} strokeWidth={2.2} /><span className="text-[10px] font-bold text-text-secondary truncate">{m.k}</span></div>
-                      <p className="text-[18px] font-black text-white tabular-nums leading-none mt-1.5 truncate">{m.v}</p>
-                      <p className="text-[10px] text-text-tertiary tabular-nums mt-0.5 truncate">{m.g}</p>
-                      <div className="h-1 mt-1.5 rounded-full overflow-hidden" style={{ background: 'var(--progress-track)' }}><div className="h-full rounded-full" style={{ width: `${m.p ?? 0}%`, background: m.c, boxShadow: `0 0 6px ${m.c}` }} /></div>
-                    </div>
-                  ))}
-                  <div className="row-span-2 flex items-center justify-center" style={{ gridColumn: 2, gridRow: '1 / span 2' }}>
-                    <div className="relative w-[112px] h-[112px]">
-                      <svg width="112" height="112" viewBox="0 0 112 112" className="absolute inset-0" aria-hidden>
-                        <circle cx="56" cy="56" r="51" fill="none" stroke="var(--progress-track)" strokeWidth="5" />
-                        <circle cx="56" cy="56" r="51" fill="none" stroke="#F5A623" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(sc / 100) * 2 * Math.PI * 51} ${2 * Math.PI * 51}`} transform="rotate(-90 56 56)" style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.75))' }} />
-                      </svg>
-                      {/* eslint-disable-next-line @next/next/no-img-element -- small decorative crop */}
-                      <img src="/home/hero.webp" alt="" className="absolute inset-[9px] w-[94px] h-[94px] rounded-full object-cover" style={{ objectPosition: '68% 20%', boxShadow: 'inset 0 0 12px #000' }} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
             {numTiles.length > 4 && (
               // The last row stretches to fill: one leftover tile goes full
               // width, two share the row, so there's never an empty gap.
