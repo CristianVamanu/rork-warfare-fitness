@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * The burning-logo clip, fetched only when it is actually on screen.
@@ -33,6 +33,10 @@ export function BrandVideo({
   ariaHidden?: boolean;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
+  // Safari can blank the poster once a src is attached (and never paints it
+  // at all in some modes), leaving an empty box. The still logo is therefore
+  // a real <img> underneath, and the video only fades in once it is playing.
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const v = ref.current;
@@ -70,15 +74,24 @@ export function BrandVideo({
   }, []);
 
   return (
-    <video
-      ref={ref}
-      className={className}
-      poster="/videos/hero-logo-poster.jpg"
-      muted
-      loop
-      playsInline
-      preload="none"
-      aria-hidden={ariaHidden || undefined}
-    />
+    <span className={`${className ?? ''} relative block overflow-hidden`}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/videos/hero-logo-poster.jpg"
+        alt={ariaHidden ? '' : 'Warfare Fitness'}
+        aria-hidden={ariaHidden || undefined}
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <video
+        ref={ref}
+        className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${live ? 'opacity-100' : 'opacity-0'}`}
+        muted
+        loop
+        playsInline
+        preload="none"
+        onPlaying={() => setLive(true)}
+        aria-hidden
+      />
+    </span>
   );
 }
