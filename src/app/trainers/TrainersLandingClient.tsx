@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
+import { HeroVideoPlayer } from './HeroVideoPlayer';
 import { DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
 import type { B2BLandingConfig } from '@/types';
 
@@ -309,21 +310,7 @@ export default function TrainersLandingPage({
 // pillarboxing it with black bars on both sides. Sizing to the video's own
 // natural dimensions instead removes the bars regardless of orientation.
 function InlineHeroVideo({ src, posterUrl }: { src: string; posterUrl?: string }) {
-  return (
-    <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black mx-auto max-w-full w-fit">
-      <video
-        src={src}
-        poster={posterUrl}
-        autoPlay
-        loop
-        muted
-        playsInline
-        controls
-        crossOrigin="anonymous"
-        className="block max-h-[560px] max-w-full w-auto h-auto mx-auto"
-      />
-    </div>
-  );
+  return <HeroVideoPlayer src={src} posterUrl={posterUrl} />;
 }
 
 function DemoRequestModal({ open, onClose }: { open: boolean; onClose: () => void }) {
