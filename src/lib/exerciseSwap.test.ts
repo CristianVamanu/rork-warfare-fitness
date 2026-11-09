@@ -33,3 +33,20 @@ describe('exerciseSwap', () => {
     expect(swapOptions({ name: 'Zercher Carry' })).toEqual([]);
   });
 });
+
+describe('swap options stay in the same movement', () => {
+  const lib = [
+    { name: 'Walking Lunges', muscleGroups: ['Legs', 'Full Body'] },
+    { name: 'Lat Pulldown', muscleGroups: ['Back', 'Lats'] },
+    { name: 'Inverted Row', muscleGroups: ['Back'] },
+  ];
+  it('never offers lunges for pull-ups, even on a full-body day', () => {
+    const names = swapOptions({ name: 'Pull-Ups', muscleGroup: 'Full Body' }, lib).map((o) => o.name);
+    expect(names).not.toContain('Walking Lunges');
+    expect(names).toContain('Lat Pulldown');
+  });
+  it('ignores muscle tags of a different movement pattern', () => {
+    const names = swapOptions({ name: 'Pull-Ups', muscleGroup: 'Legs' }, lib).map((o) => o.name);
+    expect(names).not.toContain('Walking Lunges');
+  });
+});

@@ -32,6 +32,16 @@ const PATTERNS: { label: string; match: RegExp; options: string[] }[] = [
   { label: 'core', match: /plank|crunch|sit.?up|dead bug|knee raise|leg raise|rollout|pallof/i, options: ['Plank', 'Dead Bug', 'Hanging Knee Raise', 'Cable Crunch', 'Ab Wheel Rollout'] },
 ];
 
+// Patterns close enough to stand in for each other when the library's muscle
+// tags match (a cable fly for a bench press, a row for a pull-up).
+const FAMILY: Record<string, string> = {
+  'incline press': 'chest', 'chest fly': 'chest', 'chest press': 'chest',
+  'vertical pull': 'back', row: 'back',
+  squat: 'knee', lunge: 'knee', quads: 'knee',
+  hinge: 'hip', hamstrings: 'hip',
+};
+const fam = (p: string) => FAMILY[p] ?? p;
+
 export function movementPattern(name: string): string | null {
   return PATTERNS.find((p) => p.match.test(name))?.label ?? null;
 }
@@ -47,8 +57,13 @@ export function swapOptions(
     for (const n of [e.name, ...(e.aliases ?? [])]) if (n) byKey.set(exerciseKey(n), e);
   }
   const self = byKey.get(key);
+  // Labels that say nothing about the movement ("Full body", a day name)
+  // used to match everything: a pull-up on a full-body day was offered
+  // lunges. They are ignored for matching.
+  const GENERIC = /full.?body|total.?body|whole.?body|conditioning|cardio|circuit|^day\b|workout/i;
   const muscles = new Set(
-    [...(self?.muscleGroups ?? []), ...(current.muscleGroup ? [current.muscleGroup] : [])].map((m) => m.toLowerCase()),
+    [...(self?.muscleGroups ?? []), ...(current.muscleGroup ? [current.muscleGroup] : [])]
+      .map((m) => m.toLowerCase()).filter((m) => !GENERIC.test(m)),
   );
 
   const out: SwapOption[] = [];
@@ -68,6 +83,10 @@ export function swapOptions(
     library
       .map((e) => ({ e, overlap: (e.muscleGroups ?? []).filter((m) => muscles.has(m.toLowerCase())).length }))
       .filter((x) => x.overlap > 0)
+      // A library lift with its own, different movement pattern is not a swap
+      // for this one (a lunge is never a pull-up substitute), even if the
+      // muscle tags overlap.
+      .filter(({ e }) => { const lp = movementPattern(e.name); return !pattern || !lp || fam(lp) === fam(pattern.label); })
       .sort((a, b) => b.overlap - a.overlap)
       .forEach(({ e }) => add(e.name, `Works ${(e.muscleGroups ?? []).slice(0, 2).join(' and ').toLowerCase()}`));
   }
