@@ -46,8 +46,23 @@ export function BrandVideo({
     const attach = () => {
       if (attached || !v.isConnected) return;
       attached = true;
+      // iOS Safari autoplays only when it is certain the clip is muted and
+      // inline. React sets `muted` as a property but not the attribute, so
+      // set all of them explicitly before the src goes on.
+      v.muted = true;
+      v.defaultMuted = true;
+      v.setAttribute('muted', '');
+      v.setAttribute('playsinline', '');
+      v.setAttribute('webkit-playsinline', '');
+      v.autoplay = true;
       v.preload = 'auto';
       v.src = '/videos/hero-logo.mp4';
+      v.load();
+      // Safari can reject a play() issued before any data arrives; try again
+      // once it can play, and on the first touch if autoplay was refused.
+      v.addEventListener('canplay', () => { v.play().catch(() => {}); }, { once: true });
+      const kick = () => { v.play().catch(() => {}); };
+      window.addEventListener('touchstart', kick, { once: true, passive: true });
       // play() rejects when autoplay is refused; the poster stays, which is
       // the same thing the user would have seen anyway.
       v.play().catch(() => {});
