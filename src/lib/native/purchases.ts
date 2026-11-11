@@ -26,7 +26,7 @@ let step = 'start';
 // RevenueCat's own native log lines, kept so the paywall's error box can show
 // the real reason a load failed (a screenshot is then the whole diagnosis).
 const rcLog: string[] = [];
-export function revenueCatLog(): string[] { return rcLog.slice(-8); }
+export function revenueCatLog(): string[] { return rcLog.slice(-12); }
 
 // A native call that never answers would leave the paywall spinning forever;
 // fail with a step code instead so the screen can say what got stuck.
@@ -40,10 +40,12 @@ async function rc(uid: string) {
   if (configuredFor === null) {
     try {
       await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
-      await Purchases.setLogHandler((level, message) => {
-        rcLog.push(`${level}: ${String(message).slice(0, 220)}`);
+      // The native side passes one object ({ logLevel, message }), not two args.
+      await Purchases.setLogHandler(((a: unknown, b?: unknown) => {
+        const o = (a && typeof a === 'object' ? a : { logLevel: a, message: b }) as { logLevel?: unknown; message?: unknown };
+        rcLog.push(`${String(o.logLevel ?? '')}: ${String(o.message ?? JSON.stringify(a)).slice(0, 220)}`);
         if (rcLog.length > 40) rcLog.shift();
-      });
+      }) as never);
     } catch { /* logging is best effort */ }
     step = 'configure';
     await within(Purchases.configure({ apiKey: KEY, appUserID: uid }), 10000, 'configure');
