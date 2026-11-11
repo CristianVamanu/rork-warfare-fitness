@@ -267,6 +267,12 @@ export default function ProfilePage() {
   // which one is explicit rather than assumed.
   const handleCancelSubscription = async (kind: 'membership' | 'coaching') => {
     if (!user) return;
+    // A Google Play subscription can only be cancelled by Google Play; the
+    // Stripe endpoint knows nothing about it and would just error.
+    if (kind === 'membership' && (profile?.membership as { source?: string } | undefined)?.source === 'google_play') {
+      window.open('https://play.google.com/store/account/subscriptions?sku=wf_monthly&package=com.warfarefitness.app', '_blank');
+      return;
+    }
     const label = kind === 'coaching' ? '1:1 coaching' : 'membership';
     if (!confirm(`Cancel your ${label}? You will keep access until the end of your current billing period.`)) return;
     setCancelling(true);
