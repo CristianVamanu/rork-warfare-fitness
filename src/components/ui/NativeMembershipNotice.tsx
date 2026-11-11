@@ -5,28 +5,28 @@
  * No prices, no plan names, no purchase button, no external checkout link
  * (store billing rules for an app that does not use store billing).
  */
-import Link from 'next/link';
-import { ShieldCheck, Crown } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { PlayPaywall } from './PlayPaywall';
 import { Card } from './Card';
 import { inAppPurchasesEnabled } from '@/lib/native/purchases';
 
 export function NativeMembershipNotice({ title = 'Members only', feature }: { title?: string; feature?: string }) {
+  const { user } = useAuth();
   return (
     <div className="px-4 pt-10 max-w-sm mx-auto text-center">
       <Card className="p-6 space-y-3">
         <div className="w-12 h-12 rounded-2xl bg-accent-muted flex items-center justify-center mx-auto">
           <ShieldCheck className="w-6 h-6 text-accent" />
         </div>
-        <p className="text-sm text-white font-semibold">{title}</p>
-        {inAppPurchasesEnabled() ? (
+        <p className="text-sm text-white font-semibold">{inAppPurchasesEnabled() && user && title === 'Members only' ? 'Become a member' : title}</p>
+        {inAppPurchasesEnabled() && user ? (
           <>
             <p className="text-xs text-text-secondary">
               {feature ? `${feature} isn't included in your current membership. ` : ''}
               Every program, the AI coach, nutrition tracking and your weekly report.
             </p>
-            <Link href="/membership" className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-bold text-black">
-              <Crown className="w-4 h-4" /> See membership plans
-            </Link>
+            <PlayPaywall uid={user.uid} />
           </>
         ) : (
           <p className="text-xs text-text-secondary">
