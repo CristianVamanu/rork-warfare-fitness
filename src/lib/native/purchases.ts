@@ -55,7 +55,12 @@ async function rc(uid: string) {
     await within(Purchases.logIn({ appUserID: uid }), 10000, 'login');
     configuredFor = uid;
   }
-  return Purchases;
+  // NEVER return the plugin itself from an async function: Capacitor's plugin
+  // object answers every property with a function, including `then`, so the
+  // promise machinery treats it as a promise, calls the (non-existent) native
+  // method "then", and this function's promise never settles. That was the
+  // endless spinner. Wrapped in a plain object it is returned as-is.
+  return { P: Purchases };
 }
 
 export interface StorePackage { id: string; title: string; price: string; period: string | null; raw: unknown }
@@ -71,7 +76,7 @@ export function loadPackages(uid: string): Promise<StorePackage[]> {
 }
 
 async function loadPackagesInner(uid: string): Promise<StorePackage[]> {
-  const P = await rc(uid);
+  const { P } = await rc(uid);
   step = 'offerings';
   const o = await within(P.getOfferings(), 15000, 'offerings');
   return (o.current?.availablePackages ?? []).map((p) => ({
@@ -85,7 +90,7 @@ async function loadPackagesInner(uid: string): Promise<StorePackage[]> {
 
 /** True when the purchase went through; false when the member cancelled the sheet. */
 export async function buyPackage(uid: string, pkg: StorePackage): Promise<boolean> {
-  const P = await rc(uid);
+  const { P } = await rc(uid);
   try {
     await P.purchasePackage({ aPackage: pkg.raw as Parameters<typeof P.purchasePackage>[0]['aPackage'] });
     return true;
@@ -97,7 +102,7 @@ export async function buyPackage(uid: string, pkg: StorePackage): Promise<boolea
 
 /** Re-syncs past Play purchases to this account; the webhook then updates the membership. */
 export async function restore(uid: string): Promise<boolean> {
-  const P = await rc(uid);
+  const { P } = await rc(uid);
   const { customerInfo } = await P.restorePurchases();
   return Object.keys(customerInfo.entitlements.active).length > 0;
 }
