@@ -21,6 +21,7 @@ export function inAppPurchasesEnabled(): boolean {
 }
 
 let configuredFor: string | null = null;
+let step = 'start';
 
 // A native call that never answers would leave the paywall spinning forever;
 // fail with a step code instead so the screen can say what got stuck.
@@ -29,11 +30,14 @@ function within<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
 }
 
 async function rc(uid: string) {
+  step = 'plugin';
   const { Purchases } = await within(import('@revenuecat/purchases-capacitor'), 10000, 'plugin');
   if (configuredFor === null) {
+    step = 'configure';
     await within(Purchases.configure({ apiKey: KEY, appUserID: uid }), 10000, 'configure');
     configuredFor = uid;
   } else if (configuredFor !== uid) {
+    step = 'login';
     await within(Purchases.logIn({ appUserID: uid }), 10000, 'login');
     configuredFor = uid;
   }
@@ -46,11 +50,15 @@ export interface StorePackage { id: string; title: string; price: string; period
 export function loadPackages(uid: string): Promise<StorePackage[]> {
   // One overall budget as well as the per-step ones: the member should see
   // a reason within seconds, not after every step has timed out in turn.
-  return within(loadPackagesInner(uid), 12000, 'total');
+  return within(loadPackagesInner(uid), 12000, 'total').catch((e: unknown) => {
+    const c = (e as { code?: string })?.code;
+    throw c === 'timeout-total' ? { code: `timeout-total@${step}` } : e;
+  });
 }
 
 async function loadPackagesInner(uid: string): Promise<StorePackage[]> {
   const P = await rc(uid);
+  step = 'offerings';
   const o = await within(P.getOfferings(), 15000, 'offerings');
   return (o.current?.availablePackages ?? []).map((p) => ({
     id: p.identifier,
