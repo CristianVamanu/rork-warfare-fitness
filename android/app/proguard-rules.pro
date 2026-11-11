@@ -40,3 +40,5 @@
 -keep class androidx.health.connect.client.records.** { *; }
 -dontwarn org.slf4j.**
 -dontwarn javax.annotation.**
+-keep class com.revenuecat.purchases.** { *; }
+-dontwarn com.revenuecat.purchases.**

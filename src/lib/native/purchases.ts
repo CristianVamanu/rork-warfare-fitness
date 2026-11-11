@@ -43,7 +43,13 @@ async function rc(uid: string) {
 export interface StorePackage { id: string; title: string; price: string; period: string | null; raw: unknown }
 
 /** The current offering's packages, priced by Google Play in the member's currency. */
-export async function loadPackages(uid: string): Promise<StorePackage[]> {
+export function loadPackages(uid: string): Promise<StorePackage[]> {
+  // One overall budget as well as the per-step ones: the member should see
+  // a reason within seconds, not after every step has timed out in turn.
+  return within(loadPackagesInner(uid), 12000, 'total');
+}
+
+async function loadPackagesInner(uid: string): Promise<StorePackage[]> {
   const P = await rc(uid);
   const o = await within(P.getOfferings(), 15000, 'offerings');
   return (o.current?.availablePackages ?? []).map((p) => ({
