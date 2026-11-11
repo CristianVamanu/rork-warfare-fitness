@@ -23,6 +23,11 @@ export function inAppPurchasesEnabled(): boolean {
 let configuredFor: string | null = null;
 let step = 'start';
 
+// RevenueCat's own native log lines, kept so the paywall's error box can show
+// the real reason a load failed (a screenshot is then the whole diagnosis).
+const rcLog: string[] = [];
+export function revenueCatLog(): string[] { return rcLog.slice(-8); }
+
 // A native call that never answers would leave the paywall spinning forever;
 // fail with a step code instead so the screen can say what got stuck.
 function within<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
@@ -31,8 +36,15 @@ function within<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
 
 async function rc(uid: string) {
   step = 'plugin';
-  const { Purchases } = await within(import('@revenuecat/purchases-capacitor'), 10000, 'plugin');
+  const { Purchases, LOG_LEVEL } = await within(import('@revenuecat/purchases-capacitor'), 10000, 'plugin');
   if (configuredFor === null) {
+    try {
+      await Purchases.setLogLevel({ level: LOG_LEVEL.DEBUG });
+      await Purchases.setLogHandler((level, message) => {
+        rcLog.push(`${level}: ${String(message).slice(0, 220)}`);
+        if (rcLog.length > 40) rcLog.shift();
+      });
+    } catch { /* logging is best effort */ }
     step = 'configure';
     await within(Purchases.configure({ apiKey: KEY, appUserID: uid }), 10000, 'configure');
     configuredFor = uid;

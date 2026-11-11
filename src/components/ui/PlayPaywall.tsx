@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import { loadPackages, buyPackage, restore, type StorePackage } from '@/lib/native/purchases';
+import { loadPackages, buyPackage, restore, revenueCatLog, type StorePackage } from '@/lib/native/purchases';
 
 /** Google Play subscriptions (RevenueCat), shown only inside the app when configured. */
 export function PlayPaywall({ uid }: { uid: string }) {
@@ -35,6 +35,9 @@ export function PlayPaywall({ uid }: { uid: string }) {
         <p className="text-xs text-text-secondary">Check you&apos;re signed in to the Play Store and installed the app from Google Play, then try again.</p>
         <Button size="sm" variant="secondary" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
         <p className="text-[10px] text-text-tertiary">Code: {failed ?? 'no-plans'}</p>
+        {revenueCatLog().length > 0 && (
+          <pre className="text-left text-[9px] leading-snug text-text-tertiary whitespace-pre-wrap break-words max-h-48 overflow-auto">{revenueCatLog().join('\n')}</pre>
+        )}
       </div>
     );
   }
