@@ -364,7 +364,10 @@ export default function ProfilePage() {
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
-  const showMembershipSection = !!membershipConfig?.enabled && membershipPlans.length > 0;
+  // Billed by Google Play: the website's Stripe plan cards, plan switch and
+  // billing portal cannot act on it, so those are replaced by a status card.
+  const playMember = (profile?.membership as { source?: string; status?: string } | undefined)?.source === 'google_play' && profile?.membership?.status === 'active';
+  const showMembershipSection = !!membershipConfig?.enabled && membershipPlans.length > 0 && !playMember;
 
   return (
     <div>
@@ -904,7 +907,7 @@ export default function ProfilePage() {
                   : 'Today'}
               </p>
             </div>
-            {isActive && !nativeBillingBlocked() && (
+            {isActive && !nativeBillingBlocked() && !playMember && (
               <button
                 onClick={handleManageBilling}
                 disabled={openingPortal}
@@ -921,7 +924,7 @@ export default function ProfilePage() {
             subscription is not a sale, and an easy cancel keeps members out
             of the "can't cancel" complaints. No prices, plan changes or
             resume here; those stay on the website. */}
-        {nativeBillingBlocked() && isActive && (
+        {(nativeBillingBlocked() || playMember) && isActive && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.22 }}>
             <Card className="p-4 space-y-3">
               <div>
@@ -937,7 +940,7 @@ export default function ProfilePage() {
                   Cancel Membership
                 </Button>
               )}
-              <p className="text-[11px] text-text-tertiary text-center">Billing details and receipts are on warfarefitness.com.</p>
+              <p className="text-[11px] text-text-tertiary text-center">{playMember ? 'Billed through Google Play. Manage or cancel it in Google Play → Subscriptions.' : 'Billing details and receipts are on warfarefitness.com.'}</p>
             </Card>
           </motion.div>
         )}

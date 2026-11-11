@@ -12,6 +12,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { setSubscriptionStatus } from '@/lib/stripeMembership';
 import { membershipChangeFor, type RevenueCatEvent } from '@/lib/revenuecat';
@@ -44,7 +45,9 @@ export async function POST(req: NextRequest) {
   const planId = process.env.REVENUECAT_PLAN_ID || undefined;
   if (change.kind === 'grant') {
     await setSubscriptionStatus(db, change.uid, 'membership', 'active', change.expiresAt, planId, planId ? 'Google Play' : undefined,
-      undefined, change.cancelAtPeriodEnd, undefined, change.eventCreated, 'RevenueCat webhook');
+      // A Play trial counts as the account's trial, so it cannot be followed
+      // by a second free trial on the website.
+      undefined, change.cancelAtPeriodEnd, event.type === 'INITIAL_PURCHASE' ? true : undefined, change.eventCreated, 'RevenueCat webhook');
   } else {
     // Only end a membership that Google Play is paying for. A member who
     // (also) pays by card on the website keeps their Stripe membership when
@@ -56,6 +59,10 @@ export async function POST(req: NextRequest) {
     await setSubscriptionStatus(db, change.uid, 'membership', 'none', undefined, undefined, undefined,
       undefined, undefined, undefined, change.eventCreated, 'RevenueCat webhook');
   }
-  await db.collection('users').doc(change.uid).set({ membership: { source: 'google_play', storeProductId: change.productId } }, { merge: true });
+  // With no plan id configured a Play membership is full access. Clear any
+  // plan left behind by an earlier website membership, or a former member of
+  // a restricted plan would buy on Play and still see that plan's locks.
+  const stalePlan = change.kind === 'grant' && !planId ? { planId: FieldValue.delete(), planName: FieldValue.delete() } : {};
+  await db.collection('users').doc(change.uid).set({ membership: { source: 'google_play', storeProductId: change.productId, ...stalePlan } }, { merge: true });
   return NextResponse.json({ ok: true });
 }
