@@ -22,13 +22,19 @@ export function inAppPurchasesEnabled(): boolean {
 
 let configuredFor: string | null = null;
 
+// A native call that never answers would leave the paywall spinning forever;
+// fail with a step code instead so the screen can say what got stuck.
+function within<T>(p: Promise<T>, ms: number, step: string): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej({ code: `timeout-${step}` }), ms))]);
+}
+
 async function rc(uid: string) {
-  const { Purchases } = await import('@revenuecat/purchases-capacitor');
+  const { Purchases } = await within(import('@revenuecat/purchases-capacitor'), 10000, 'plugin');
   if (configuredFor === null) {
-    await Purchases.configure({ apiKey: KEY, appUserID: uid });
+    await within(Purchases.configure({ apiKey: KEY, appUserID: uid }), 10000, 'configure');
     configuredFor = uid;
   } else if (configuredFor !== uid) {
-    await Purchases.logIn({ appUserID: uid });
+    await within(Purchases.logIn({ appUserID: uid }), 10000, 'login');
     configuredFor = uid;
   }
   return Purchases;
@@ -39,7 +45,7 @@ export interface StorePackage { id: string; title: string; price: string; period
 /** The current offering's packages, priced by Google Play in the member's currency. */
 export async function loadPackages(uid: string): Promise<StorePackage[]> {
   const P = await rc(uid);
-  const o = await P.getOfferings();
+  const o = await within(P.getOfferings(), 15000, 'offerings');
   return (o.current?.availablePackages ?? []).map((p) => ({
     id: p.identifier,
     title: p.product.title.replace(/\s*\(.*\)\s*$/, ''),
