@@ -19,4 +19,10 @@ describe('computeStreak with rest days', () => {
     expect(computeStreak(days(4, 5), true, NOW)).toEqual({ streak: 2, freezeConsumed: true });
     expect(computeStreak(days(5, 6), true, NOW).streak).toBe(0);
   });
+  it('counts past 60 and past 120 training days (long-streak achievements are reachable)', () => {
+    // Every other day for 400 days = 200 training days, never more than 1 rest day.
+    const set = new Set<string>();
+    for (let o = 0; o < 400; o += 2) set.add(key(new Date(2026, 8, 20 - o)));
+    expect(computeStreak(set, false, NOW).streak).toBe(200);
+  });
 });

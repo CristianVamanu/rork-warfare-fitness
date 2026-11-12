@@ -163,16 +163,32 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
   sixtyDaysAgo.setHours(0, 0, 0, 0);
 
-  const streakSnap = await queryEvents('WORKOUT_COMPLETED', Timestamp.fromDate(sixtyDaysAgo));
-
-  const workoutDays = new Set<string>();
-  streakSnap.docs.forEach((d) => {
-    const ts = d.data().createdAt as Timestamp | undefined;
-    if (ts?.toDate) {
-      const dt = ts.toDate();
-      workoutDays.add(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`);
-    }
-  });
+  const dayKeys = async (since: Date) => {
+    const snap = await queryEvents('WORKOUT_COMPLETED', Timestamp.fromDate(since));
+    const set = new Set<string>();
+    let oldest: Date | null = null;
+    snap.docs.forEach((d) => {
+      const ts = d.data().createdAt as Timestamp | undefined;
+      if (ts?.toDate) {
+        const dt = ts.toDate();
+        set.add(`${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`);
+        if (!oldest || dt < oldest) oldest = dt;
+      }
+    });
+    return { set, oldest: oldest as Date | null };
+  };
+  let { set: workoutDays, oldest } = await dayKeys(sixtyDaysAgo);
+  // A streak counts training DAYS, so a 60-day window could never show more
+  // than ~40 for someone training 4-5 days a week: the 60-, 100- and 180-day
+  // streak achievements were unreachable. Read 60 days normally (cheap, and
+  // enough for almost everyone); only when the streak runs right up to the
+  // edge of that window read the full history it could extend into.
+  if (oldest && (oldest as Date).getTime() - sixtyDaysAgo.getTime() <= (STREAK_REST_DAYS + 2) * 86_400_000) {
+    const far = new Date();
+    far.setDate(far.getDate() - STREAK_LOOKBACK_DAYS);
+    far.setHours(0, 0, 0, 0);
+    ({ set: workoutDays, oldest } = await dayKeys(far));
+  }
 
   // Streak freeze — one grace day every 7 days that absorbs a single missed
   // day without breaking the streak. Re-grant is computed here (not on a
@@ -224,6 +240,8 @@ export async function recomputeStatsCache(userId: string): Promise<StatsCache> {
  * fine; the freeze absorbs one more. Mirrored in lib/streakFlame.
  */
 export const STREAK_REST_DAYS = 2;
+/** How far back a streak can reach: comfortably past the 180-day achievement at 3 sessions a week. */
+export const STREAK_LOOKBACK_DAYS = 500;
 
 export function computeStreak(
   workoutDays: Set<string>,
@@ -238,7 +256,7 @@ export function computeStreak(
   let streak = 0;
   let freezeConsumed = false;
   let missedRun = 0;
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < STREAK_LOOKBACK_DAYS; i++) {
     const key = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
     if (workoutDays.has(key)) {
       streak++;

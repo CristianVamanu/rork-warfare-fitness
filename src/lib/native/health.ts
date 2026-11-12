@@ -211,8 +211,22 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
           if (minHr && minHr >= 25) x.minHeartRate = Math.round(minHr);
         });
       })
-      .catch(note('heartRate').fail),
-    Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 200, ascending: true })
+      .catch(note('heartRate').fail)
+      // The daily aggregate can come back empty (or fail) on some phones even
+      // when readings exist. Fill any day still missing from the raw readings,
+      // newest first so today is always covered.
+      .then(async () => {
+        const missing = [...byDate.values()].some(x => x.avgHeartRate == null);
+        if (!missing) return;
+        try {
+          const r = await Health.readSamples({ dataType: 'heartRate', ...range, limit: 5000, ascending: false });
+          const acc = new Map<HealthDaySummary, number[]>();
+          r.samples.forEach(s => { const x = day(s.startDate); if (x && x.avgHeartRate == null && s.value >= 25 && s.value <= 240) (acc.get(x) ?? acc.set(x, []).get(x)!).push(s.value); });
+          acc.forEach((v, x) => { x.avgHeartRate = Math.round(v.reduce((a, b) => a + b, 0) / v.length); x.minHeartRate ??= Math.round(Math.min(...v)); });
+          if (acc.size) lastHealthDiag.heartRate += ` (+${acc.size} day(s) from raw readings)`;
+        } catch { /* the aggregate result stands */ }
+      }),
+    Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 500, ascending: true })
       .then(r => { note('restingHeartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.restingHeartRate = Math.round(s.value); }); })
       .catch(note('restingHeartRate').fail),
     Health.readSamples({ dataType: 'weight', ...range, limit: 200, ascending: true })
@@ -237,7 +251,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
         if (mins > 0) x.sleepMinutes = (x.sleepMinutes ?? 0) + Math.round(mins);
       }))
       .catch(note('sleep').fail),
-    Health.queryWorkouts({ ...range, limit: 50, ascending: true })
+    Health.queryWorkouts({ ...range, limit: 200, ascending: true })
       .then(r => r.workouts.forEach((w, i, all) => {
         if (i === 0) note('workouts').ok(all.length);
         const x = day(w.startDate); if (!x) return;

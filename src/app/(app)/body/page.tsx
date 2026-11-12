@@ -6,6 +6,7 @@
  * recorded. Data is read from the account, so it is the same on any device;
  * the panels need the phone app to have synced at least once.
  */
+import { useState } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,8 +32,17 @@ function Panel({ title, value, note, noteColor, children }: { title: string; val
 
 const avgNote = (v: number | null, f: (n: number) => string) => (v == null ? 'Not enough data yet' : `30-day average ${f(v)}`);
 
+// Package ids mean nothing to a member; show the app's name where we know it.
+const SOURCES: Record<string, string> = {
+  'com.sec.android.app.shealth': 'Samsung Health', 'com.google.android.apps.fitness': 'Google Fit', 'com.fitbit.FitbitMobile': 'Fitbit',
+  'com.garmin.android.apps.connectmobile': 'Garmin Connect', 'com.strava': 'Strava', 'com.google.android.apps.healthdata': 'Health Connect',
+  'com.whoop.android': 'WHOOP', 'com.ouraring.oura': 'Oura', 'com.polar.polarflow': 'Polar Flow',
+};
+const sourceLabel = (s: string) => SOURCES[s] ?? (s.includes('.') ? s.split('.').pop()! : s);
+
 export default function BodyPage() {
   const { user, profile } = useAuth();
+  const [workoutLimit, setWorkoutLimit] = useState(10);
   const { days, loaded } = useHealthHistory(user?.uid, 30);
   const dates = lastDays(30);
   const lbs = profile?.weightUnit === 'lbs';
@@ -54,7 +64,11 @@ export default function BodyPage() {
   const stageNights = dates.filter((d) => (days.get(d)?.deepMinutes ?? 0) + (days.get(d)?.remMinutes ?? 0) + (days.get(d)?.lightMinutes ?? 0) > 0);
   const maxStage = Math.max(1, ...stageNights.map((d) => { const n = days.get(d)!; return (n.deepMinutes ?? 0) + (n.remMinutes ?? 0) + (n.lightMinutes ?? 0); }));
   const avgStage = (k: 'deepMinutes' | 'remMinutes' | 'lightMinutes') => Math.round(stageNights.reduce((a, d) => a + (days.get(d)?.[k] ?? 0), 0) / Math.max(1, stageNights.length));
-  const workouts = dates.slice().reverse().flatMap(d => (days.get(d)?.workouts ?? []).map(w => ({ ...w, date: d }))).slice(0, 20);
+  const workouts = dates.slice().reverse().flatMap(d => (days.get(d)?.workouts ?? []).map(w => ({ ...w, date: d })));
+  // Ten at a time, never more than 30: the window is 30 days and a daily
+  // walker would otherwise scroll for pages.
+  const shownWorkouts = workouts.slice(0, Math.min(workoutLimit, 30));
+  const canShowMore = shownWorkouts.length < Math.min(workouts.length, 30);
   const hasAny = days.size > 0;
 
   return (
@@ -128,16 +142,21 @@ export default function BodyPage() {
                 <p className="text-sm" style={{ color: HUD.dim }}>No workouts recorded by your watch in the last 30 days.</p>
               ) : (
                 <ul className="flex flex-col">
-                  {workouts.map((w, i) => (
+                  {shownWorkouts.map((w, i) => (
                     <li key={i} className="flex items-center justify-between gap-3 py-2" style={{ borderTop: i ? `1px solid ${HUD.line}` : undefined }}>
                       <div className="min-w-0">
                         <p className="text-sm font-semibold truncate capitalize" style={{ color: 'var(--foreground)' }}>{w.type.replace(/_/g, ' ').toLowerCase()}</p>
-                        <p className="text-xs truncate" style={{ color: HUD.faint }}>{new Date(`${w.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}{w.source ? ` · ${w.source}` : ''}</p>
+                        <p className="text-xs truncate" style={{ color: HUD.faint }}>{new Date(`${w.date}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}{w.source ? ` · ${sourceLabel(w.source)}` : ''}</p>
                       </div>
                       <span className="text-xs tabular-nums flex-shrink-0" style={{ fontFamily: HUD_MONO, color: HUD.dim }}>{w.minutes} min{w.kcal ? ` · ${w.kcal} kcal` : ''}</span>
                     </li>
                   ))}
                 </ul>
+              )}
+              {canShowMore && (
+                <button type="button" onClick={() => setWorkoutLimit((n) => n + 10)} className="mt-2 w-full rounded-xl py-2.5 text-xs font-bold" style={{ border: `1px solid ${HUD.line}`, color: 'var(--foreground)' }}>
+                  Load more
+                </button>
               )}
             </Panel>
           </>

@@ -28,9 +28,9 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'workouts_1000',  icon: '🌠', title: 'Immortal',          desc: '1,000 workouts completed',        category: 'workouts' },
   // Streak milestones
   { id: 'streak_3',       icon: '🔥', title: 'On Fire',           desc: '5-day workout streak',            category: 'streak'   },
-  { id: 'streak_7',       icon: '⚡', title: 'Week Strong',       desc: '14-day streak',                  category: 'streak'   },
-  { id: 'streak_14',      icon: '🌟', title: 'Two Weeks In',      desc: '30-day streak',                  category: 'streak'   },
-  { id: 'streak_30',      icon: '🔱', title: '30-Day Streak',     desc: '60 days of consistent training', category: 'streak'   },
+  { id: 'streak_7',       icon: '⚡', title: 'Two Weeks Strong',  desc: '14-day streak',                  category: 'streak'   },
+  { id: 'streak_14',      icon: '🌟', title: 'Month Strong',      desc: '30-day streak',                  category: 'streak'   },
+  { id: 'streak_30',      icon: '🔱', title: '60-Day Streak',     desc: '60-day streak', category: 'streak'   },
   { id: 'streak_100',     icon: '🗿', title: 'Iron Will',         desc: '100-day streak',                 category: 'streak'   },
   { id: 'streak_180',     icon: '🛡️', title: 'Unbreakable',       desc: '180-day streak',                 category: 'streak'   },
   // Power level milestones

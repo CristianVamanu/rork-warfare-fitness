@@ -122,7 +122,18 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
 
   const sleepLow = r.sleepDelta != null && r.sleepDelta <= -30;
   const rhrHigh = r.rhrDelta != null && r.rhrDelta >= 3;
-  const hr = hasRhr ? today?.restingHeartRate : hasMin ? today?.minHeartRate : today?.avgHeartRate;
+  // Watches often write resting heart rate hours late (or only after a sync),
+  // so "today" is empty most mornings. Show the most recent reading from the
+  // last 7 days and say which day it is from, instead of a misleading 0.
+  const hrSeries = hasRhr ? rhr7 : hasMin ? min7 : avgHr7;
+  let hrIdx = 6; while (hrIdx >= 0 && hrSeries[hrIdx] == null) hrIdx--;
+  const hr = hrIdx >= 0 ? hrSeries[hrIdx] : null;
+  const hrIsToday = hrIdx === 6;
+  const hrDay = hrIdx >= 0 && !hrIsToday ? (hrIdx === 5 ? 'yesterday' : new Date(`${week[hrIdx]}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })) : null;
+  // Active calories: some sources only write them inside a workout. If the day
+  // has no total yet, the workouts recorded today are the honest minimum.
+  const workoutKcalToday = (today?.workouts ?? []).reduce((a, w) => a + (w.kcal ?? 0), 0);
+  const kcalToday = today?.[kcalKey] ?? (workoutKcalToday > 0 ? workoutKcalToday : null);
   const state = r.score == null ? 'Learning your normal' : r.level === 'high' ? 'Primed' : r.level === 'low' ? 'Take it easier' : 'Ready to train';
 
   return (
@@ -160,13 +171,14 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
         <Tile
           icon={<HeartPulse className="w-3.5 h-3.5" style={{ color: C.heart }} />}
           label={hasRhr ? 'Resting HR' : hasMin ? 'Lowest HR' : 'Heart rate'}
-          value={hr != null ? String(hr) : '0'} unit="bpm"
+          value={hr != null ? String(hr) : '—'} unit={hr != null ? 'bpm' : undefined}
           chart={hasRhr || hasMin
             ? <Line values={hasRhr ? rhr7 : min7} band={rhrUsual != null ? [rhrUsual - 2, rhrUsual + 2] : null} alertLast={rhrHigh} color={C.heart} height={26} label={hasRhr ? 'Resting heart rate, last 7 days' : 'Lowest heart rate, last 7 days'} />
             : <Line values={avgHr7} color={C.heart} height={26} label="Average heart rate, last 7 days" />}
-          note={r.rhrDelta != null
-            ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual`
-            : hr != null ? (hasRhr ? 'Resting, today' : hasMin ? 'Lowest today (usually asleep)' : 'Daily average') : 'No heart rate today'}
+          note={hr == null ? 'No heart rate from your watch yet'
+            : hrDay ? `Last reading, ${hrDay}`
+            : r.rhrDelta != null ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual`
+            : hasRhr ? 'Resting, today' : hasMin ? 'Lowest today (usually asleep)' : 'Daily average'}
           noteColor={rhrHigh ? C.alert : undefined}
         />
         <Tile
@@ -180,9 +192,9 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
         <Tile
           icon={<Flame className="w-3.5 h-3.5" style={{ color: C.kcal }} />}
           label={kcalKey === 'activeKcal' ? 'Active kcal' : 'Calories burned'}
-          value={String(today?.[kcalKey] ?? 0)}
+          value={kcalToday != null ? String(kcalToday) : '—'}
           chart={<Bars values={kcal7} refValue={kcalUsual} color={C.kcal} height={26} label="Active calories, last 7 days" />}
-          note="Last 7 days"
+          note={kcalToday == null ? 'Nothing from your watch yet today' : today?.[kcalKey] == null ? 'From today\'s workouts' : 'Last 7 days'}
         />
       </div>
 
