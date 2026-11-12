@@ -17,6 +17,7 @@ import { db } from '@/lib/firebase';
 import { RestorePanel } from '@/components/admin/RestorePanel';
 import { PromoCodesPanel } from '@/components/admin/PromoCodesPanel';
 import { EmailsPanel } from '@/components/admin/EmailsPanel';
+import { AiBalancePanel } from '@/components/admin/AiBalancePanel';
 import { Mail as MailIcon } from 'lucide-react';
 import { DailyBriefPanel } from '@/components/admin/DailyBriefPanel';
 import { LeadsPanel } from '@/components/admin/LeadsPanel';
@@ -110,6 +111,7 @@ const SECRET_GROUPS: { title: string; service: string; keys: { key: string; labe
   {
     title: 'OpenAI', service: 'openai', keys: [
       { key: 'OPENAI_API_KEY', label: 'API Key', placeholder: 'sk-...' },
+      { key: 'OPENAI_ADMIN_KEY', label: 'Admin Key (optional, read-only: shows AI spend on the Overview)', placeholder: 'sk-admin-...' },
     ],
   },
   {
@@ -2910,6 +2912,7 @@ function AdminPageInner() {
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (
         <div className="space-y-4">
+          <AiBalancePanel onSetup={() => setTab('integrations')} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {/* The real total from the count aggregation when we have it —
                 the loaded list is capped, so users.length would under-report

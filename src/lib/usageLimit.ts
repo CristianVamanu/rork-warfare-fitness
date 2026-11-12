@@ -101,7 +101,7 @@ const ORG_SHARDS = 10;
 const orgShardId = (date: string, shard: number) => `${date}_${shard}`;
 
 /** Sums today's shards (plus the pre-sharding document, so history isn't lost). */
-async function readOrgUsage(
+export async function readOrgUsage(
   db: FirebaseFirestore.Firestore,
   date: string,
 ): Promise<{ count: number; byFeature: Record<string, number> }> {

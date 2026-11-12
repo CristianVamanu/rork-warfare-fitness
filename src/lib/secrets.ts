@@ -10,6 +10,9 @@ import { encryptSecret, decryptSecret, maskSecret, type EncryptedPayload } from 
  */
 export const SECRET_KEYS = [
   'OPENAI_API_KEY',
+  // Optional, read-only use: an OpenAI *Admin* key (sk-admin-...) lets the
+  // admin dashboard show what the AI features have cost. Never used for AI calls.
+  'OPENAI_ADMIN_KEY',
   'STRIPE_SECRET_KEY',
   'STRIPE_WEBHOOK_SECRET',
   'NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY',
