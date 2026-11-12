@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Check, CheckCircle, Crown } from 'lucide-react';
+import { Loader2, CheckCircle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { loadPackages, buyPackage, restore, revenueCatLog, type StorePackage } from '@/lib/native/purchases';
 import { getMembershipPlans } from '@/lib/firestore';
-import { pruneFeatureAccess } from '@/lib/gatedFeatures';
 import type { MembershipPlan } from '@/types';
 
 /** Google Play subscriptions (RevenueCat), shown only inside the app when configured. */
@@ -17,17 +16,12 @@ export function PlayPaywall({ uid }: { uid: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  // What the membership includes, from the same plan list the website shows.
-  // A Play membership is full access, so show the full-access plan's benefits
-  // (the plan with no feature restrictions; else the one marked most popular).
-  const [plan, setPlan] = useState<MembershipPlan | null>(null);
+  // The same plan cards as the website (Vanguard = monthly, Hero = yearly),
+  // each sold through its Google Play base plan at Google Play's price.
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
   useEffect(() => {
     let alive = true;
-    getMembershipPlans().then((all) => {
-      if (!alive) return;
-      const live = all.filter((x) => x.active && x.features?.length);
-      setPlan(live.find((x) => pruneFeatureAccess(x.featureAccess).length === 0) ?? live.find((x) => x.mostPopular) ?? live[0] ?? null);
-    }).catch(() => {});
+    getMembershipPlans().then((all) => { if (alive) setPlans(all.filter((x) => x.active)); }).catch(() => {});
     return () => { alive = false; };
   }, []);
   useEffect(() => {
@@ -58,14 +52,20 @@ export function PlayPaywall({ uid }: { uid: string }) {
     );
   }
   if (!pkgs) return <Loader2 className="w-5 h-5 animate-spin text-accent mx-auto" />;
-  const chosen = pkgs.find((p) => p.id === pick) ?? null;
-  const go = async () => {
-    if (!chosen) return;
-    setBusy('buy'); setMsg(null);
-    try { if (await buyPackage(uid, chosen)) setMsg('Purchase complete. Unlocking your membership…'); }
+  const go = async (pkg: StorePackage) => {
+    setPick(pkg.id); setBusy('buy'); setMsg(null);
+    try { if (await buyPackage(uid, pkg)) setMsg('Purchase complete. Unlocking your membership…'); }
     catch { setMsg('The purchase did not go through. You have not been charged.'); }
     finally { setBusy(null); }
   };
+  // Website plan for a Play package: the monthly package is the plan sold
+  // monthly; the yearly package is the plan sold only as 12 months.
+  const planFor = (p: StorePackage): MembershipPlan | null => {
+    if (p.period === 'year') return plans.find((x) => x.price12mo && !x.priceMonthly) ?? plans.find((x) => x.price12mo) ?? null;
+    if (p.period === 'month') return plans.find((x) => x.priceMonthly) ?? null;
+    return null;
+  };
+  const ordered = [...pkgs].sort((a, b) => (a.period === 'month' ? 0 : 1) - (b.period === 'month' ? 0 : 1));
   const back = async () => {
     setBusy('restore'); setMsg(null);
     try { setMsg((await restore(uid)) ? 'Purchases restored. Unlocking your membership…' : 'No active Google Play subscription found for this account.'); }
@@ -73,29 +73,38 @@ export function PlayPaywall({ uid }: { uid: string }) {
     finally { setBusy(null); }
   };
   return (
-    <div className="space-y-3 text-left">
-      {plan && (
-        <div className="rounded-2xl border border-white/10 bg-surface p-4">
-          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-accent"><Crown className="w-4 h-4" /> {plan.name}</p>
-          {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
-          <ul className="mt-3 space-y-2">
-            {plan.features.map((f) => (
-              <li key={f} className="flex items-start gap-2 text-xs text-text-secondary">
-                <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" /> {f}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {chosen?.trial && <p className="text-xs font-semibold text-accent text-center">{chosen.trial} free trial included</p>}
-      {pkgs.map((p) => (
-        <button key={p.id} type="button" onClick={() => setPick(p.id)} aria-pressed={pick === p.id}
-          className={`w-full rounded-2xl border px-4 py-3 flex items-center justify-between ${pick === p.id ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface'}`}>
-          <span className="font-bold text-white">{p.period === 'year' ? 'Yearly' : p.period === 'month' ? 'Monthly' : p.title}</span>
-          <span className="flex items-center gap-2 text-white font-black">{p.price}{p.period ? <span className="text-xs text-text-tertiary font-semibold">/ {p.period}</span> : null}{pick === p.id && <Check className="w-4 h-4 text-accent" />}</span>
-        </button>
-      ))}
-      <Button fullWidth onClick={go} disabled={!chosen || !!busy}>{busy === 'buy' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Subscribe with Google Play'}</Button>
+    <div className="space-y-4 text-left">
+      {ordered.map((p) => {
+        const plan = planFor(p);
+        const buying = busy === 'buy' && pick === p.id;
+        return (
+          <div key={p.id} className="rounded-2xl border border-white/10 bg-surface p-5">
+            <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-[0.12em] text-accent">
+              <Crown className="w-4 h-4" /> {plan?.name ?? (p.period === 'year' ? 'Yearly' : p.period === 'month' ? 'Monthly' : p.title)}
+            </p>
+            <div className="flex items-baseline gap-2 mt-2 flex-wrap">
+              <span className="text-3xl font-black text-white">{p.price}</span>
+              <span className="text-sm text-text-secondary">{p.period === 'year' ? '/ 12mo' : p.period === 'month' ? '/month' : ''}</span>
+            </div>
+            {p.trial && <p className="text-xs text-accent mt-1">{p.trial} free trial included</p>}
+            {plan?.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
+            {!!plan?.features?.length && (
+              <ul className="mt-4 space-y-2">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2 text-xs text-text-secondary">
+                    <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" /> {f}
+                  </li>
+                ))}
+              </ul>
+            )}
+            <div className="mt-5">
+              <Button fullWidth onClick={() => go(p)} disabled={!!busy}>
+                {buying ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Crown className="w-4 h-4" /> Subscribe with Google Play</>}
+              </Button>
+            </div>
+          </div>
+        );
+      })}
       <button type="button" onClick={back} disabled={!!busy} className="w-full text-xs font-semibold text-accent py-1">{busy === 'restore' ? 'Restoring…' : 'Restore purchases'}</button>
       {msg && <p className="text-sm text-text-secondary text-center" role="status">{msg}</p>}
       <p className="text-[11px] text-text-tertiary leading-relaxed text-center">
