@@ -63,7 +63,7 @@ async function rc(uid: string) {
   return { P: Purchases };
 }
 
-export interface StorePackage { id: string; title: string; price: string; period: string | null; raw: unknown }
+export interface StorePackage { id: string; title: string; price: string; period: string | null; /** e.g. "7-day" when Google Play offers a free trial on this plan */ trial: string | null; raw: unknown }
 
 /** The current offering's packages, priced by Google Play in the member's currency. */
 export function loadPackages(uid: string): Promise<StorePackage[]> {
@@ -83,6 +83,13 @@ async function loadPackagesInner(uid: string): Promise<StorePackage[]> {
     id: p.identifier,
     title: p.product.title.replace(/\s*\(.*\)\s*$/, ''),
     price: p.product.priceString,
+    trial: (() => {
+      // Only what Google Play itself reports: no trial text unless the store has one.
+      const ph = (p.product as { defaultOption?: { freePhase?: { billingPeriod?: { unit?: string; value?: number } } | null } | null }).defaultOption?.freePhase?.billingPeriod;
+      if (!ph?.value || !ph.unit) return null;
+      const unit = ph.unit.toLowerCase();
+      return unit === 'week' ? `${ph.value * 7}-day` : `${ph.value}-${unit}`;
+    })(),
     period: p.packageType === 'ANNUAL' ? 'year' : p.packageType === 'MONTHLY' ? 'month' : p.packageType === 'WEEKLY' ? 'week' : null,
     raw: p,
   }));

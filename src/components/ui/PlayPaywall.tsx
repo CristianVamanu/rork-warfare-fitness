@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, Check } from 'lucide-react';
+import { Loader2, Check, CheckCircle, Crown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { loadPackages, buyPackage, restore, revenueCatLog, type StorePackage } from '@/lib/native/purchases';
+import { getMembershipPlans } from '@/lib/firestore';
+import { pruneFeatureAccess } from '@/lib/gatedFeatures';
+import type { MembershipPlan } from '@/types';
 
 /** Google Play subscriptions (RevenueCat), shown only inside the app when configured. */
 export function PlayPaywall({ uid }: { uid: string }) {
@@ -14,6 +17,19 @@ export function PlayPaywall({ uid }: { uid: string }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  // What the membership includes, from the same plan list the website shows.
+  // A Play membership is full access, so show the full-access plan's benefits
+  // (the plan with no feature restrictions; else the one marked most popular).
+  const [plan, setPlan] = useState<MembershipPlan | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getMembershipPlans().then((all) => {
+      if (!alive) return;
+      const live = all.filter((x) => x.active && x.features?.length);
+      setPlan(live.find((x) => pruneFeatureAccess(x.featureAccess).length === 0) ?? live.find((x) => x.mostPopular) ?? live[0] ?? null);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     let alive = true;
     setFailed(null); setPkgs(null);
@@ -58,6 +74,20 @@ export function PlayPaywall({ uid }: { uid: string }) {
   };
   return (
     <div className="space-y-3 text-left">
+      {plan && (
+        <div className="rounded-2xl border border-white/10 bg-surface p-4">
+          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-accent"><Crown className="w-4 h-4" /> {plan.name}</p>
+          {plan.description && <p className="text-xs text-text-secondary mt-2 leading-relaxed">{plan.description}</p>}
+          <ul className="mt-3 space-y-2">
+            {plan.features.map((f) => (
+              <li key={f} className="flex items-start gap-2 text-xs text-text-secondary">
+                <CheckCircle className="w-3.5 h-3.5 text-accent flex-shrink-0 mt-0.5" /> {f}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {chosen?.trial && <p className="text-xs font-semibold text-accent text-center">{chosen.trial} free trial included</p>}
       {pkgs.map((p) => (
         <button key={p.id} type="button" onClick={() => setPick(p.id)} aria-pressed={pick === p.id}
           className={`w-full rounded-2xl border px-4 py-3 flex items-center justify-between ${pick === p.id ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface'}`}>
