@@ -15,6 +15,7 @@ import OpenAI from 'openai';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthedNotTfaPending } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
+import { isInFreeTrial, hasActiveSubscription } from '@/lib/membership';
 import { getSecret } from '@/lib/secrets';
 import { resolveDateKey } from '@/lib/dailyTip';
 import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
@@ -33,6 +34,18 @@ export async function GET(req: NextRequest) {
   const app = getAdminApp();
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
   const db = getAdminDb(app);
+  // Members only when the whole app is locked to members. The screen is
+  // already behind the membership wall; this stops a signed-in non-member
+  // from calling the endpoint directly and getting the AI report for free.
+  {
+    const [meSnap, cfgSnap] = await Promise.all([db.collection('users').doc(auth.uid).get(), db.collection('config').doc('membership').get()]);
+    const me = meSnap.data() ?? {};
+    const cfg = cfgSnap.data() as { enabled?: boolean; fullLock?: boolean; trialDays?: number; paidTrialEnabled?: boolean } | undefined;
+    const staff = me.role === 'admin' || me.role === 'trainer';
+    if (!staff && cfg?.enabled && cfg.fullLock && !isInFreeTrial(cfg, me.createdAt) && !hasActiveSubscription(me)) {
+      return NextResponse.json({ error: 'Membership required' }, { status: 403 });
+    }
+  }
 
   const today = resolveDateKey(req.nextUrl.searchParams.get('today'));
   const week = reportWeek(today);
