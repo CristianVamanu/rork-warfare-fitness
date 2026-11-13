@@ -125,9 +125,15 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
   // Watches often write resting heart rate hours late (or only after a sync),
   // so "today" is empty most mornings. Show the most recent reading from the
   // last 7 days and say which day it is from, instead of a misleading 0.
-  const hrSeries = hasRhr ? rhr7 : hasMin ? min7 : avgHr7;
+  // Resting heart rate when the watch provides it. Otherwise the DAILY
+  // AVERAGE: the single lowest reading of the day (a sleep dip, or a sensor
+  // blip) read as a strange headline number ("39 bpm"), so it is only shown
+  // as a note beside the average.
+  const showAvg = !hasRhr && avgHr7.some((v) => v != null);
+  const hrSeries = hasRhr ? rhr7 : showAvg ? avgHr7 : min7;
   let hrIdx = 6; while (hrIdx >= 0 && hrSeries[hrIdx] == null) hrIdx--;
   const hr = hrIdx >= 0 ? hrSeries[hrIdx] : null;
+  const lowOnDay = hrIdx >= 0 && showAvg ? min7[hrIdx] : null;
   const hrIsToday = hrIdx === 6;
   const hrDay = hrIdx >= 0 && !hrIsToday ? (hrIdx === 5 ? 'yesterday' : new Date(`${week[hrIdx]}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short' })) : null;
   // Active calories: some sources only write them inside a workout. If the day
@@ -170,15 +176,15 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
         />
         <Tile
           icon={<HeartPulse className="w-3.5 h-3.5" style={{ color: C.heart }} />}
-          label={hasRhr ? 'Resting HR' : hasMin ? 'Lowest HR' : 'Heart rate'}
+          label={hasRhr ? 'Resting HR' : showAvg ? 'Avg heart rate' : hasMin ? 'Lowest HR' : 'Heart rate'}
           value={hr != null ? String(hr) : '—'} unit={hr != null ? 'bpm' : undefined}
-          chart={hasRhr || hasMin
-            ? <Line values={hasRhr ? rhr7 : min7} band={rhrUsual != null ? [rhrUsual - 2, rhrUsual + 2] : null} alertLast={rhrHigh} color={C.heart} height={26} label={hasRhr ? 'Resting heart rate, last 7 days' : 'Lowest heart rate, last 7 days'} />
-            : <Line values={avgHr7} color={C.heart} height={26} label="Average heart rate, last 7 days" />}
+          chart={hasRhr
+            ? <Line values={rhr7} band={rhrUsual != null ? [rhrUsual - 2, rhrUsual + 2] : null} alertLast={rhrHigh} color={C.heart} height={26} label="Resting heart rate, last 7 days" />
+            : <Line values={showAvg ? avgHr7 : min7} color={C.heart} height={26} label={showAvg ? 'Average heart rate, last 7 days' : 'Lowest heart rate, last 7 days'} />}
           note={hr == null ? 'No heart rate from your watch yet'
-            : hrDay ? `Last reading, ${hrDay}`
-            : r.rhrDelta != null ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual`
-            : hasRhr ? 'Resting, today' : hasMin ? 'Lowest today (usually asleep)' : 'Daily average'}
+            : hrDay ? `${hasRhr ? 'Resting' : showAvg ? 'Average' : 'Lowest'}, ${hrDay}`
+            : hasRhr && r.rhrDelta != null ? `${r.rhrDelta > 0 ? '+' : r.rhrDelta < 0 ? '−' : '±'}${Math.abs(r.rhrDelta)} bpm vs usual`
+            : hasRhr ? 'Resting, today' : showAvg ? (lowOnDay != null ? `Today's average · lowest ${lowOnDay}` : "Today's average") : 'Lowest today (usually asleep)'}
           noteColor={rhrHigh ? C.alert : undefined}
         />
         <Tile
