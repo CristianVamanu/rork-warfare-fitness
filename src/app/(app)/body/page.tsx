@@ -61,6 +61,7 @@ export default function BodyPage() {
   const unit = lbs ? 'lb' : 'kg';
 
   const hrv = series(days, dates, 'hrvMs');
+  const avgHr = series(days, dates, 'avgHeartRate');
   const stageNights = dates.filter((d) => (days.get(d)?.deepMinutes ?? 0) + (days.get(d)?.remMinutes ?? 0) + (days.get(d)?.lightMinutes ?? 0) > 0);
   const maxStage = Math.max(1, ...stageNights.map((d) => { const n = days.get(d)!; return (n.deepMinutes ?? 0) + (n.remMinutes ?? 0) + (n.lightMinutes ?? 0); }));
   const avgStage = (k: 'deepMinutes' | 'remMinutes' | 'lightMinutes') => Math.round(stageNights.reduce((a, d) => a + (days.get(d)?.[k] ?? 0), 0) / Math.max(1, stageNights.length));
@@ -80,7 +81,7 @@ export default function BodyPage() {
         {loaded && !hasAny && (
           <Card className="p-4 flex flex-col gap-2">
             <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>No watch data on your account yet</p>
-            <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. Your trends then show here on every device.</p>
+            <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. You will then see 30-day trends for sleep and sleep stages, average heart rate, resting heart rate, heart rate variability (recovery), steps, calories, weight and watch workouts, on every device.</p>
             <GetTheAppCard />
             <Link href="/dashboard" className="text-sm underline underline-offset-2" style={{ color: HUD.amber }}>Back to dashboard</Link>
           </Card>
@@ -116,11 +117,14 @@ export default function BodyPage() {
                 </div>
               </Panel>
             )}
-            {hrv.some((v) => v != null) && (
-              <Panel title="Heart rate variability" value={hrv[29] != null ? `${hrv[29]} ms` : undefined} note={avgNote(mean(hrv, 3), n => `${Math.round(n)} ms · higher is usually better recovered`)}>
-                <Line values={hrv} height={64} fill label="Heart rate variability, last 30 days" />
-              </Panel>
-            )}
+            {/* Always shown (with an empty state) so it is clear what the heart
+                rate and HRV permissions are used for, even before data arrives. */}
+            <Panel title="Average heart rate" value={avgHr[29] != null ? `${avgHr[29]} bpm` : undefined} note={avgHr.some((v) => v != null) ? avgNote(mean(avgHr, 3), n => `${Math.round(n)} bpm · daily average from your watch`) : 'Daily average heart rate from your watch. Used for your heart rate tile and trends.'}>
+              <Line values={avgHr} height={64} fill label="Average heart rate, last 30 days" />
+            </Panel>
+            <Panel title="Heart rate variability" value={hrv[29] != null ? `${hrv[29]} ms` : undefined} note={hrv.some((v) => v != null) ? avgNote(mean(hrv, 3), n => `${Math.round(n)} ms · higher is usually better recovered`) : 'HRV from your watch shows how recovered you are. It appears here once your watch records it.'}>
+              <Line values={hrv} height={64} fill label="Heart rate variability, last 30 days" />
+            </Panel>
             <Panel title={rhrIsLowest ? 'Lowest heart rate' : 'Resting heart rate'} value={rhr[29] != null ? `${rhr[29]} bpm` : undefined} note={avgNote(mean(rhr, 3), n => `${Math.round(n)} bpm`)}>
               <Line values={rhr} height={72} fill label="Resting heart rate, last 30 days" />
             </Panel>
