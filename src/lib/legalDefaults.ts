@@ -26,6 +26,12 @@ The camera is used only when you choose to scan a barcode or photograph a meal; 
 /** True when a policy text already carries the mobile-app disclosures. */
 export const hasMobilePrivacySections = (text: string) => /Health Connect/i.test(text);
 
+export const DATA_RETENTION_SECTION = `## 5a. Data Retention
+We keep your personal data only for as long as your account is active or as needed to provide the Service. When you delete your account (Settings → Delete account, or by emailing hello@warfarefitness.com), your profile, workout and nutrition logs, health summaries, photos and community posts are deleted from our live systems straight away. Encrypted backups are kept for up to 30 days and then overwritten, so deleted data is fully gone within 30 days. Payment and invoice records are kept by our payment providers (Stripe, Google Play) for as long as tax and accounting law requires, normally 6 years. Email addresses given for a free plan or lead form are kept until you unsubscribe or ask us to delete them. Error reports are kept only as long as needed to fix the problem.`;
+
+/** True when a policy already states how long data is kept (Google Play requires it). */
+export const hasRetentionSection = (text: string) => /retention|how long we keep/i.test(text);
+
 export const DEFAULT_PRIVACY_POLICY = `## Who we are
 This platform is operated by Davcris Ltd, a company registered in England and Wales, which is the data controller for your personal data. You can contact us at hello@warfarefitness.com.
 
@@ -43,6 +49,8 @@ We do not sell your personal data. Your data may be shared with your assigned tr
 
 ## 5. Your Rights
 Under UK and EU data protection law you may access, correct, export or delete your personal data, object to or restrict its processing, and withdraw consent at any time. You can delete your account and its data yourself from Settings. For anything else, email hello@warfarefitness.com. You also have the right to complain to the Information Commissioner's Office (ico.org.uk) or your local supervisory authority.
+
+${DATA_RETENTION_SECTION.replace(/`/g, '')}
 
 ## 6. Cookies and Analytics
 Essential cookies keep you signed in and are always on. With your consent, given through the cookie banner, we also load the Meta Pixel and Google Analytics to measure our advertising and to understand how the site is used, and a third-party chat widget on public pages. You can change your choice at any time from Settings. Rejecting these never limits the app.

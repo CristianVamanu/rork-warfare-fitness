@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getSystemConfig } from '@/lib/firestore';
-import { DEFAULT_PRIVACY_POLICY, MOBILE_PRIVACY_SECTIONS, hasMobilePrivacySections } from '@/lib/legalDefaults';
+import { DEFAULT_PRIVACY_POLICY, MOBILE_PRIVACY_SECTIONS, hasMobilePrivacySections, DATA_RETENTION_SECTION, hasRetentionSection } from '@/lib/legalDefaults';
 import { LegalPage } from '@/components/ui/LegalPage';
 
 export default function PrivacyPage() {
@@ -15,8 +15,11 @@ export default function PrivacyPage() {
         if (cfg?.privacyPolicyText) {
           // An admin-edited policy from before the mobile apps still has to
           // disclose what the apps read; append the sections if missing.
-          const t = cfg.privacyPolicyText as string;
-          setText(hasMobilePrivacySections(t) ? t : `${t}\n\n${MOBILE_PRIVACY_SECTIONS}`);
+          let t = cfg.privacyPolicyText as string;
+          if (!hasMobilePrivacySections(t)) t = `${t}\n\n${MOBILE_PRIVACY_SECTIONS}`;
+          // Google Play rejects a policy that does not say how long data is kept.
+          if (!hasRetentionSection(t)) t = `${t}\n\n${DATA_RETENTION_SECTION}`;
+          setText(t);
         }
         if (cfg?.appName) setAppName(cfg.appName as string);
       })
