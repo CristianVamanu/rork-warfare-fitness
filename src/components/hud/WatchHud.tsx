@@ -10,6 +10,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { trainingMinutesByDay, type AppSession } from '@/lib/trainingMinutes';
 import { RefreshCw, ChevronRight, Moon, HeartPulse, Footprints, Flame, Watch, Dumbbell } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { todaysEaseChoice, setEaseChoice } from '@/lib/recoveryEase';
@@ -99,8 +100,10 @@ function Tile({ icon, label, value, unit, chart, note, noteColor }: {
 
 const hhmm = (m: number) => `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, '0')}m`;
 
-export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
+export function WatchHud({ days, sourceName, busy, onSync, footer, lighter, appSessions = [] }: {
   days: DayMap; sourceName: string; busy: boolean; onSync: () => void; footer?: React.ReactNode; lighter?: LighterOffer | null;
+  /** Sessions finished in the app, so training minutes count app + watch (each session once). */
+  appSessions?: AppSession[];
 }) {
   const week = lastDays(7);
   const prior14 = lastDays(15).slice(0, -1);
@@ -118,7 +121,8 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
   // Android the app does not request heart rate, so this tile shows the
   // minutes recorded in watch workouts instead.
   const hasHeart = rhr7.some((v) => v != null) || avgHr7.some((v) => v != null) || min7.some((v) => v != null);
-  const woMin = (d: string) => (days.get(d)?.workouts ?? []).reduce((acc, w) => acc + (w.minutes ?? 0), 0);
+  const tm = trainingMinutesByDay([...prior14, week[6]], days, appSessions);
+  const woMin = (d: string) => tm.get(d) ?? 0;
   const wo7 = week.map((d) => { const m = woMin(d); return m > 0 ? m : null; });
   const woToday = woMin(week[6]);
   const woWeek = week.reduce((acc, d) => acc + woMin(d), 0);
@@ -200,10 +204,10 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
         ) : (
           <Tile
             icon={<Dumbbell className="w-3.5 h-3.5" style={{ color: C.heart }} />}
-            label="Workout minutes"
+            label="Training minutes"
             value={String(woToday)} unit="min"
-            chart={<Bars values={wo7} refValue={woUsual} color={C.heart} height={26} label="Workout minutes from your watch, last 7 days" />}
-            note={woWeek > 0 ? `${woWeek} min this week` : 'Workouts from your watch'}
+            chart={<Bars values={wo7} refValue={woUsual} color={C.heart} height={26} label="Training minutes, app and watch, last 7 days" />}
+            note={woWeek > 0 ? `${woWeek} min this week · app + watch` : 'App sessions + watch workouts'}
           />
         )}
         <Tile

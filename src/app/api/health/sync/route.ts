@@ -21,6 +21,7 @@ import { rateLimit } from '@/lib/rateLimit';
 const Workout = z.object({
   type: z.string().trim().min(1).max(60),
   minutes: z.coerce.number().int().min(0).max(24 * 60),
+  start: z.string().datetime({ offset: true }).optional().catch(undefined),
   kcal: z.coerce.number().int().min(0).max(20000).optional(),
   source: z.string().trim().max(80).optional(),
 }).strip();

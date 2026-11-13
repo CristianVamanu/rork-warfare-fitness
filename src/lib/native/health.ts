@@ -48,7 +48,8 @@ export interface HealthDaySummary {
   /** Total calories burned (incl. resting), for watches that do not write active calories (e.g. Samsung). */
   totalKcal?: number;
   /** Workouts recorded by any app or watch that day. */
-  workouts?: { type: string; minutes: number; kcal?: number; source?: string }[];
+  /** start: ISO time the watch workout began (lets the app de-duplicate it against in-app sessions). */
+  workouts?: { type: string; minutes: number; start?: string; kcal?: number; source?: string }[];
   /** Where the data came from, for the "Synced from Apple Health" line. */
   source: 'healthkit' | 'healthconnect';
 }
@@ -265,7 +266,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       .then(r => r.workouts.forEach((w, i, all) => {
         if (i === 0) note('workouts').ok(all.length);
         const x = day(w.startDate); if (!x) return;
-        (x.workouts ??= []).push({ type: w.workoutType, minutes: Math.round(w.duration / 60), ...(w.totalEnergyBurned ? { kcal: Math.round(w.totalEnergyBurned) } : {}), ...(w.sourceName ? { source: w.sourceName } : {}) });
+        (x.workouts ??= []).push({ type: w.workoutType, minutes: Math.round(w.duration / 60), start: w.startDate, ...(w.totalEnergyBurned ? { kcal: Math.round(w.totalEnergyBurned) } : {}), ...(w.sourceName ? { source: w.sourceName } : {}) });
       }))
       .catch(note('workouts').fail),
   ]);

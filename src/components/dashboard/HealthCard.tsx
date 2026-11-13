@@ -23,6 +23,8 @@ import { useHealthHistory, syncWindow, markBackfilled } from '@/lib/useHealthHis
 import { dayKey } from '@/lib/healthTrends';
 import { HUD } from '@/components/hud/HudCharts';
 import { WatchHud, type LighterOffer } from '@/components/hud/WatchHud';
+import { getUserWorkouts } from '@/lib/firestore';
+import type { AppSession } from '@/lib/trainingMinutes';
 
 
 // Remembered for the app session: coming back to Home shows the last state
@@ -43,6 +45,22 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
   const [error, setError] = useState('');
   const [reason, setReason] = useState('');
   const { days, reload } = useHealthHistory(user?.uid);
+  // Sessions finished in the app (last ~2 weeks), so training minutes count
+  // app and watch together. Refreshed whenever the card comes back into view.
+  const [appSessions, setAppSessions] = useState<AppSession[]>([]);
+  useEffect(() => {
+    if (!user?.uid) return;
+    const uid = user.uid;
+    const load = () => getUserWorkouts(uid, 40)
+      .then((rows) => setAppSessions(rows
+        .map((r) => { const x = r as { completedAt?: { toDate?: () => Date } | null; duration?: unknown }; return { end: x.completedAt?.toDate?.() ?? null, minutes: Number(x.duration) || 0 }; })
+        .filter((r): r is AppSession => r.end instanceof Date && r.minutes > 0)))
+      .catch(() => {});
+    load();
+    const onVis = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => document.removeEventListener('visibilitychange', onVis);
+  }, [user?.uid]);
   // Today from the live sync if it has run, else from the stored month.
   const storedToday = days.get(dayKey(new Date()));
   const today = liveToday ?? storedToday ?? null;
@@ -183,6 +201,7 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
       busy={busy}
       onSync={sync}
       lighter={lighter ?? null}
+      appSessions={appSessions}
       footer={(
         <>
           {empty && !busy && (
