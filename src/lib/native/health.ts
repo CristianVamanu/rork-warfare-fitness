@@ -18,11 +18,13 @@ import type { User } from 'firebase/auth';
 export const HEALTH_READ_TYPES = ['steps', 'sleep', 'heartRate', 'restingHeartRate', 'weight', 'calories', 'totalCalories', 'heartRateVariability', 'workouts'] as const;
 /**
  * Android asks only for what the app visibly uses. Samsung Health (the main
- * Health Connect source) does not share HRV, so it could never be shown, and
- * Google Play rejects a permission it cannot see used. HRV stays on iPhone.
- * Must match AndroidManifest.xml, which removes READ_HEART_RATE_VARIABILITY.
+ * Health Connect source) does not reliably share resting heart rate or HRV,
+ * and Google Play rejects permissions it cannot see used, so on Android no
+ * heart data is requested at all. iPhone (Apple Health) keeps it.
+ * Must match AndroidManifest.xml, which removes the three READ_ permissions.
  */
-const readTypes = () => HEALTH_READ_TYPES.filter((t) => !(nativePlatform() === 'android' && t === 'heartRateVariability'));
+const ANDROID_SKIP = new Set<string>(['heartRate', 'restingHeartRate', 'heartRateVariability']);
+const readTypes = () => HEALTH_READ_TYPES.filter((t) => !(nativePlatform() === 'android' && ANDROID_SKIP.has(t)));
 
 export interface HealthDaySummary {
   /** Local date, YYYY-MM-DD. */
@@ -157,6 +159,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
   }
   const day = (iso: string) => byDate.get(localDate(new Date(iso)));
   const range = { startDate: from.toISOString(), endDate: now.toISOString() };
+  const noHeart = nativePlatform() === 'android';
 
   async function sumByDay(
     dataType: 'steps' | 'calories' | 'totalCalories',
@@ -199,7 +202,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       .catch(e => { lastHealthDiag.sources = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); }),
     sumByDay('calories', 'activeKcal', Math.round, note('calories')),
     sumByDay('totalCalories', 'totalKcal', Math.round, note('totalCalories')),
-    (nativePlatform() === 'android' ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true }))
+    (noHeart ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true }))
       .then(r => {
         note('heartRateVariability').ok(r.samples.length);
         const acc = new Map<HealthDaySummary, number[]>();
@@ -207,7 +210,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
         acc.forEach((v, x) => { x.hrvMs = Math.round(v.reduce((a, b) => a + b, 0) / v.length); });
       })
       .catch(note('heartRateVariability').fail),
-    Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: ['average', 'min'] })
+    (noHeart ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: ['average', 'min'] }))
       .then(r => {
         note('heartRate').ok(r.samples.length);
         r.samples.forEach(s => {
@@ -224,7 +227,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       // newest first so today is always covered.
       .then(async () => {
         const missing = [...byDate.values()].some(x => x.avgHeartRate == null);
-        if (!missing) return;
+        if (!missing || noHeart) return;
         try {
           const r = await Health.readSamples({ dataType: 'heartRate', ...range, limit: 5000, ascending: false });
           const acc = new Map<HealthDaySummary, number[]>();
@@ -233,7 +236,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
           if (acc.size) lastHealthDiag.heartRate += ` (+${acc.size} day(s) from raw readings)`;
         } catch { /* the aggregate result stands */ }
       }),
-    Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 500, ascending: true })
+    (noHeart ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.readSamples({ dataType: 'restingHeartRate', ...range, limit: 500, ascending: true }))
       .then(r => { note('restingHeartRate').ok(r.samples.length); r.samples.forEach(s => { const x = day(s.startDate); if (x && s.value > 0) x.restingHeartRate = Math.round(s.value); }); })
       .catch(note('restingHeartRate').fail),
     Health.readSamples({ dataType: 'weight', ...range, limit: 200, ascending: true })

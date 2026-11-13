@@ -81,7 +81,7 @@ export default function BodyPage() {
         {loaded && !hasAny && (
           <Card className="p-4 flex flex-col gap-2">
             <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>No watch data on your account yet</p>
-            <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. You will then see 30-day trends for sleep and sleep stages, average heart rate, resting heart rate, steps, calories, weight and watch workouts, on every device.</p>
+            <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. You will then see 30-day trends for sleep and sleep stages, steps, calories, weight and watch workouts (plus heart rate on iPhone), on every device.</p>
             <GetTheAppCard />
             <Link href="/dashboard" className="text-sm underline underline-offset-2" style={{ color: HUD.amber }}>Back to dashboard</Link>
           </Card>
@@ -117,20 +117,24 @@ export default function BodyPage() {
                 </div>
               </Panel>
             )}
-            {/* Always shown (with an empty state) so it is clear what the heart
-                rate and HRV permissions are used for, even before data arrives. */}
-            <Panel title="Average heart rate" value={avgHr[29] != null ? `${avgHr[29]} bpm` : undefined} note={avgHr.some((v) => v != null) ? avgNote(mean(avgHr, 3), n => `${Math.round(n)} bpm · daily average from your watch`) : 'Daily average heart rate from your watch. Used for your heart rate tile and trends.'}>
-              <Line values={avgHr} height={64} fill label="Average heart rate, last 30 days" />
-            </Panel>
+            {/* Heart data only where the platform shares it (Apple Health). The
+                Android app does not request heart rate, so these stay hidden. */}
+            {avgHr.some((v) => v != null) && (
+              <Panel title="Average heart rate" value={avgHr[29] != null ? `${avgHr[29]} bpm` : undefined} note={avgNote(mean(avgHr, 3), n => `${Math.round(n)} bpm · daily average from your watch`)}>
+                <Line values={avgHr} height={64} fill label="Average heart rate, last 30 days" />
+              </Panel>
+            )}
             {/* HRV only when there is some (iPhone / Apple Watch); Android does not request it. */}
             {hrv.some((v) => v != null) && (
               <Panel title="Heart rate variability" value={hrv[29] != null ? `${hrv[29]} ms` : undefined} note={avgNote(mean(hrv, 3), n => `${Math.round(n)} ms · higher is usually better recovered`)}>
                 <Line values={hrv} height={64} fill label="Heart rate variability, last 30 days" />
               </Panel>
             )}
-            <Panel title={rhrIsLowest ? 'Lowest heart rate' : 'Resting heart rate'} value={rhr[29] != null ? `${rhr[29]} bpm` : undefined} note={avgNote(mean(rhr, 3), n => `${Math.round(n)} bpm`)}>
+            {rhr.some((v) => v != null) && (
+              <Panel title={rhrIsLowest ? 'Lowest heart rate' : 'Resting heart rate'} value={rhr[29] != null ? `${rhr[29]} bpm` : undefined} note={avgNote(mean(rhr, 3), n => `${Math.round(n)} bpm`)}>
               <Line values={rhr} height={72} fill label="Resting heart rate, last 30 days" />
             </Panel>
+            )}
             <Panel title="Steps" value={steps[29] != null ? steps[29]!.toLocaleString() : undefined} note={avgNote(mean(steps, 3), n => Math.round(n).toLocaleString())}>
               <Bars values={steps} refValue={10_000} height={60} label="Steps, last 30 days, dashed line at 10,000" />
             </Panel>

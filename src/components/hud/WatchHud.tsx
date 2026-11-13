@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCw, ChevronRight, Moon, HeartPulse, Footprints, Flame, Watch } from 'lucide-react';
+import { RefreshCw, ChevronRight, Moon, HeartPulse, Footprints, Flame, Watch, Dumbbell } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { todaysEaseChoice, setEaseChoice } from '@/lib/recoveryEase';
 import { readiness, brief, lastDays, series, mean, fmtMinutes, dayKey, type DayMap } from '@/lib/healthTrends';
@@ -114,6 +114,15 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
   const hasRhr = rhr7.some((v) => v != null);
   const hasMin = !hasRhr && min7.some((v) => v != null);
   // Samsung and some other watches write total calories, not active ones.
+  // Heart data only exists where the platform shares it (Apple Health). On
+  // Android the app does not request heart rate, so this tile shows the
+  // minutes recorded in watch workouts instead.
+  const hasHeart = rhr7.some((v) => v != null) || avgHr7.some((v) => v != null) || min7.some((v) => v != null);
+  const woMin = (d: string) => (days.get(d)?.workouts ?? []).reduce((acc, w) => acc + (w.minutes ?? 0), 0);
+  const wo7 = week.map((d) => { const m = woMin(d); return m > 0 ? m : null; });
+  const woToday = woMin(week[6]);
+  const woWeek = week.reduce((acc, d) => acc + woMin(d), 0);
+  const woUsual = mean(prior14.map((d) => { const m = woMin(d); return m > 0 ? m : null; }), 4);
   const kcalKey = series(days, week, 'activeKcal').some((v) => v != null) ? 'activeKcal' : 'totalKcal';
   const kcal7 = series(days, week, kcalKey);
   const sleepUsual = mean(series(days, prior14, 'sleepMinutes'), 4);
@@ -174,7 +183,8 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
           note={r.sleepDelta != null ? `${r.sleepDelta < 0 ? '−' : '+'}${fmtMinutes(r.sleepDelta)} vs usual` : 'Last 7 nights'}
           noteColor={sleepLow ? C.alert : undefined}
         />
-        <Tile
+        {hasHeart ? (
+          <Tile
           icon={<HeartPulse className="w-3.5 h-3.5" style={{ color: C.heart }} />}
           label={hasRhr ? 'Resting HR' : showAvg ? 'Avg heart rate' : hasMin ? 'Lowest HR' : 'Heart rate'}
           value={hr != null ? String(hr) : '—'} unit={hr != null ? 'bpm' : undefined}
@@ -187,6 +197,15 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
             : hasRhr ? 'Resting, today' : showAvg ? (lowOnDay != null ? `Today's average · lowest ${lowOnDay}` : "Today's average") : 'Lowest today (usually asleep)'}
           noteColor={rhrHigh ? C.alert : undefined}
         />
+        ) : (
+          <Tile
+            icon={<Dumbbell className="w-3.5 h-3.5" style={{ color: C.heart }} />}
+            label="Workout minutes"
+            value={String(woToday)} unit="min"
+            chart={<Bars values={wo7} refValue={woUsual} color={C.heart} height={26} label="Workout minutes from your watch, last 7 days" />}
+            note={woWeek > 0 ? `${woWeek} min this week` : 'Workouts from your watch'}
+          />
+        )}
         <Tile
           icon={<Footprints className="w-3.5 h-3.5" style={{ color: C.steps }} />}
           label="Steps"
@@ -212,7 +231,7 @@ export function WatchHud({ days, sourceName, busy, onSync, footer, lighter }: {
           <ChevronRight className="w-4 h-4 text-text-tertiary" />
         </Card>
       </Link>
-      <p className="text-[11px] text-text-tertiary leading-snug px-1">Readiness is a guide from your sleep and resting heart rate compared with your own usual. It is not a medical measure.</p>
+      <p className="text-[11px] text-text-tertiary leading-snug px-1">Readiness is a guide from your sleep (and resting heart rate, where your watch shares it) compared with your own usual. It is not a medical measure.</p>
     </section>
   );
 }
