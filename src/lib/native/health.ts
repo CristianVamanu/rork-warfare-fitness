@@ -16,6 +16,14 @@ import { getIdToken } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
 export const HEALTH_READ_TYPES = ['steps', 'sleep', 'heartRate', 'restingHeartRate', 'weight', 'calories', 'totalCalories', 'heartRateVariability', 'workouts'] as const;
+/**
+ * Google Play's Health Connect review rejected the Android app for asking for
+ * heart rate and HRV (minimum-scope rule), so on Android only the types the
+ * dashboard visibly needs are requested: resting heart rate drives readiness.
+ * The manifest removes the two permissions to match (AndroidManifest.xml).
+ */
+const ANDROID_SKIP = new Set(['heartRate', 'heartRateVariability']);
+const readTypes = () => HEALTH_READ_TYPES.filter((t) => !(nativePlatform() === 'android' && ANDROID_SKIP.has(t)));
 
 export interface HealthDaySummary {
   /** Local date, YYYY-MM-DD. */
@@ -99,7 +107,7 @@ export const lastHealthAuth: { allowed?: string; denied?: string } = {};
 export async function checkHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await load()).H.checkAuthorization({ read: [...HEALTH_READ_TYPES] });
+    const s = await (await load()).H.checkAuthorization({ read: readTypes() as typeof HEALTH_READ_TYPES[number][] });
     lastHealthAuth.allowed = s.readAuthorized.join(', ') || 'none';
     lastHealthAuth.denied = s.readDenied.join(', ') || 'none';
     if (s.readAuthorized.length === 0) return 'denied';
@@ -111,7 +119,7 @@ export async function checkHealthAuth(): Promise<HealthAuthState> {
 export async function requestHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await load()).H.requestAuthorization({ read: [...HEALTH_READ_TYPES], requestHistoryAccess: true });
+    const s = await (await load()).H.requestAuthorization({ read: readTypes() as typeof HEALTH_READ_TYPES[number][], requestHistoryAccess: true });
     if (s.readAuthorized.length === 0) return 'denied';
     return s.readDenied.length === 0 ? 'granted' : 'partial';
   } catch { return 'denied'; }
@@ -150,6 +158,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
   }
   const day = (iso: string) => byDate.get(localDate(new Date(iso)));
   const range = { startDate: from.toISOString(), endDate: now.toISOString() };
+  const skipHr = nativePlatform() === 'android';
 
   async function sumByDay(
     dataType: 'steps' | 'calories' | 'totalCalories',
@@ -192,7 +201,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       .catch(e => { lastHealthDiag.sources = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); }),
     sumByDay('calories', 'activeKcal', Math.round, note('calories')),
     sumByDay('totalCalories', 'totalKcal', Math.round, note('totalCalories')),
-    Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true })
+    (skipHr ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true }))
       .then(r => {
         note('heartRateVariability').ok(r.samples.length);
         const acc = new Map<HealthDaySummary, number[]>();
@@ -200,7 +209,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
         acc.forEach((v, x) => { x.hrvMs = Math.round(v.reduce((a, b) => a + b, 0) / v.length); });
       })
       .catch(note('heartRateVariability').fail),
-    Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: ['average', 'min'] })
+    (skipHr ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.queryAggregated({ dataType: 'heartRate', ...range, bucket: 'day', aggregation: ['average', 'min'] }))
       .then(r => {
         note('heartRate').ok(r.samples.length);
         r.samples.forEach(s => {
@@ -217,7 +226,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       // newest first so today is always covered.
       .then(async () => {
         const missing = [...byDate.values()].some(x => x.avgHeartRate == null);
-        if (!missing) return;
+        if (!missing || skipHr) return;
         try {
           const r = await Health.readSamples({ dataType: 'heartRate', ...range, limit: 5000, ascending: false });
           const acc = new Map<HealthDaySummary, number[]>();
