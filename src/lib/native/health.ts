@@ -16,6 +16,13 @@ import { getIdToken } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
 export const HEALTH_READ_TYPES = ['steps', 'sleep', 'heartRate', 'restingHeartRate', 'weight', 'calories', 'totalCalories', 'heartRateVariability', 'workouts'] as const;
+/**
+ * Android asks only for what the app visibly uses. Samsung Health (the main
+ * Health Connect source) does not share HRV, so it could never be shown, and
+ * Google Play rejects a permission it cannot see used. HRV stays on iPhone.
+ * Must match AndroidManifest.xml, which removes READ_HEART_RATE_VARIABILITY.
+ */
+const readTypes = () => HEALTH_READ_TYPES.filter((t) => !(nativePlatform() === 'android' && t === 'heartRateVariability'));
 
 export interface HealthDaySummary {
   /** Local date, YYYY-MM-DD. */
@@ -99,7 +106,7 @@ export const lastHealthAuth: { allowed?: string; denied?: string } = {};
 export async function checkHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await load()).H.checkAuthorization({ read: [...HEALTH_READ_TYPES] });
+    const s = await (await load()).H.checkAuthorization({ read: readTypes() });
     lastHealthAuth.allowed = s.readAuthorized.join(', ') || 'none';
     lastHealthAuth.denied = s.readDenied.join(', ') || 'none';
     if (s.readAuthorized.length === 0) return 'denied';
@@ -111,7 +118,7 @@ export async function checkHealthAuth(): Promise<HealthAuthState> {
 export async function requestHealthAuth(): Promise<HealthAuthState> {
   if (!(await isHealthAvailable())) return 'unavailable';
   try {
-    const s = await (await load()).H.requestAuthorization({ read: [...HEALTH_READ_TYPES], requestHistoryAccess: true });
+    const s = await (await load()).H.requestAuthorization({ read: readTypes(), requestHistoryAccess: true });
     if (s.readAuthorized.length === 0) return 'denied';
     return s.readDenied.length === 0 ? 'granted' : 'partial';
   } catch { return 'denied'; }
@@ -192,7 +199,7 @@ export async function readHealthDays(days = 3): Promise<HealthDaySummary[]> {
       .catch(e => { lastHealthDiag.sources = `error: ${(e as Error)?.message || String(e)}`.slice(0, 160); }),
     sumByDay('calories', 'activeKcal', Math.round, note('calories')),
     sumByDay('totalCalories', 'totalKcal', Math.round, note('totalCalories')),
-    Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true })
+    (nativePlatform() === 'android' ? Promise.resolve({ samples: [] as { startDate: string; value: number }[] }) : Health.readSamples({ dataType: 'heartRateVariability', ...range, limit: 1000, ascending: true }))
       .then(r => {
         note('heartRateVariability').ok(r.samples.length);
         const acc = new Map<HealthDaySummary, number[]>();

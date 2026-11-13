@@ -78,6 +78,7 @@
          are stripped from the merged manifest here. Add one back here AND
          to HEALTH_READ_TYPES (and the Play Health Connect declaration)
          when a feature starts reading it. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_BASAL_BODY_TEMPERATURE" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_BASAL_METABOLIC_RATE" tools:node="remove" />
     <uses-permission android:name="android.permission.health.READ_BLOOD_GLUCOSE" tools:node="remove" />
