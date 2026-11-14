@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthedNotTfaPending } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
+import { dropAndroidHeart } from '@/lib/healthHeart';
 
 export async function GET(req: NextRequest) {
   const auth = await verifyAuthedNotTfaPending(req);
@@ -30,7 +31,7 @@ export async function GET(req: NextRequest) {
   const snaps = await db.getAll(...dates.map((d) => db.doc(`healthDays/${auth.uid}_${d}`)));
   const days = snaps.filter((s) => s.exists).map((s) => {
     const { updatedAt: _u, userId: _id, ...rest } = s.data() as Record<string, unknown>;
-    return rest;
+    return dropAndroidHeart(rest);
   });
   return NextResponse.json({ days });
 }

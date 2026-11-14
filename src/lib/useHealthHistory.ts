@@ -6,6 +6,7 @@ import { db, auth } from '@/lib/firebase';
 import { getIdToken } from 'firebase/auth';
 import { lastDays, type DayMap } from '@/lib/healthTrends';
 import type { HealthDaySummary } from '@/lib/native/health';
+import { dropAndroidHeart } from '@/lib/healthHeart';
 
 /**
  * Reads the stored healthDays for the last `n` days. Docs are keyed
@@ -36,11 +37,11 @@ export function useHealthHistory(uid: string | undefined, n = 30) {
       const res = await fetch(`/api/health/days?dates=${dates.join(',')}`, { headers: { Authorization: `Bearer ${token}` } });
       if (res.ok) {
         const json = await res.json() as { days: HealthDaySummary[] };
-        for (const d of json.days) if (d?.date) m.set(d.date, d);
+        for (const d of json.days) if (d?.date) m.set(d.date, dropAndroidHeart(d));
       } else {
         // Fallback: direct reads (work wherever the healthDays rule is published).
         const snaps = await Promise.all(dates.map(d => getDoc(doc(db, 'healthDays', `${uid}_${d}`)).catch(() => null)));
-        snaps.forEach((s, i) => { if (s?.exists()) m.set(dates[i], s.data() as HealthDaySummary); });
+        snaps.forEach((s, i) => { if (s?.exists()) m.set(dates[i], dropAndroidHeart(s.data() as HealthDaySummary)); });
       }
     } catch { /* leave empty; the next sync retries */ }
     // A failed read keeps what was already showing rather than blanking it.

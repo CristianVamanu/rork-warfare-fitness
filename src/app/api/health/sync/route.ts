@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthedNotTfaPending } from '@/lib/verifyAdmin';
 import { rateLimit } from '@/lib/rateLimit';
+import { HEART_FIELDS } from '@/lib/healthHeart';
 
 /**
  * Receives the per-day wearable summaries the native app builds from Apple
@@ -77,7 +78,10 @@ export async function POST(req: NextRequest) {
   for (const day of parsed.data.days) {
     // Drop empty fields so a day with no watch data doesn't overwrite an
     // earlier sync that had some.
-    const fields = Object.fromEntries(Object.entries(day).filter(([, v]) => v !== undefined));
+    const fields: Record<string, unknown> = Object.fromEntries(Object.entries(day).filter(([, v]) => v !== undefined));
+    // Android no longer reads heart data: ignore it from older builds and
+    // remove what earlier syncs stored for this day.
+    if (day.source === 'healthconnect') for (const f of HEART_FIELDS) fields[f] = FieldValue.delete();
     batch.set(db.collection('healthDays').doc(`${auth.uid}_${day.date}`), {
       ...fields,
       userId: auth.uid,

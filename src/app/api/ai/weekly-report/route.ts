@@ -19,6 +19,7 @@ import { isInFreeTrial, hasActiveSubscription } from '@/lib/membership';
 import { getSecret } from '@/lib/secrets';
 import { resolveDateKey } from '@/lib/dailyTip';
 import { checkAndIncrementUsage, resolveLocalDate } from '@/lib/usageLimit';
+import { dropAndroidHeart } from '@/lib/healthHeart';
 import {
   reportWeek, computeWeekStats, REPORT_VERSION, rulesReport, parseReport, quietWeek, REPORT_SYSTEM_PROMPT,
   type RawEvent, type RawHealthDay, type WeeklyReport,
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
     const at = (e.createdAt as Timestamp | undefined)?.toMillis() ?? 0;
     return { type: String(e.type), at: at ? at - tzoMs : 0, payload: (e.payload ?? {}) as Record<string, unknown> };
   });
-  const health: RawHealthDay[] = healthSnaps.filter((s) => s.exists).map((s) => s.data() as RawHealthDay);
+  const health: RawHealthDay[] = healthSnaps.filter((s) => s.exists).map((s) => dropAndroidHeart(s.data() as RawHealthDay & { source?: string }));
 
   const stats = computeWeekStats(week, events, health, {
     goals: u.goals as { calories?: number; protein?: number } | undefined,
