@@ -81,7 +81,7 @@ export default function BodyPage() {
         {loaded && !hasAny && (
           <Card className="p-4 flex flex-col gap-2">
             <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>No watch data on your account yet</p>
-            <p className="text-sm" style={{ color: HUD.dim }}>Open the Warfare Fitness app on your phone and connect Health Connect or Apple Health from the dashboard. You will then see 30-day trends for sleep and sleep stages, steps, calories, weight and watch workouts (plus heart rate on iPhone), on every device.</p>
+            <p className="text-sm" style={{ color: HUD.dim }}>Connect your watch from the dashboard in the Warfare Fitness app. Your sleep, steps, calories, weight and workouts will show here as 30-day trends.</p>
             <GetTheAppCard />
             <Link href="/dashboard" className="text-sm underline underline-offset-2" style={{ color: HUD.amber }}>Back to dashboard</Link>
           </Card>
