@@ -10,12 +10,11 @@
  * today's numbers.
  */
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Watch } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import {
-  isNativeApp, nativePlatform, lastHealthDiag, lastHealthAuth, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings,
+  isNativeApp, nativePlatform, lastHealthDiag, checkHealthAuth, requestHealthAuth, syncHealth, openHealthSettings,
   healthAvailability, openHealthConnectInstall,
   type HealthAuthState, type HealthDaySummary,
 } from '@/lib/native/health';
@@ -204,60 +203,38 @@ export function HealthCard({ lighter }: { lighter?: LighterOffer | null } = {}) 
       appSessions={appSessions}
       footer={(
         <>
-          {empty && !busy && (
-            // Granted on paper, nothing came back: permissions were never actually
-            // shown (a fresh install can report a type as readable before the
-            // sheet has been seen), or the health app isn't syncing to Health
-            // Connect yet. Give both fixes a button instead of a row of dashes.
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs" style={{ color: HUD.dim }}>
-                Nothing from {sourceName} today yet.{nativePlatform() === 'android' ? ' Check Samsung Health → Settings → Health Connect is syncing.' : ''}
-              </p>
-              <div className="flex gap-1.5 flex-shrink-0">
-                <button onClick={connect} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.amber, color: HUD.ground }}>Allow access</button>
-                {nativePlatform() === 'android' && (
-                  <button onClick={openHealthSettings} className="px-2.5 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.line, color: 'var(--foreground)' }}>Open</button>
-                )}
+          {(() => {
+            // One plain card when there is nothing to show or a read failed.
+            // The raw per-type diagnostics live in Settings → health check,
+            // not on the dashboard.
+            const noSource = (lastHealthDiag.sources ?? '').startsWith('none');
+            const failed = Object.values(lastHealthDiag).some((v) => v.startsWith('error'));
+            if (busy || (!empty && !noSource && !failed)) return null;
+            const android = nativePlatform() === 'android';
+            const text = failed && !empty
+              ? 'Some of your data could not be read. Tap Allow access to check permissions.'
+              : android
+                ? 'Open Samsung Health (or your watch app) → Settings → Health Connect and turn on sharing. Your steps, sleep and workouts will appear here.'
+                : 'Make sure your watch is syncing to the Health app. Your steps, sleep and workouts will appear here.';
+            return (
+              <div className="rounded-xl p-3 space-y-2.5" style={{ background: HUD.line }}>
+                <p className="text-sm font-bold" style={{ color: 'var(--foreground)' }}>{failed && !empty ? 'Some data is missing' : 'No watch data yet'}</p>
+                <p className="text-xs leading-snug" style={{ color: HUD.dim }}>{text}</p>
+                <div className="flex gap-2">
+                  <button onClick={connect} className="px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: HUD.amber, color: HUD.ground }}>Allow access</button>
+                  {android && (
+                    <button onClick={openHealthSettings} className="px-3 py-1.5 rounded-lg text-xs font-bold active:scale-95 transition-transform" style={{ background: 'rgba(255,255,255,0.08)', color: 'var(--foreground)' }}>Open Health Connect</button>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-          {auth === 'partial' && (
+            );
+          })()}
+          {auth === 'partial' && !empty && (
             <button onClick={openHealthSettings} className="text-xs underline underline-offset-2 text-left" style={{ color: HUD.dim }}>
               Some data types are off. Manage permissions
             </button>
           )}
           {error && <p className="text-xs" style={{ color: HUD.alert }}>{error}</p>}
-          {(() => {
-            // A plain verdict from the last read, so the fix is obvious
-            // without reading the raw details.
-            const src = lastHealthDiag.sources ?? '';
-            const errs = Object.entries(lastHealthDiag).filter(([, v]) => v.startsWith('error'));
-            let msg = '';
-            if (src.startsWith('none')) msg = `${sourceName} is connected, but no app is sending it data. ${nativePlatform() === 'android' ? 'Open Samsung Health (or your watch app) → Settings → Health Connect and turn on sharing for steps, sleep and heart rate.' : 'Open the Health app and check your watch is syncing.'}`;
-            else if (errs.length) msg = `${sourceName} refused part of the read (${errs.map(([k]) => k).join(', ')}). Tap Allow access, or check permissions in ${sourceName}.`;
-            if (!msg) return null;
-            return (
-              <div className="rounded-xl p-3 text-xs leading-snug" style={{ background: 'rgba(248,113,113,0.12)', color: '#FCA5A5' }}>
-                {msg}
-                {nativePlatform() === 'android' && <button onClick={openHealthSettings} className="block mt-2 font-bold underline underline-offset-2">Open Health Connect</button>}
-              </div>
-            );
-          })()}
-          {empty && !busy && (
-            <Link href="/settings" className="block rounded-xl px-3 py-2.5 text-xs font-bold text-center" style={{ background: '#F5A623', color: '#0A0A0A' }}>
-              No watch data yet: run the health check in Settings
-            </Link>
-          )}
-          <details className="text-[11px]" style={{ color: HUD.dim }} open={empty && !busy}>
-            <summary className="cursor-pointer select-none">Details</summary>
-            <div className="mt-1.5 space-y-0.5 font-mono break-words">
-              <p>Allowed: {lastHealthAuth.allowed ?? '?'}</p>
-              <p>Not allowed: {lastHealthAuth.denied ?? '?'}</p>
-              <p>Apps feeding it: {lastHealthDiag.sources ?? '?'}</p>
-              {Object.entries(lastHealthDiag).filter(([k]) => k !== 'sources').map(([k, v]) => <p key={k}>{k}: {v}</p>)}
-              {Object.keys(lastHealthDiag).length === 0 && <p>No read has run yet. Tap sync.</p>}
-            </div>
-          </details>
         </>
       )}
     />
