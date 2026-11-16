@@ -16,6 +16,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { setSubscriptionStatus } from '@/lib/stripeMembership';
 import { membershipChangeFor, type RevenueCatEvent } from '@/lib/revenuecat';
+import { recordStoreEvent, type RcMoneyEvent } from '@/lib/finance/sync';
 
 function authorized(header: string | null): boolean {
   const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'bad json' }, { status: 400 }); }
   const event = body.event;
   if (!event) return NextResponse.json({ error: 'no event' }, { status: 400 });
+
+  // Google Play revenue ledger for the admin Finance screens (keyed by the
+  // RevenueCat event id, so a retried delivery rewrites the same row).
+  {
+    const fapp = getAdminApp(); const fdb = fapp ? getAdminDb(fapp) : null;
+    if (fdb) await recordStoreEvent(fdb, body.event as RcMoneyEvent);
+  }
 
   const change = membershipChangeFor(event, process.env.REVENUECAT_ENTITLEMENT || 'warfare_fitness_pro');
   if (change.kind === 'ignore') return NextResponse.json({ ok: true, ignored: change.reason });

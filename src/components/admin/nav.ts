@@ -1,6 +1,6 @@
 import {
   Activity, Dumbbell, Users, MessageSquare, LifeBuoy, Bell, CreditCard,
-  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle, Filter, Handshake,
+  UserCheck, Video, TrendingUp, Key, Mail, Send, Settings, RotateCcw, AlertTriangle, Filter, Handshake, Landmark,
 } from 'lucide-react';
 import type { AdminTabGroup } from './AdminShell';
 
@@ -19,7 +19,7 @@ import type { AdminTabGroup } from './AdminShell';
 export type AdminTabId =
   | 'overview' | 'programs' | 'clients' | 'messages' | 'support' | 'community'
   | 'notifications' | 'membership' | 'coaching' | 'library' | 'analytics'
-  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'funnel' | 'partners' | 'retention';
+  | 'integrations' | 'leads' | 'emails' | 'errors' | 'settings' | 'restore' | 'funnel' | 'partners' | 'retention' | 'finance';
 
 export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Activity },
@@ -36,6 +36,7 @@ export const ADMIN_TABS: { id: AdminTabId; label: string; icon: React.ElementTyp
   { id: 'retention', label: 'Retention', icon: Users },
   { id: 'funnel', label: 'Funnel', icon: Filter },
   { id: 'partners', label: 'Partners', icon: Handshake },
+  { id: 'finance', label: 'Financials', icon: Landmark },
   { id: 'integrations', label: 'Integrations', icon: Key },
   { id: 'leads', label: 'Leads', icon: Mail },
   { id: 'emails', label: 'Emails', icon: Send },
@@ -54,13 +55,14 @@ export const ADMIN_TAB_BY_ID = Object.fromEntries(
 export const ADMIN_GROUP_IDS: { label: string; ids: AdminTabId[] }[] = [
   { label: 'Operate', ids: ['overview', 'clients', 'messages', 'support', 'community', 'notifications'] },
   { label: 'Product', ids: ['programs', 'library', 'membership', 'coaching'] },
+  { label: 'Finance', ids: ['finance'] },
   { label: 'Growth', ids: ['retention', 'analytics', 'funnel', 'partners', 'leads', 'emails'] },
   { label: 'System', ids: ['integrations', 'errors', 'settings', 'restore'] },
 ];
 
 /** Tabs that are their own route rather than dashboard state. The dashboard
  *  navigates to these instead of switching its tab. */
-export const ADMIN_ROUTE_TABS: Partial<Record<AdminTabId, string>> = { partners: '/admin/partners' };
+export const ADMIN_ROUTE_TABS: Partial<Record<AdminTabId, string>> = { partners: '/admin/partners', finance: '/admin/finance' };
 
 /** `badges` decorates individual tabs, e.g. the unresolved support count. */
 export function adminGroups(badges: Partial<Record<AdminTabId, number>> = {}): AdminTabGroup<AdminTabId>[] {

@@ -9,6 +9,7 @@ import { resolveAccountEmail } from '@/lib/accountEmail';
 import { sendEmail, paymentFailedEmailHtml, trialChargeReminderEmailHtml } from '@/lib/email';
 import { describeUpcomingCharge, trialReminderSubject } from '@/lib/trialReminder';
 import type Stripe from 'stripe';
+import { mirrorStripeEvent } from '@/lib/finance/sync';
 import { partnerFromMetadata, lockAttribution, recordInvoiceCommission, recordClawback, chargeDetails } from '@/lib/partnersServer';
 
 function getAdminDb() {
@@ -561,6 +562,13 @@ export async function POST(req: NextRequest) {
     // re-applies the same end state rather than compounding.
     console.error('[Stripe webhook] Handler error — returning 500 so Stripe retries:', err);
     return NextResponse.json({ error: 'Handler failed' }, { status: 500 });
+  }
+
+  // Financial mirror (admin Finance screens). After the member-facing work,
+  // never throws, and keyed by Stripe id so a redelivery is a no-op rewrite.
+  {
+    const fdb = getAdminDb();
+    if (fdb) await mirrorStripeEvent(fdb, event);
   }
 
   // Marked only on success — see the ledger comment above.
