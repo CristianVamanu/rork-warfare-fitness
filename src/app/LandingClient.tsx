@@ -587,7 +587,7 @@ export default function LandingPage({
               screen for it, one tap, right where it is needed. */}
           <div className="group relative max-w-md mx-auto mt-8 p-5 rounded-2xl border border-accent/20 bg-surface/60 backdrop-blur-sm">
             <CornerBrackets size="w-3.5 h-3.5" />
-            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Two minutes. Eight taps. Your program.</p>
+            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Two minutes. A few taps. Your program.</p>
             <Link href="/onboarding" className="block">
               <Button size="lg" fullWidth>
                 {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
@@ -1234,6 +1234,7 @@ export default function LandingPage({
             <p className="text-text-secondary text-sm mt-2">
               {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
                 : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
+                : cardUpFrontTrial ? `Free for ${trialDays} days. Card required, nothing charged until day ${trialDays + 1}. Cancel anytime.`
                 : `Start free — ${trialDays} days on us, no card required.`}
             </p>
           </div>
@@ -1401,6 +1402,8 @@ export default function LandingPage({
             // here rather than duplicating the whole FAQ list per mode.
             a: paidTrialEnabled && i === FAQ_ITEMS.length - 1
               ? `Try it for $${trialPrice} — that gets you ${trialDays} full days before your plan's real price kicks in. Cancel anytime from your account before then and you won't be charged again.`
+              : cardUpFrontTrial && trialDays > 0 && i === FAQ_ITEMS.length - 1
+              ? `Start with the ${trialDays}-day free trial. A card is required to start it, but nothing is charged until the trial ends. Cancel anytime from your account before then and you pay nothing.`
               : item.a,
           })).map((item, i) => (
             <FaqItem
@@ -1440,7 +1443,7 @@ export default function LandingPage({
           <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
             <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
           </div>
-          {trialDays > 0 && !paidTrialEnabled && (
+          {trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial && (
             <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
               <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
             </div>

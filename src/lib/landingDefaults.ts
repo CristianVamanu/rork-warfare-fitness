@@ -45,7 +45,7 @@ export const DEFAULT_LANDING_CONFIG: LandingPageConfig = {
     // tierNote: barcode scanning is not included in the entry plan, so the
     // card says so where it is sold rather than after someone has paid.
     { title: 'Scan-a-Barcode Health Scores', desc: 'Point your camera at any product for an instant Nutri-Score, processing level, and additive breakdown — Yuka-style, built in.', tierNote: 'Vanguard' },
-    { title: 'Train Like An Elite Unit', desc: 'Ten programs built around real elite-unit training styles — SAS, Rangers, SEALs, and more — matched to your own goals and experience.' },
+    { title: 'Train Like An Elite Unit', desc: 'Programs built around real elite-unit training styles — SAS, Rangers, SEALs, and more — matched to your own goals and experience.' },
     { title: 'Fasting Timer', desc: 'Track intermittent fasts with a live stage-by-stage breakdown, from fed state to fat burning to autophagy.' },
     { title: 'Break Bad Habits', desc: 'Track any habit you\'re quitting with a running streak counter and daily motivation to keep you accountable.' },
     { title: 'Streaks, XP & Levels', desc: 'Every workout earns XP and power level. Keep your streak alive and watch your level climb.' },

@@ -24,7 +24,7 @@ export const DEFAULT_SHOWCASE: ShowcaseItem[] = [
   { src: '/showcase/02.webp', title: 'It tells you what to beat', caption: 'Remembers last time, sets the target for this set, runs the rest timer. You just lift.' },
   { src: '/showcase/03.webp', title: 'Photo your plate. Logged.', caption: 'Calories and macros from a photo, with a portion slider. Estimates, and honest about it.' },
   { src: '/showcase/04.webp', title: 'Macros, water, one screen', caption: 'Daily targets set from your stats. Tap to add water. Barcode and meal ideas built in.' },
-  { src: '/showcase/05.webp', title: 'Proof you showed up', caption: 'Streaks, XP, leaderboard, PR wall. Consistency you can see.' },
+  { src: '/showcase/05.webp', title: 'Proof you showed up', caption: 'Streaks, XP, PR wall, challenges. Consistency you can see.' },
   { src: '/showcase/06.webp', title: 'Every set counted', caption: 'Weight and reps in two taps, effort noted, rest timed. Nothing to remember.' },
   { src: '/showcase/07.webp', title: 'Your home screen', caption: 'Streak, calories, water and the next session, the moment you open it.' },
 ];

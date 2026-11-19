@@ -363,7 +363,7 @@ export function offerWords(cfg: {
 }
 
 export const DEFAULT_WHY_PRICE =
-  'A free month fills the app with people who never train. A dollar is not the price, it is the filter: it keeps the leaderboard honest and the community made of people who show up. If it is not for you, cancel in the app before the month ends and a dollar is all you paid.';
+  'A free month fills the app with people who never train. A dollar is not the price, it is the filter: it keeps the challenge boards honest and the community made of people who show up. If it is not for you, cancel in the app before the month ends and a dollar is all you paid.';
 
 export const DEFAULT_OFFER_STACK: { title: string; body: string }[] = [
   { title: 'Your matched program', body: 'Phased blocks matched to your level and kit. Loads move with your logs.' },
