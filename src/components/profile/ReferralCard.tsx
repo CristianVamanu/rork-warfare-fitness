@@ -17,15 +17,13 @@ import { Skeleton } from '@/components/ui/Skeleton';
  * while the page is open is not something anyone needs to watch update
  * live, so there is no listener here, just a plain GET.
  *
- * Hidden entirely while loading AND when the member has never generated a
- * link (joinCount 0 with no prior share) — a stat that only ever shows
- * "0 people joined" is a worse first impression than not mentioning it,
- * and the training page's Share button is what creates the code in the
- * first place, so a brand-new account legitimately has none yet.
+ * Hidden only while loading. It used to hide at zero joins, when a count
+ * was all it had to say; now it carries the offer (a month free for both
+ * sides, see lib/referralReward), which is the reason to share at all.
  */
 export function ReferralCard() {
   const { user } = useAuth();
-  const [data, setData] = useState<{ code: string; joinCount: number } | null>(null);
+  const [data, setData] = useState<{ code: string; joinCount: number; rewardCount: number } | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -36,7 +34,7 @@ export function ReferralCard() {
         const token = await getIdToken(user);
         const res = await fetch('/api/referral/link', { headers: { Authorization: `Bearer ${token}` } });
         const body = await res.json().catch(() => ({}));
-        if (!cancelled && res.ok && body.code) setData({ code: body.code, joinCount: body.joinCount ?? 0 });
+        if (!cancelled && res.ok && body.code) setData({ code: body.code, joinCount: body.joinCount ?? 0, rewardCount: body.rewardCount ?? 0 });
       } catch { /* silent — this card just doesn't render */ }
       finally { if (!cancelled) setLoaded(true); }
     })();
@@ -60,7 +58,7 @@ export function ReferralCard() {
   }
 
   if (!loaded) return null; // no skeleton flash for a card that may not render at all
-  if (!data || data.joinCount === 0) return null;
+  if (!data) return null;
 
   return (
     <Card className="p-4 flex items-center gap-3">
@@ -69,9 +67,12 @@ export function ReferralCard() {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white">
-          {data.joinCount} {data.joinCount === 1 ? 'person' : 'people'} started training because of you
+          Give a month, get a month
         </p>
-        <p className="text-xs text-text-secondary">Share your plan to bring more people in</p>
+        <p className="text-xs text-text-secondary">
+          When a friend joins through your link and pays for their first month, you both get a month free.
+          {data.joinCount > 0 && ` ${data.joinCount} joined so far`}{data.rewardCount > 0 && `, ${data.rewardCount} free ${data.rewardCount === 1 ? 'month' : 'months'} earned`}{data.joinCount > 0 && '.'}
+        </p>
       </div>
       <button
         onClick={copyLink}

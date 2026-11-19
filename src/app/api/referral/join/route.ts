@@ -31,6 +31,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { isValidReferralCode } from '@/lib/referral';
+import { recordReferrer } from '@/lib/referralReward';
 
 export async function POST(req: NextRequest) {
   const check = await verifyAuthed(req);
@@ -63,6 +64,8 @@ export async function POST(req: NextRequest) {
         joinedAt: new Date(),
         programId: typeof body.programId === 'string' ? body.programId.slice(0, 100) : null,
       }, { merge: true });
+    // Who to reward if this member goes on to pay (see lib/referralReward).
+    await recordReferrer(db, check.uid, referrerUid);
 
     return NextResponse.json({ ok: true, credited: true });
   } catch (err) {

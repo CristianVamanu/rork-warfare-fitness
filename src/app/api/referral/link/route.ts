@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
     // and it costs one small query rather than reading every join document.
     const countSnap = await db.collection('referralJoins').doc(check.uid).collection('members').count().get();
 
-    return NextResponse.json({ code, joinCount: countSnap.data().count });
+    // Free months earned so far: one per referred member who has paid.
+    const rewardSnap = await db.collection('referralRewards').where('referrerUid', '==', check.uid).count().get();
+
+    return NextResponse.json({ code, joinCount: countSnap.data().count, rewardCount: rewardSnap.data().count });
   } catch (err) {
     console.error('[referral/link] Error:', err);
     return NextResponse.json({ error: 'Could not load your referral link' }, { status: 500 });

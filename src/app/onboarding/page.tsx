@@ -1308,6 +1308,11 @@ function OnboardingPageInner() {
         {/* key={step} remounts on every step change, which is what replays
             the CSS animation. See .wf-step for why this is no longer
             framer-motion. */}
+        {referralCode && step === 0 && (
+          <p className="text-xs font-semibold text-accent border border-accent/30 bg-accent/[0.07] rounded-xl px-3 py-2 mb-3">
+            A friend invited you. Subscribe after your trial and you both get a month free.
+          </p>
+        )}
         <div key={step} className="wf-step space-y-4">
             {stepId === 'body' && (
               <StepChoice

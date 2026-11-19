@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
+import { grantReferralReward, applyPendingReferralCredit } from '@/lib/referralReward';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { resolveAccountEmail } from '@/lib/accountEmail';
@@ -236,6 +237,25 @@ export async function POST(req: NextRequest) {
           undefined,
           event.created,
         );
+        // Referral reward: a month free for both sides on a referred
+        // member's first real payment, and any credit parked for this member
+        // applied now that they have a Stripe customer. Never allowed to
+        // fail the renewal it rides on.
+        {
+          const rdb = getAdminDb();
+          const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id ?? null;
+          if (rdb) {
+            try {
+              await grantReferralReward(rdb, stripe, {
+                memberUid: userId, memberCustomerId: customerId, amountPaidCents: invoice.amount_paid ?? 0,
+                currency: invoice.currency ?? 'usd', price: sub.items?.data?.[0]?.price,
+              });
+              await applyPendingReferralCredit(rdb, stripe, userId, customerId);
+            } catch (err) {
+              console.error('[Stripe webhook] referral reward failed for invoice', invoice.id, err);
+            }
+          }
+        }
         // Partner commission: one ledger row per paid invoice, keyed by the
         // invoice id so a redelivery cannot pay twice. Computed from what
         // Stripe says was paid, minus Stripe's fee — never from anything the
