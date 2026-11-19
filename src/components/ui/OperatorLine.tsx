@@ -1,4 +1,5 @@
 import { LEGAL_OPERATOR } from '@/lib/legalDefaults';
+import { EmailLink } from '@/components/ui/EmailLink';
 
 /** Who runs the platform, for footers and legal pages. */
 export function OperatorLine({ className = '' }: { className?: string }) {
@@ -7,7 +8,7 @@ export function OperatorLine({ className = '' }: { className?: string }) {
       Operated by {LEGAL_OPERATOR.name}, registered in England and Wales
       {LEGAL_OPERATOR.number ? `, company no. ${LEGAL_OPERATOR.number}` : ''}.
       {LEGAL_OPERATOR.address ? ` ${LEGAL_OPERATOR.address}.` : ''}
-      {LEGAL_OPERATOR.email ? <> Contact: <a href={`mailto:${LEGAL_OPERATOR.email}`} className="underline underline-offset-2 hover:text-white">{LEGAL_OPERATOR.email}</a></> : null}
+      {LEGAL_OPERATOR.email ? <> Contact: <EmailLink email={LEGAL_OPERATOR.email} className="underline underline-offset-2 hover:text-white" /></> : null}
     </p>
   );
 }
