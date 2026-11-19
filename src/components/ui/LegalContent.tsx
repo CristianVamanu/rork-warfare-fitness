@@ -1,5 +1,7 @@
 'use client';
 
+import { EmailLink } from './EmailLink';
+
 /**
  * Minimal markdown-lite renderer for admin-editable legal pages.
  * Convention: a line starting with "## " is a section heading; blank
@@ -15,6 +17,26 @@
  * treatment as section labels elsewhere in the app, and body copy is
  * regular weight so a long document reads calmly.
  */
+const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+
+/**
+ * A line of text with any email address in it rendered through EmailLink.
+ * Left as plain text, Cloudflare rewrites the address in the HTML and the
+ * page fails hydration (see EmailLink). It also makes the address tappable.
+ */
+function withEmails(line: string): React.ReactNode {
+  const out: React.ReactNode[] = []; let last = 0;
+  for (const m of line.matchAll(EMAIL)) {
+    const i = m.index ?? 0;
+    if (i > last) out.push(line.slice(last, i));
+    out.push(<EmailLink key={i} email={m[0]} className="underline underline-offset-2 hover:text-white" />);
+    last = i + m[0].length;
+  }
+  if (out.length === 0) return line;
+  if (last < line.length) out.push(line.slice(last));
+  return out;
+}
+
 export function LegalContent({ text }: { text: string }) {
   const blocks = text.split(/\n\s*\n/).filter(Boolean);
   const nodes: React.ReactNode[] = [];
@@ -37,7 +59,7 @@ export function LegalContent({ text }: { text: string }) {
       <p key={`p${i}`} className="mb-4 last:mb-0">
         {lines.map((line, j) => (
           <span key={j}>
-            {line}
+            {withEmails(line)}
             {j < lines.length - 1 && <br />}
           </span>
         ))}
