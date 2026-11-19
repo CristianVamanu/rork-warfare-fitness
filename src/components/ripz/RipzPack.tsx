@@ -7,10 +7,9 @@
  * users get a plain "Rip it open" button that does the same thing.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
-import Image from 'next/image';
 import { ChevronsRight } from 'lucide-react';
 import { RIPZ_TIERS, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
-import { packVars } from './RipzWheel';
+import { packVars, PackArt } from './RipzWheel';
 import { RipzAudio, buzz } from './ripzAudio';
 
 const OPEN_AT = 0.9;
@@ -117,29 +116,23 @@ export function RipzPack({ challenge, audio, packKey, onRevealed, pack }: {
         className={`absolute inset-0 ${sealed ? (progress === 0 ? 'ripz-idle cursor-grab' : 'cursor-grabbing') : 'pointer-events-none'}`}
         style={{ ...packVars(pack), touchAction: 'none', transform: sealed && progress > 0 ? `translate(${jitter.x}px, ${jitter.y}px) rotate(${jitter.r}deg)` : undefined }}
       >
-        {/* Torn-off top strip */}
+        {/* Torn-off top strip: the top slice of the same artwork */}
         <div
-          className="absolute inset-x-0 top-0 h-[58px] ripz-foil ripz-crimp-top rounded-t-xl transition-all duration-500 ease-out"
+          className="absolute inset-x-0 top-0 h-[58px] overflow-hidden ripz-glow transition-all duration-500 ease-out"
           style={phase !== 'sealed'
             ? { transform: 'translate(70px, -150px) rotate(28deg)', opacity: 0 }
             : { transform: `rotate(${progress * 3}deg) translateY(${-progress * 6}px)`, transformOrigin: '100% 100%', transitionDuration: '0ms' }}
-        />
-        {/* Body */}
-        <div
-          className={`absolute inset-x-0 top-[58px] bottom-0 ripz-foil ripz-crimp-bottom rounded-b-xl overflow-hidden transition-all duration-500 ${phase === 'sealed' ? '' : 'translate-y-10 opacity-0 scale-95'}`}
         >
-          <div className="absolute inset-0 ripz-sheen" aria-hidden />
-          <div className="absolute inset-x-0 top-5 flex justify-center">
-            <Image src="/brand/logo-wf.webp" alt="" width={230} height={39} className="w-[120px] h-auto opacity-90" />
-          </div>
-          <p className="absolute inset-x-0 top-[92px] text-center text-[78px] leading-none font-black italic tracking-tight text-black/85 ripz-word">RIPZ</p>
-          <p className="absolute inset-x-0 bottom-9 text-center wf-readout text-[11px] font-bold text-black/85">{pack.label}</p>
-          <p className="absolute inset-x-0 bottom-4 text-center wf-readout text-[9px] font-bold text-black/55">20 to 100 reps inside</p>
+          <PackArt pack={pack} w={240} />
+        </div>
+        {/* Body: the rest of it */}
+        <div className={`absolute inset-x-0 top-[58px] bottom-0 overflow-hidden ripz-glow transition-all duration-500 ${phase === 'sealed' ? '' : 'translate-y-10 opacity-0 scale-95'}`}>
+          <div className="absolute inset-x-0 -top-[58px]"><PackArt pack={pack} w={240} /></div>
         </div>
         {/* Tear line: fills behind the finger */}
         {sealed && (
           <div className="absolute inset-x-0 top-[54px] h-2" aria-hidden>
-            <div className="absolute inset-x-2 top-[3px] border-t-2 border-dashed border-black/50" />
+            <div className="absolute inset-x-2 top-[3px] border-t-2 border-dashed border-white/70" />
             <div className="absolute left-0 top-0 h-2 rounded-r-full bg-white shadow-[0_0_14px_4px_rgba(255,255,255,0.85)]" style={{ width: `${progress * 100}%` }} />
           </div>
         )}
