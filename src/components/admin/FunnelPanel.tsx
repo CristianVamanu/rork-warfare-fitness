@@ -168,6 +168,17 @@ export function FunnelPanel() {
             </div>
           </Card>
 
+          {/* The public Ripz page, counted the same anonymous way. */}
+          <Card className="p-4 lg:p-5">
+            <p className="text-sm font-bold text-white">Ripz (public page)</p>
+            <p className="text-xs text-text-secondary mb-3">Visitors with no account. A share or a tap through to signup counts once per visit.</p>
+            <div className="grid grid-cols-4 gap-2">
+              {[['Opened', 'ripz'], ['Ripped a pack', 'ripz_rip'], ['Shared', 'ripz_share'], ['Went to signup', 'ripz_join']].map(([label, id]) => (
+                <div key={id}><p className="text-[10px] uppercase tracking-wider text-text-tertiary">{label}</p><p className="text-xl font-black text-white tabular-nums">{(t[id] ?? 0).toLocaleString('en-US')}</p></div>
+              ))}
+            </div>
+          </Card>
+
           <Card className="p-4 lg:p-5">
             <p className="text-sm font-bold text-white">Where the quiz loses people</p>
             <p className="text-xs text-text-secondary mb-3">How many reached each question. A big step down points at the question to shorten or move.</p>

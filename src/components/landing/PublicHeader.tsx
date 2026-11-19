@@ -25,6 +25,7 @@ export const PUBLIC_NAV_LINKS = [
   { href: '/', label: 'Home' },
   { href: '/programs', label: 'Programs' },
   { href: '/standards', label: 'Standards' },
+  { href: '/ripz', label: 'Ripz' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
 ];

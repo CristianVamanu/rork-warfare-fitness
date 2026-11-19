@@ -13,6 +13,8 @@
 export const FUNNEL_STEPS = [
   'visit', 'lead', 'q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9', 'q10', 'q11', 'q12', 'q13',
   'reveal', 'start', 'account', 'paid',
+  // The public Ripz page: opened it, ripped a pack, shared a pull, tapped through to signup.
+  'ripz', 'ripz_rip', 'ripz_share', 'ripz_join',
 ] as const;
 export type FunnelStep = typeof FUNNEL_STEPS[number];
 

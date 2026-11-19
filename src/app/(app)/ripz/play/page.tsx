@@ -13,7 +13,10 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-import { rollChallenge, RIPZ_TIERS, type RipzChallenge, type RipzPackDef, type RipzTier } from '@/lib/ripz';
+import { rollChallenge, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { RipzOdds } from '@/components/ripz/RipzOdds';
+import { RipzShare } from '@/components/ripz/RipzShare';
+import { getIdToken } from 'firebase/auth';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
@@ -56,6 +59,17 @@ export default function RipzPage() {
   function again() { setPack(null); setChallenge(null); setRevealed(false); setLogged(false); }
 
   const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string } } | null)?.ripz;
+
+  // The member's referral code, fetched the first time they share: the link
+  // then pays out the free month if the friend subscribes.
+  const refCode = useRef<string | null>(null);
+  async function referralCode(): Promise<string | null> {
+    if (refCode.current || !user) return refCode.current;
+    const res = await fetch('/api/referral/link', { headers: { Authorization: `Bearer ${await getIdToken(user)}` } });
+    const body = await res.json().catch(() => ({}));
+    refCode.current = res.ok && typeof body.code === 'string' ? body.code : null;
+    return refCode.current;
+  }
 
   async function done() {
     if (!user || !challenge || saving || logged) return;
@@ -112,7 +126,8 @@ export default function RipzPage() {
             ) : (
               <p className="text-center text-sm font-bold text-accent py-2">Logged. Rip another when you are ready.</p>
             )}
-            <Button fullWidth variant="secondary" onClick={again}><RotateCcw className="w-4 h-4" /> Rip another pack</Button>
+            <RipzShare challenge={challenge} getRef={referralCode} />
+            <Button fullWidth variant="ghost" onClick={again}><RotateCcw className="w-4 h-4" /> Rip another pack</Button>
             {!logged && <p className="text-center text-[11px] text-text-tertiary">A new pack can deal more or fewer. Never zero.</p>}
           </div>
         )}
@@ -132,22 +147,7 @@ export default function RipzPage() {
                 </div>
               ))}
             </div>
-            <div className="rounded-2xl border border-white/8 bg-surface p-3">
-              <p className="wf-readout text-[10px] font-bold text-text-tertiary mb-2">What a pack can deal</p>
-              <div className="space-y-1.5">
-                {(Object.keys(RIPZ_TIERS) as RipzTier[]).map((t, i, all) => {
-                  const tier = RIPZ_TIERS[t]; const next = all[i + 1]; const max = next ? RIPZ_TIERS[next].min - 5 : 200;
-                  return (
-                    <div key={t} className="flex items-center gap-2 text-xs">
-                      <span className="w-16 font-bold" style={{ color: tier.color }}>{tier.label}</span>
-                      <span className="w-20 text-text-secondary tabular-nums">{tier.min}–{max} reps</span>
-                      <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${tier.chance * 100 / 0.35}%`, background: tier.color }} /></span>
-                      <span className="w-9 text-right text-text-tertiary tabular-nums">{Math.round(tier.chance * 100)}%</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            <RipzOdds />
           </div>
         )}
       </div>
