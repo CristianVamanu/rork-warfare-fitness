@@ -44,6 +44,15 @@ export default function ChallengesPage() {
       </div>
       <PaywallGate feature="community" noTaste>
         <div className="px-4 py-4 max-w-2xl mx-auto space-y-6">
+          {/* The 30-day Ripz challenge runs by itself, with no proof to post, so it has its own screen. */}
+          <Link href="/ripz/challenge" className="flex items-center gap-3 p-4 rounded-2xl border border-accent/30 bg-accent/[0.07]">
+            <span className="w-11 h-14 rounded-md ripz-foil flex items-center justify-center text-[10px] font-black italic text-black/85 -rotate-6">RIPZ</span>
+            <span className="flex-1">
+              <span className="block text-xs font-bold uppercase tracking-[0.18em] text-accent">30-day challenge</span>
+              <span className="block text-base font-black text-white">One pack a day for 30 days</span>
+              <span className="block text-xs text-text-secondary">It ramps up every week. Start any day.</span>
+            </span>
+          </Link>
           {loading ? (
             <div className="space-y-3">{[1, 2].map((i) => <Skeleton key={i} className="h-56 rounded-2xl" />)}</div>
           ) : all.length === 0 ? (

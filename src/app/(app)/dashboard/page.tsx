@@ -30,6 +30,7 @@ import { updateWidget } from '@/lib/native/widget';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
 import { IntakeFollowUp } from '@/components/dashboard/IntakeFollowUp';
+import { RipzHomeCard } from '@/components/dashboard/RipzHomeCard';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
@@ -453,15 +454,8 @@ export default function DashboardPage() {
         />
 
         {/* Store buttons on the web once the listings are live; null in the apps. */}
-        {/* Ripz: tear a pack, get a bodyweight challenge. */}
-        <Link href="/ripz/play" className="flex items-center gap-3 p-3 rounded-2xl border border-accent/30 bg-accent/[0.07] wf-rise">
-          <span className="w-10 h-12 rounded-md ripz-foil flex items-center justify-center text-[10px] font-black italic text-black/85 -rotate-6">RIPZ</span>
-          <span className="flex-1">
-            <span className="block text-sm font-black text-white">Rip a pack</span>
-            <span className="block text-xs text-text-secondary">Swipe it open. Do what it deals: 20 to 200 reps.</span>
-          </span>
-          <ChevronRight className="w-4 h-4 text-accent" />
-        </Link>
+        {/* Ripz: the 30-day challenge while one is running, free play otherwise. */}
+        <RipzHomeCard />
         <IntakeFollowUp />
         <GetTheAppCard />
 

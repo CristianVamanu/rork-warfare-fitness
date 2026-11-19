@@ -19,15 +19,18 @@ export function ripzShareUrl(origin: string, c: RipzChallenge, ref?: string | nu
   return `${origin}/ripz?${q.toString()}`;
 }
 
-export function RipzShare({ challenge, getRef }: {
+export function RipzShare({ challenge, getRef, text: customText, label }: {
   challenge: RipzChallenge;
+  /** Replaces the default "I pulled…" line (the 30-day challenge says which day it is). */
+  text?: string;
+  label?: string;
   /** Resolves the member's referral code, or null. Omitted on the public page. */
   getRef?: () => Promise<string | null>;
 }) {
   async function share() {
     const ref = getRef ? await getRef().catch(() => null) : null;
     const url = ripzShareUrl(window.location.origin, challenge, ref);
-    const text = `I pulled ${challenge.count} ${challenge.move.name.toLowerCase()} on Ripz. What do you get?`;
+    const text = customText ?? `I pulled ${challenge.count} ${challenge.move.name.toLowerCase()} on Ripz. What do you get?`;
     funnelHit('ripz_share');
     try {
       if (navigator.share) { await navigator.share({ title: 'Ripz', text, url }); return; }
@@ -38,5 +41,5 @@ export function RipzShare({ challenge, getRef }: {
     try { await navigator.clipboard.writeText(`${text} ${url}`); toast.success('Link copied. Send it to a friend.'); }
     catch { toast.error('Could not copy the link'); }
   }
-  return <Button fullWidth variant="secondary" onClick={share}><Share2 className="w-4 h-4" /> Share my pull</Button>;
+  return <Button fullWidth variant="secondary" onClick={share}><Share2 className="w-4 h-4" /> {label ?? 'Share my pull'}</Button>;
 }

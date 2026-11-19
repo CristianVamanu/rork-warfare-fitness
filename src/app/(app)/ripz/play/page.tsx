@@ -7,7 +7,8 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { doc, setDoc, increment, serverTimestamp } from 'firebase/firestore';
-import { Volume2, VolumeX, Check, RotateCcw } from 'lucide-react';
+import Link from 'next/link';
+import { Volume2, VolumeX, Check, RotateCcw, ChevronRight } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -147,6 +148,13 @@ export default function RipzPage() {
                 </div>
               ))}
             </div>
+            <Link href="/ripz/challenge" className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/[0.07] p-3">
+              <span className="flex-1">
+                <span className="block text-sm font-black text-white">30-day Ripz challenge</span>
+                <span className="block text-xs text-text-secondary">One pack a day. It ramps up every week.</span>
+              </span>
+              <ChevronRight className="w-4 h-4 text-accent" />
+            </Link>
             <RipzOdds />
           </div>
         )}
