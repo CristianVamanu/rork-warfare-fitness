@@ -46,14 +46,14 @@ export function RipzPack({ challenge, audio, packKey, onRevealed, pack }: {
   // Count the number up once the card is out, ticking as it climbs.
   useEffect(() => {
     if (phase !== 'revealed') return;
-    const total = challenge.count; const start = performance.now(); const dur = 650 + total * 6;
+    const total = challenge.count; const start = performance.now(); const dur = 650 + Math.min(total, 120) * 6;
     let raf = 0; let last = -1;
     const step = (now: number) => {
       const k = Math.min(1, (now - start) / dur);
       const n = Math.max(1, Math.round((1 - Math.pow(1 - k, 3)) * total));
-      if (n !== last) { last = n; setShown(n); if (n % 2 === 0 || n === total) audio.tick(n / 100); }
+      if (n !== last) { last = n; setShown(n); if (n % 2 === 0 || n === total) audio.tick(n / 200); }
       if (k < 1) raf = requestAnimationFrame(step);
-      else { audio.sting(['rookie', 'soldier', 'veteran', 'elite'].indexOf(challenge.tier)); buzz(challenge.tier === 'elite' ? [40, 30, 40, 30, 120] : 60); onRevealed(); }
+      else { audio.sting(['rookie', 'soldier', 'veteran', 'elite', 'legend'].indexOf(challenge.tier)); buzz(challenge.tier === 'elite' || challenge.tier === 'legend' ? [40, 30, 40, 30, 120] : 60); onRevealed(); }
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);

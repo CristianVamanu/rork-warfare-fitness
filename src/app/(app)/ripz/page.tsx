@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Ripz: tear a pack, get a bodyweight challenge of 20 to 100 reps. Do it and
+ * Ripz: tear a pack, get a bodyweight challenge of 20 to 200 reps. Do it and
  * log it, or rip again for a different number, which may be higher or lower.
  * The rules live in lib/ripz; this page is the stage around the pack.
  */

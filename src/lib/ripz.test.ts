@@ -8,7 +8,7 @@ function seeded(seed: number) {
 }
 
 describe('ripz', () => {
-  it('always deals 20 to 100 in fives, never 0', () => {
+  it('always deals 20 to 200 in fives, never 0', () => {
     const rng = seeded(1);
     let prev: RipzChallenge | null = null;
     for (let i = 0; i < 5000; i++) {
@@ -37,7 +37,12 @@ describe('ripz', () => {
   it('holds at the edges of the generator', () => {
     expect(rollChallenge(null, () => 0).count).toBe(RIPZ_MIN);
     expect(rollChallenge(null, () => 0.999999).count).toBe(RIPZ_MAX);
-    expect(RIPZ_COUNTS).toHaveLength(17);
+    expect(RIPZ_COUNTS).toHaveLength(37);
+  });
+  it('keeps the big numbers rare: most packs are 100 or under, about 1 in 20 is a Legend', () => {
+    const rng = seeded(5); let legend = 0; let prev: RipzChallenge | null = null; const N = 20000;
+    for (let i = 0; i < N; i++) { const c = rollChallenge(prev, rng); if (c.count > 100) { legend++; expect(c.tier).toBe('legend'); } prev = c; }
+    expect(legend / N).toBeGreaterThan(0.035); expect(legend / N).toBeLessThan(0.065);
   });
   it('a coloured pack always deals its own move, and never the same number twice running', () => {
     const rng = seeded(11);
@@ -53,6 +58,6 @@ describe('ripz', () => {
     expect(RIPZ_PACKS).toHaveLength(6);
   });
   it('tiers by size', () => {
-    expect([20, 39, 40, 60, 80, 100].map(tierFor)).toEqual(['rookie', 'rookie', 'soldier', 'veteran', 'elite', 'elite']);
+    expect([20, 39, 40, 60, 80, 100, 105, 200].map(tierFor)).toEqual(['rookie', 'rookie', 'soldier', 'veteran', 'elite', 'elite', 'legend', 'legend']);
   });
 });
