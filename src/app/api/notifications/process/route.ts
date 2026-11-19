@@ -27,6 +27,7 @@ import { timingSafeEqualString } from '@/lib/crypto';
 import { isNudgeDue, daysBetween, nudgeCopy, isMissedToday, aiMotivationDue } from '@/lib/nudgeSchedule';
 import { getMockProgram, getNextSession } from '@/lib/programs';
 import type { Program } from '@/types';
+import { ripzReminder, type ChallengeRecord } from '@/lib/ripzChallenge';
 
 async function generateMotivation(userName: string, streak: number): Promise<{ title: string; body: string }> {
   const apiKey = await getSecret('OPENAI_API_KEY');
@@ -257,14 +258,14 @@ export async function POST(req: NextRequest) {
     const baseUrl = process.env.INTERNAL_APP_URL ?? 'http://localhost:3000';
     const cronSecret = process.env.CRON_SECRET;
 
-    const sendPush = async (userId: string, title: string, body: string) => {
+    const sendPush = async (userId: string, title: string, body: string, url?: string) => {
       try {
         const headers: Record<string, string> = { 'Content-Type': 'application/json' };
         if (cronSecret) headers['Authorization'] = `Bearer ${cronSecret}`;
         await fetch(`${baseUrl}/api/push/send`, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ userId, title, body }),
+          body: JSON.stringify({ userId, title, body, ...(url ? { url } : {}) }),
           // A self-call: if the app is mid-reload this hangs, and the hourly
           // run stalls on one user's push instead of moving on.
           signal: AbortSignal.timeout(10_000),
@@ -382,6 +383,33 @@ export async function POST(req: NextRequest) {
           usersFailed++;
           firstFailure ??= err instanceof Error ? err.message : String(err);
           console.error(`[notifications/process] checkout recovery failed for ${u.id}:`, err);
+        }
+      }
+
+      // 30-day Ripz challenge: an evening nudge when today's pack has not been
+      // logged. Ahead of the morning gate below because its hour is its own
+      // (early evening, the member's time): a morning reminder for a thing
+      // with a midnight deadline is forgotten by lunch. ripzReminder decides
+      // everything, including once-a-day; the stamp is what it reads back.
+      // On unless the admin switches the rule off.
+      if (rules['ripz_challenge'] !== false && u.ripzChallenge) {
+        try {
+          const ripzToday = localDateStrFor(u.timezone, 0);
+          const nudge = ripzReminder({ rec: u.ripzChallenge as ChallengeRecord, today: ripzToday, localHour: localHourFor(u.timezone), lastSent: u.lastRipzReminderDate });
+          if (nudge) {
+            await db.collection('notifications').add({
+              userId: u.id, trainerId: u.trainerId ?? null,
+              title: nudge.title, body: nudge.body, type: 'auto_ripz_challenge', actionUrl: '/ripz/challenge', actionLabel: 'Open my pack',
+              read: false, createdAt: Timestamp.now(),
+            });
+            await db.collection('users').doc(u.id).update({ lastRipzReminderDate: ripzToday });
+            await sendPush(u.id, nudge.title, nudge.body, '/ripz/challenge');
+            sent.push(`ripz_challenge:${u.id}`);
+          }
+        } catch (err) {
+          usersFailed++;
+          firstFailure ??= err instanceof Error ? err.message : String(err);
+          console.error(`[notifications/process] ripz reminder failed for ${u.id}:`, err);
         }
       }
 

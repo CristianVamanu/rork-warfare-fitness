@@ -6,15 +6,17 @@
  * page keeps the record on the member's profile (`ripzChallenge`) and adds
  * each finished day to their Ripz totals.
  */
-import { useMemo, useRef } from 'react';
-import { doc, setDoc, updateDoc, increment, serverTimestamp, deleteField } from 'firebase/firestore';
+import { useEffect, useMemo, useRef } from 'react';
+import toast from 'react-hot-toast';
+import { doc, setDoc, updateDoc, increment, serverTimestamp, deleteField, arrayUnion } from 'firebase/firestore';
 import { getIdToken } from 'firebase/auth';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { Header } from '@/components/layout/Header';
 import { RipzChallengeScreen, type ChallengeStore } from '@/components/ripz/RipzChallengeScreen';
-import type { ChallengeRecord } from '@/lib/ripzChallenge';
+import { challengeBadges, type ChallengeRecord } from '@/lib/ripzChallenge';
+import { ACHIEVEMENT_DEFS } from '@/lib/achievements';
 
 export default function RipzChallengePage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -53,6 +55,24 @@ export default function RipzChallengePage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, today, best]);
+
+  // Badges follow from the stored record, so they are granted here whenever
+  // the page sees one that is earned and not yet on the profile: after day 7
+  // is logged, on finishing, and for a finish reached by the calendar alone.
+  // arrayUnion makes a repeat harmless.
+  const have = (profile as unknown as { achievements?: string[] } | null)?.achievements;
+  const owed = challengeBadges(rec, today).filter((id) => !(have ?? []).includes(id)).join(',');
+  useEffect(() => {
+    if (!user || !profile || !owed) return;
+    const ids = owed.split(',');
+    setDoc(doc(db, 'users', user.uid), { achievements: arrayUnion(...ids) }, { merge: true })
+      .then(() => {
+        for (const id of ids) { const d = ACHIEVEMENT_DEFS.find((x) => x.id === id); if (d) toast.success(`${d.icon} Badge earned: ${d.title}`); }
+        void refreshProfile();
+      })
+      .catch((err) => console.error('[ripz challenge] badge failed', err));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [owed, user?.uid]);
 
   if (!user) return null;
   return (

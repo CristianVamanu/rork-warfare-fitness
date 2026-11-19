@@ -158,6 +158,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                 <li>Pick any pack each day, rip it, do the reps.</li>
                 <li>One retry a day. It can land higher or lower, and then it is final.</li>
                 <li>{REST_PASSES} rest passes. Miss a fourth day and the challenge is over.</li>
+                <li>If the day is still open at 6pm, we send you a reminder.</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-white/8 bg-surface p-3">

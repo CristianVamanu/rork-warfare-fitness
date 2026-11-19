@@ -6,7 +6,7 @@ export interface AchievementDef {
   icon: string;
   title: string;
   desc: string;
-  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition' | 'challenges' | 'community';
+  category: 'workouts' | 'streak' | 'power' | 'time' | 'nutrition' | 'challenges' | 'community' | 'ripz';
 }
 
 export const ACHIEVEMENT_DEFS: AchievementDef[] = [
@@ -16,6 +16,10 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   { id: 'challenge_5',    icon: '🏹', title: 'Battle-Tested',     desc: '5 verified challenges',           category: 'challenges' },
   { id: 'challenge_10',   icon: '⚔️', title: 'Veteran',           desc: '10 verified challenges',          category: 'challenges' },
   { id: 'challenge_25',   icon: '🛡️', title: 'Warfare Elite',     desc: '25 verified challenges',          category: 'challenges' },
+  // 30-day Ripz challenge — awarded by the challenge page from the stored
+  // record (lib/ripzChallenge), never by the client check below.
+  { id: 'ripz_7',         icon: '🎴', title: 'First Week Ripped', desc: '7 days of the 30-day Ripz challenge', category: 'ripz' },
+  { id: 'ripz_30',        icon: '🏆', title: 'Thirty for Thirty', desc: 'Finish the 30-day Ripz challenge',    category: 'ripz' },
   // Workout milestones — first one stays an easy onboarding win, the rest
   // scaled up meaningfully so they mean something and give long-term goals.
   { id: 'first_workout',  icon: '💪', title: 'Day One',           desc: 'Complete your first workout',     category: 'workouts' },

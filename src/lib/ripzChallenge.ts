@@ -92,3 +92,33 @@ export function challengeView(rec: ChallengeRecord | null | undefined, today: st
   const state: ChallengeState = missed > REST_PASSES ? 'failed' : (isDone(CHALLENGE_DAYS) || past) ? 'complete' : 'active';
   return { state, day, doneToday, doneCount, missed, passesLeft: Math.max(0, REST_PASSES - missed), totalReps, grid, range: rangeForDay(day) };
 }
+
+/** Badge ids this record has earned (see ACHIEVEMENT_DEFS: ripz_7, ripz_30). */
+export function challengeBadges(rec: ChallengeRecord | null | undefined, today: string): string[] {
+  const v = challengeView(rec, today);
+  const out: string[] = [];
+  if (v.doneCount >= 7) out.push('ripz_7');
+  if (v.state === 'complete' || (rec?.completed ?? 0) > 0) out.push('ripz_30');
+  return out;
+}
+
+/** The member's local hour at which an unfinished day is nudged: early evening. */
+export const RIPZ_REMINDER_HOUR = 18;
+
+/**
+ * The daily reminder, or null when none is due. One a day at most, only
+ * while a challenge is running and today is still open, and only in the
+ * reminder hour. The wording follows what is at stake: an opened pack not
+ * yet logged, the last rest pass gone, or the final day.
+ */
+export function ripzReminder(input: { rec: ChallengeRecord | null | undefined; today: string; localHour: number; lastSent?: string | null }): { title: string; body: string } | null {
+  const { rec, today, localHour, lastSent } = input;
+  if (localHour !== RIPZ_REMINDER_HOUR || lastSent === today) return null;
+  const v = challengeView(rec, today);
+  if (v.state !== 'active' || v.doneToday) return null;
+  const p = rec?.pending && rec.pending.day === v.day ? rec.pending : null;
+  if (p) return { title: `Day ${v.day}: ${p.count} ${p.move.toLowerCase()} to log`, body: 'You ripped it. Do the reps and log the day before midnight.' };
+  if (v.day === CHALLENGE_DAYS) return { title: 'Day 30. The last pack.', body: `${v.range.min}–${v.range.max} reps and the challenge is yours.` };
+  if (v.passesLeft === 0) return { title: `Day ${v.day}: no rest passes left`, body: 'Miss today and the challenge ends. Rip your pack.' };
+  return { title: `Day ${v.day} of ${CHALLENGE_DAYS}: your pack is waiting`, body: `Today is ${v.range.min}–${v.range.max} reps. Rip it before midnight.` };
+}

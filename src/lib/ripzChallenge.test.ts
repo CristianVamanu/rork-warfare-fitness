@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rangeForDay, rollChallengeDay, challengeView, CHALLENGE_DAYS, type ChallengeRecord } from './ripzChallenge';
+import { rangeForDay, rollChallengeDay, challengeView, challengeBadges, ripzReminder, CHALLENGE_DAYS, type ChallengeRecord } from './ripzChallenge';
 
 function seeded(seed: number) { let s = seed; return () => { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
 const done = (ds: number[]) => Object.fromEntries(ds.map((d) => [String(d), { count: 50, move: 'Push-ups', date: 'x' }]));
@@ -45,5 +45,26 @@ describe('30-day ripz challenge', () => {
     // Day 30 itself missed, calendar over: still complete if the misses are within the passes.
     expect(challengeView({ startedAt: '2026-11-15', days: done(all.filter((d) => d !== 30)) }, '2026-12-16').state).toBe('complete');
     expect(challengeView({ startedAt: '2026-11-15', days: done(all.filter((d) => d > 4)) }, '2026-12-14').state).toBe('failed');
+  });
+  it('awards the week badge at 7 days and the finish badge on completion, and keeps it after a restart', () => {
+    expect(challengeBadges({ startedAt: '2026-11-01', days: done([1, 2, 3, 4, 5, 6]) }, '2026-11-07')).toEqual([]);
+    expect(challengeBadges({ startedAt: '2026-11-01', days: done([1, 2, 3, 4, 5, 6, 7]) }, '2026-11-07')).toEqual(['ripz_7']);
+    expect(challengeBadges({ startedAt: '2026-11-15', days: done(Array.from({ length: 30 }, (_, i) => i + 1)) }, '2026-12-14')).toEqual(['ripz_7', 'ripz_30']);
+    expect(challengeBadges({ startedAt: '2026-12-20', days: {}, completed: 1 }, '2026-12-20')).toEqual(['ripz_30']);
+    expect(challengeBadges(null, '2026-12-20')).toEqual([]);
+  });
+  it('reminds once, in the evening, only while today is still open', () => {
+    const rec: ChallengeRecord = { startedAt: '2026-11-01', days: done([1, 2]) };
+    const at = (o: Partial<Parameters<typeof ripzReminder>[0]>) => ripzReminder({ rec, today: '2026-11-03', localHour: 18, ...o });
+    expect(at({})?.title).toBe('Day 3 of 30: your pack is waiting');
+    expect(at({ localHour: 17 })).toBeNull();
+    expect(at({ lastSent: '2026-11-03' })).toBeNull();
+    expect(at({ lastSent: '2026-11-02' })).not.toBeNull();
+    expect(at({ rec: { ...rec, days: done([1, 2, 3]) } })).toBeNull();
+    expect(at({ rec: null })).toBeNull();
+    expect(at({ today: '2026-11-20' })).toBeNull(); // failed long ago
+    expect(at({ rec: { ...rec, pending: { day: 3, packId: 'gold', moveId: 'push-ups', move: 'Push-ups', count: 60, rips: 1 } } })?.title).toBe('Day 3: 60 push-ups to log');
+    expect(ripzReminder({ rec: { startedAt: '2026-11-01', days: done([1]) }, today: '2026-11-05', localHour: 18 })?.title).toBe('Day 5: no rest passes left');
+    expect(ripzReminder({ rec: { startedAt: '2026-11-01', days: done(Array.from({ length: 29 }, (_, i) => i + 1)) }, today: '2026-11-30', localHour: 18 })?.title).toBe('Day 30. The last pack.');
   });
 });
