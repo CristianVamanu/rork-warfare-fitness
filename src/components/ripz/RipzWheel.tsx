@@ -58,10 +58,11 @@ const FACETS = (() => {
  */
 export function PackArt({ pack, w, back }: { pack: RipzPackDef; w: number; back?: boolean }) {
   return (
-    <div className="absolute left-0 top-0" style={{ ...packVars(pack), width: w, height: w * 1.585, fontSize: w / 10, clipPath: ZIG, WebkitClipPath: ZIG }}>
+    <div className="wf-dark absolute left-0 top-0" style={{ ...packVars(pack), width: w, height: w * 1.585, fontSize: w / 10, clipPath: ZIG, WebkitClipPath: ZIG }}>
       <div className="absolute inset-0 ripz-foil-base" />
       <div className="absolute inset-0 mix-blend-overlay" style={{ backgroundImage: FACETS, backgroundSize: '100% 100%' }} aria-hidden />
-      <div className="absolute inset-0 ripz-sheen" aria-hidden />
+      {/* No moving sheen on the backs: six fewer animations on a slow phone. */}
+      {!back && <div className="absolute inset-0 ripz-sheen" aria-hidden />}
       {/* crimped seals */}
       <div className="absolute inset-x-0 top-0 h-[8%] ripz-seal" aria-hidden />
       <div className="absolute inset-x-0 bottom-0 h-[8%] ripz-seal" aria-hidden />
@@ -107,6 +108,8 @@ export function RipzWheel({ audio, onPick }: { audio: RipzAudio; onPick: (pack: 
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { x: e.clientX, start: angle, moved: 0, lastIdx: idxAt(angle) };
     setDragging(true);
+    // Browsers only let sound start from a touch; wake it on the first one.
+    audio.unlock();
   }
   function move(e: React.PointerEvent) {
     const d = drag.current; if (!d) return;
@@ -121,12 +124,20 @@ export function RipzWheel({ audio, onPick }: { audio: RipzAudio; onPick: (pack: 
     setAngle((a) => Math.round(a / STEP) * STEP);
   }
 
+  // The browser took the gesture (a vertical scroll that began on the wheel).
+  // Settle the ring, and never treat it as a tap: that picked a pack by itself.
+  function cancel() {
+    if (!drag.current) return;
+    drag.current = null; setDragging(false);
+    setAngle((a) => Math.round(a / STEP) * STEP);
+  }
+
   return (
     <div>
       <div
         className="ripz-stage relative mx-auto h-[300px] w-full max-w-[390px] overflow-hidden select-none cursor-grab"
         style={{ touchAction: 'pan-y' }}
-        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
+        onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={cancel}
         role="group" aria-label={`Pack wheel. ${front.label} pack in front.`}
       >
         <div

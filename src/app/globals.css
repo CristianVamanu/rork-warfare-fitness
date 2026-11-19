@@ -863,6 +863,7 @@ html:not(.light) .wf-art::after {
   background:
     linear-gradient(115deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.35) 45%, rgba(255,255,255,0) 60%),
     linear-gradient(160deg, var(--ripz-1, #FFC65A) 0%, var(--ripz-2, #F5A623) 28%, var(--ripz-3, #B86A08) 62%, var(--ripz-2, #F5A623) 100%);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.25);
   box-shadow: 0 18px 50px color-mix(in srgb, var(--ripz-2, #F5A623) 40%, transparent), inset 0 0 0 1px rgba(255,255,255,0.25);
 }
 .ripz-crimp-top { border-top: 10px solid transparent; border-image: repeating-linear-gradient(90deg, rgba(0,0,0,0.35) 0 3px, rgba(255,255,255,0.25) 3px 6px) 10; }
@@ -895,9 +896,10 @@ html:not(.light) .wf-art::after {
 /* Ripz booster-pack artwork (PackArt) */
 .ripz-foil-base { background: linear-gradient(165deg, var(--ripz-1) 0%, var(--ripz-2) 30%, var(--ripz-3) 68%, var(--ripz-2) 100%); }
 .ripz-seal { background: repeating-linear-gradient(90deg, rgba(0,0,0,0.28) 0 2px, rgba(255,255,255,0.22) 2px 4px), linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.25)); }
-.ripz-glow { filter: drop-shadow(0 14px 26px color-mix(in srgb, var(--ripz-2, #F5A623) 45%, transparent)); }
+/* Each color-mix rule has a plain one before it: a browser too old for color-mix keeps that instead of dropping the whole declaration. */
+.ripz-glow { filter: drop-shadow(0 14px 26px rgba(0,0,0,0.5)); filter: drop-shadow(0 14px 26px color-mix(in srgb, var(--ripz-2, #F5A623) 45%, transparent)); }
 .ripz-letters { transform: scaleY(2.3) skewX(-9deg); transform-origin: 50% 0; letter-spacing: -0.04em; text-shadow: 0 0.03em 0.08em rgba(0,0,0,0.35); }
-.ripz-emblem { background: radial-gradient(circle at 35% 30%, var(--ripz-1), var(--ripz-3) 62%, #05070b 100%); box-shadow: 0 0 0 0.12em rgba(255,255,255,0.9), 0 0 0.9em 0.25em color-mix(in srgb, var(--ripz-1) 80%, white), inset 0 0 0.6em rgba(0,0,0,0.6); }
-.ripz-emblem-core { background: #05070b; box-shadow: 0 0 0 0.14em #fff, 0 0 0.7em 0.2em color-mix(in srgb, var(--ripz-1) 70%, white), inset 0 0 0.3em var(--ripz-1); }
+.ripz-emblem { background: radial-gradient(circle at 35% 30%, var(--ripz-1), var(--ripz-3) 62%, #05070b 100%); box-shadow: 0 0 0 0.12em rgba(255,255,255,0.9), 0 0 0.9em 0.25em rgba(255,255,255,0.5), inset 0 0 0.6em rgba(0,0,0,0.6); box-shadow: 0 0 0 0.12em rgba(255,255,255,0.9), 0 0 0.9em 0.25em color-mix(in srgb, var(--ripz-1) 80%, white), inset 0 0 0.6em rgba(0,0,0,0.6); }
+.ripz-emblem-core { background: #05070b; box-shadow: 0 0 0 0.14em #fff, 0 0 0.7em 0.2em rgba(255,255,255,0.5); box-shadow: 0 0 0 0.14em #fff, 0 0 0.7em 0.2em color-mix(in srgb, var(--ripz-1) 70%, white), inset 0 0 0.3em var(--ripz-1); }
 .ripz-emblem-tick { box-shadow: 0 0 0.3em rgba(255,255,255,0.9); mix-blend-mode: screen; }
 .ripz-back { transform: rotateY(180deg); filter: none; }

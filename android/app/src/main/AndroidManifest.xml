@@ -59,6 +59,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- navigator.vibrate() from the web page (rest timer, weight slider, Ripz).
+         Without it the web view ignores the call silently. Normal permission:
+         no prompt, nothing for the member to grant. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Barcode scanner and meal photos use the camera from the web page
          (getUserMedia / <input capture>). Without this declaration Android
          auto-denies the web view's request with no prompt. -->

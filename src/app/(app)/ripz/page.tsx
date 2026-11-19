@@ -30,6 +30,9 @@ export default function RipzPage() {
   const [logged, setLogged] = useState(false);
   const [saving, setSaving] = useState(false);
   const last = useRef<RipzChallenge | null>(null);
+  const actions = useRef<HTMLDivElement>(null);
+  // On a short screen the buttons land below the fold; bring them up.
+  useEffect(() => { if (revealed) actions.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }, [revealed]);
 
   const [pack, setPack] = useState<RipzPackDef | null>(null);
 
@@ -58,13 +61,18 @@ export default function RipzPage() {
     if (!user || !challenge || saving || logged) return;
     setSaving(true);
     try {
-      await setDoc(doc(db, 'users', user.uid), {
+      // Offline, a Firestore write waits for the network before it resolves,
+      // though it is already saved on the device and will sync. Do not leave
+      // the button spinning on it: after a moment, count it as logged.
+      const write = setDoc(doc(db, 'users', user.uid), {
         ripz: {
           completed: increment(1), reps: increment(challenge.count), lastAt: serverTimestamp(),
           // Biggest pull finished so far, for the record tile.
           ...(challenge.count > (stats?.best ?? 0) ? { best: challenge.count, bestMove: challenge.move.name } : {}),
         },
       }, { merge: true });
+      await Promise.race([write, new Promise((r) => setTimeout(r, 2500))]);
+      write.catch((err) => console.error('[ripz] log failed', err));
       setLogged(true);
       toast.success(`${challenge.count} ${challenge.move.name.toLowerCase()} logged`);
       void refreshProfile();
@@ -98,7 +106,7 @@ export default function RipzPage() {
         </div>
 
         {revealed && challenge && (
-          <div className="space-y-2 wf-rise">
+          <div ref={actions} className="space-y-2 wf-rise scroll-mb-28">
             {!logged ? (
               <Button fullWidth onClick={done} disabled={saving}><Check className="w-4 h-4" /> Done. Log it</Button>
             ) : (

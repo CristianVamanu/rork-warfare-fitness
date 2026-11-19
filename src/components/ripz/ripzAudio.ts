@@ -27,6 +27,9 @@ export class RipzAudio {
     return this.ctx;
   }
 
+  /** Call from a touch or click so later sounds are allowed to play. */
+  unlock() { this.ensure(); }
+
   /** Finger down: start the (silent) crackle bed. */
   dragStart() {
     const ctx = this.ensure();
