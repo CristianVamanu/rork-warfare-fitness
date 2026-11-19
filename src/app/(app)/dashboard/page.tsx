@@ -29,6 +29,7 @@ import { precachePage } from '@/lib/offlinePages';
 import { updateWidget } from '@/lib/native/widget';
 import { easeSummary, todaysEaseChoice } from '@/lib/recoveryEase';
 import { GetTheAppCard } from '@/components/dashboard/GetTheAppCard';
+import { IntakeFollowUp } from '@/components/dashboard/IntakeFollowUp';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { FastingWidget } from '@/components/dashboard/FastingWidget';
 import { DailyTip } from '@/components/dashboard/DailyTip';
@@ -452,6 +453,7 @@ export default function DashboardPage() {
         />
 
         {/* Store buttons on the web once the listings are live; null in the apps. */}
+        <IntakeFollowUp />
         <GetTheAppCard />
 
         {/* The day's tip. Renders nothing when there is none. */}

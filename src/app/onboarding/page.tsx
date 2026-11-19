@@ -62,10 +62,18 @@ const EXPERIENCE: { value: ExperienceLevel; label: string; sub: string }[] = EXP
 type StepId = 'body' | 'you' | 'goal' | 'areas' | 'experience' | 'days' | 'equipment' | 'break' | 'blocker' | 'priority' | 'biometrics' | 'analysing' | 'email';
 // Goal first: it is the thing the visitor came for, and answering it is
 // the first small commitment. Everything the matcher needs is still asked.
-const STEPS_ANON: StepId[] = ['goal', 'body', 'you', 'experience', 'days', 'equipment', 'break', 'areas', 'blocker', 'priority', 'biometrics', 'analysing', 'email'];
+//
+// Body type, problem areas, blocker and priority are no longer asked here.
+// None of them reaches the matcher (see the /api/public/match-program
+// payload), so they were four screens between a stranger and their program
+// that changed nothing about it. They are asked on the dashboard instead
+// (components/dashboard/IntakeFollowUp), one tap each, once the person is
+// inside. The step renderers stay so a draft or profile that already holds
+// an answer keeps it.
+const STEPS_ANON: StepId[] = ['goal', 'you', 'experience', 'days', 'equipment', 'break', 'biometrics', 'analysing', 'email'];
 // Already signed in (resuming an unfinished quiz): no email step, and the
 // program is generated from the last screen exactly as before.
-const STEPS_AUTHED: StepId[] = ['goal', 'body', 'you', 'experience', 'days', 'equipment', 'break', 'areas', 'blocker', 'priority', 'biometrics'];
+const STEPS_AUTHED: StepId[] = ['goal', 'you', 'experience', 'days', 'equipment', 'break', 'biometrics'];
 
 // 2 (and 1) deliberately excluded — zero programs in the catalog are built
 // for that few days/week, so offering it just set an expectation the
@@ -1314,6 +1322,7 @@ function OnboardingPageInner() {
               <StepYou
                 sex={sex} onSex={setSex} age={age} onAge={setAge}
                 showSexPicker={!hadPrefilledSex} showAgeInput={!hadPrefilledAge}
+                onDone={() => selectAndAdvance(step, () => {})}
               />
             )}
             {stepId === 'goal' && (
@@ -1638,11 +1647,15 @@ function OptionTile({
   );
 }
 
-function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
+function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput, onDone }: {
   sex: BiologicalSex | null; onSex: (v: BiologicalSex) => void;
   age: string; onAge: (v: string) => void;
   showSexPicker: boolean; showAgeInput: boolean;
+  /** Both answers are in by tap: move on, so nobody scrolls for Continue. */
+  onDone: () => void;
 }) {
+  const ageNow = parseInt(age, 10);
+  const ageOk = Number.isFinite(ageNow) && ageNow >= MIN_AGE && ageNow <= 100;
   // Whichever of sex/age was not already answered on the landing page or
   // /register is asked here, on its own screen, second. Both feed the
   // matcher (sex excludes the wrong programs, age the wrong brackets) and
@@ -1658,7 +1671,7 @@ function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
           {SEX_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
-              onClick={() => onSex(value)}
+              onClick={() => { onSex(value); if (!showAgeInput || ageOk) onDone(); }}
               className={`p-5 text-center rounded-2xl border transition-all ${
                 sex === value ? 'border-accent bg-accent/10' : 'border-white/10 bg-surface-elevated hover:border-white/20'
               }`}
@@ -1683,7 +1696,7 @@ function StepYou({ sex, onSex, age, onAge, showSexPicker, showAgeInput }: {
                 <button
                   key={b.label}
                   type="button"
-                  onClick={() => onAge(String(b.mid))}
+                  onClick={() => { onAge(String(b.mid)); if (!showSexPicker || sex) onDone(); }}
                   className={`py-3 rounded-xl border text-sm font-bold transition-all ${on ? 'border-accent bg-accent/10 text-white' : 'border-white/10 bg-surface-elevated text-text-secondary hover:border-white/20'}`}
                 >
                   {b.label}

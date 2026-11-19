@@ -12,7 +12,7 @@ describe('intel break', () => {
     expect(b.rows[2].value).toMatch(/Four days/);
     expect(b.rows[3].value).toMatch(/Bodyweight/);
     for (const r of b.rows) expect(r.why.length).toBeGreaterThan(20);
-    expect(b.note).toMatch(/A few questions left/);
+    expect(b.note).toMatch(/One step left/);
   });
   it('only describes what was answered, and still says something for a selection candidate', () => {
     const b = intelBreakFor({ trainingFor: 'selection', goal: null, experience: null, trainingDays: null, equipment: null });

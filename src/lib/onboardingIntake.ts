@@ -199,7 +199,7 @@ export function intelBreakFor(a: {
     eyebrow: 'Taking shape',
     title: rows.length >= 3 ? 'Here is how your program is being built.' : 'Here is what we know so far.',
     rows,
-    note: 'A few questions left. Your problem areas, what stopped you before and what you would prioritise shape how the program is coached. Your body stats fix the exact match and set your nutrition targets.',
+    note: 'One step left. Your body stats fix the exact match and set your nutrition targets.',
   };
 }
 

@@ -24,8 +24,9 @@ import { useEffect, useState, useCallback } from 'react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { getSystemConfig } from '@/lib/firestore';
-import { hasActiveSubscription } from '@/lib/membership';
+import { getSystemConfig, getMembershipConfig } from '@/lib/firestore';
+import { hasActiveSubscription, isInFreeTrial } from '@/lib/membership';
+import type { MembershipConfig } from '@/types';
 import { getYouTubeEmbedUrl } from '@/lib/utils';
 import { Modal } from './Modal';
 import { Button } from './Button';
@@ -37,7 +38,15 @@ export function WelcomeVideo() {
   const [checked, setChecked] = useState(false);
 
   const isStaff = profile?.role === 'admin' || profile?.role === 'trainer';
-  const entitled = hasActiveSubscription(profile);
+  // A no-card free trial grants access with no subscription on the profile
+  // at all: the window runs from account creation (see MembershipGuard). So
+  // "has a subscription" alone never opened this for a trial member, which
+  // under that mode is every new signup. Also open when membership is
+  // switched off entirely, where everyone has access.
+  const [membershipCfg, setMembershipCfg] = useState<MembershipConfig | null | undefined>(undefined);
+  const entitled = hasActiveSubscription(profile)
+    || (membershipCfg !== undefined && !!profile?.onboardingComplete
+      && (!membershipCfg?.enabled || isInFreeTrial(membershipCfg, profile?.createdAt)));
   // `undefined` on a profile that simply predates this field is the same as
   // "not seen" — which is why existing members are backfilled at deploy
   // (scripts/backfill-welcome-video.mjs) rather than being shown a welcome
@@ -52,6 +61,7 @@ export function WelcomeVideo() {
   useEffect(() => {
     if (checked || !user || alreadySeen || isStaff) return;
     setChecked(true);
+    getMembershipConfig().then(setMembershipCfg).catch(() => setMembershipCfg(undefined));
     getSystemConfig()
       .then((cfg) => {
         const v = cfg?.videoGreetingUrl as string | undefined;
