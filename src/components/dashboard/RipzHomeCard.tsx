@@ -1,22 +1,42 @@
 'use client';
 
 /**
- * Ripz on the dashboard: one plain card into the Ripz page. The 30-day
- * challenge is offered inside Ripz, for whoever wants it, rather than taking
- * over the home screen.
+ * Ripz on the dashboard. With no challenge running it is a plain "Ripz" card
+ * into the Ripz page, where the 30-day challenge is offered. Once a
+ * challenge is running it shows the day and whether today's pack is still to
+ * do, and opens the challenge.
  */
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Check } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLocalDate } from '@/hooks/useLocalDate';
+import { challengeView, CHALLENGE_DAYS, type ChallengeRecord } from '@/lib/ripzChallenge';
 
 export function RipzHomeCard() {
+  const { profile } = useAuth();
+  const today = useLocalDate();
+  const rec = (profile as unknown as { ripzChallenge?: ChallengeRecord } | null)?.ripzChallenge ?? null;
+  const v = challengeView(rec, today);
+  const active = v.state === 'active';
   return (
-    <Link href="/ripz/play" className="flex items-center gap-3 p-3 rounded-2xl border border-accent/30 bg-accent/[0.07] wf-rise">
+    <Link href={active ? '/ripz/challenge' : '/ripz/play'} className="flex items-center gap-3 p-3 rounded-2xl border border-accent/30 bg-accent/[0.07] wf-rise">
       <span className="w-10 h-12 rounded-md ripz-foil flex items-center justify-center text-[10px] font-black italic text-black/85 -rotate-6">RIPZ</span>
       <span className="flex-1">
-        <span className="block text-sm font-black text-white">Ripz</span>
-        <span className="block text-xs text-text-secondary">Rip a pack. Do what it deals.</span>
+        {active ? (
+          <>
+            <span className="block text-sm font-black text-white">Ripz challenge · Day {v.day} of {CHALLENGE_DAYS}</span>
+            <span className="block text-xs text-text-secondary">
+              {v.doneToday ? 'Done for today. Come back tomorrow.' : `Today's pack is waiting: ${v.range.min}–${v.range.max} reps.`}
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="block text-sm font-black text-white">Ripz</span>
+            <span className="block text-xs text-text-secondary">Rip a pack. Do what it deals.</span>
+          </>
+        )}
       </span>
-      <ChevronRight className="w-4 h-4 text-accent" />
+      {active && v.doneToday ? <Check className="w-4 h-4 text-accent" /> : <ChevronRight className="w-4 h-4 text-accent" />}
     </Link>
   );
 }
