@@ -13,7 +13,7 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-import { rollChallenge, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { rollChallenge, RIPZ_TIERS, type RipzChallenge, type RipzPackDef, type RipzTier } from '@/lib/ripz';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
@@ -52,12 +52,18 @@ export default function RipzPage() {
   /** Back to the wheel for another pack. */
   function again() { setPack(null); setChallenge(null); setRevealed(false); setLogged(false); }
 
+  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string } } | null)?.ripz;
+
   async function done() {
     if (!user || !challenge || saving || logged) return;
     setSaving(true);
     try {
       await setDoc(doc(db, 'users', user.uid), {
-        ripz: { completed: increment(1), reps: increment(challenge.count), lastAt: serverTimestamp() },
+        ripz: {
+          completed: increment(1), reps: increment(challenge.count), lastAt: serverTimestamp(),
+          // Biggest pull finished so far, for the record tile.
+          ...(challenge.count > (stats?.best ?? 0) ? { best: challenge.count, bestMove: challenge.move.name } : {}),
+        },
       }, { merge: true });
       setLogged(true);
       toast.success(`${challenge.count} ${challenge.move.name.toLowerCase()} logged`);
@@ -70,12 +76,11 @@ export default function RipzPage() {
     }
   }
 
-  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number } } | null)?.ripz;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div>
       <Header />
-      <div className="px-4 pt-2 pb-28 max-w-md mx-auto">
+      <div className="px-4 pt-2 max-w-md mx-auto">
         <div className="flex items-start justify-between">
           <div>
             <p className="wf-readout text-[10px] font-bold text-accent">Pick a pack. Rip it. Do the work.</p>
@@ -86,7 +91,7 @@ export default function RipzPage() {
           </button>
         </div>
 
-        <div className={`mt-8 min-h-[380px] ${pack ? 'mb-16' : 'mb-4'}`}>
+        <div className={`mt-5 ${pack ? 'mb-16 min-h-[380px]' : 'mb-4'}`}>
           {pack && challenge
             ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} />
             : <RipzWheel audio={audio} onPick={pick} />}
@@ -104,10 +109,38 @@ export default function RipzPage() {
           </div>
         )}
 
-        {!!stats?.completed && (
-          <p className="text-center text-xs text-text-secondary mt-6">
-            {stats.completed} pack{stats.completed === 1 ? '' : 's'} done · {(stats.reps ?? 0).toLocaleString()} reps
-          </p>
+        {/* Under the wheel: the member's record and what the packs can deal. */}
+        {!pack && (
+          <div className="space-y-3 mt-5">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { label: 'Packs done', value: (stats?.completed ?? 0).toLocaleString() },
+                { label: 'Total reps', value: (stats?.reps ?? 0).toLocaleString() },
+                { label: 'Best pull', value: stats?.best ? String(stats.best) : '–' },
+              ].map((t) => (
+                <div key={t.label} className="rounded-2xl border border-white/8 bg-surface px-2 py-3 text-center">
+                  <p className="text-xl font-black text-white tabular-nums">{t.value}</p>
+                  <p className="wf-readout text-[9px] font-bold text-text-tertiary mt-0.5">{t.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-surface p-3">
+              <p className="wf-readout text-[10px] font-bold text-text-tertiary mb-2">What a pack can deal</p>
+              <div className="space-y-1.5">
+                {(Object.keys(RIPZ_TIERS) as RipzTier[]).map((t, i, all) => {
+                  const tier = RIPZ_TIERS[t]; const next = all[i + 1]; const max = next ? RIPZ_TIERS[next].min - 5 : 200;
+                  return (
+                    <div key={t} className="flex items-center gap-2 text-xs">
+                      <span className="w-16 font-bold" style={{ color: tier.color }}>{tier.label}</span>
+                      <span className="w-20 text-text-secondary tabular-nums">{tier.min}–{max} reps</span>
+                      <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${tier.chance * 100 / 0.35}%`, background: tier.color }} /></span>
+                      <span className="w-9 text-right text-text-tertiary tabular-nums">{Math.round(tier.chance * 100)}%</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
