@@ -8,7 +8,7 @@ describe('funnel', () => {
     expect(isFunnelStep('q14')).toBe(false);
     expect(isFunnelStep('__proto__')).toBe(false);
     expect(isFunnelStep('ripz_share')).toBe(true);
-    expect(FUNNEL_STEPS.length).toBe(23);
+    expect(FUNNEL_STEPS.length).toBe(24);
   });
   it('turns a campaign tag into a safe token', () => {
     expect(normalizeCampaign('Men_30_50')).toBe('men_30_50');
