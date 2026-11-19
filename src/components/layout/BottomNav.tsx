@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -90,9 +91,47 @@ export function LegacyBottomNav() {
   );
 }
 
+/**
+ * Keeps a fixed bar on the visible bottom edge when the browser's layout
+ * lags behind what is on screen.
+ *
+ * `position: fixed; bottom: 0` is measured against the layout viewport. On
+ * iOS (Chrome above all, with its retracting toolbars) that viewport can
+ * trail the visible one while scrolling, and the bar is drawn part-way up
+ * the screen with the page showing beneath it. The visual viewport API
+ * reports where the visible area really ends, so when it ends lower than
+ * the layout viewport does, the bar is moved down by the difference. When
+ * the two agree, which is always on a browser without the problem, this
+ * does nothing. It never lifts the bar (an open keyboard shortens the
+ * visible area, and a nav riding above the keyboard would be worse).
+ */
+function usePinToVisibleBottom(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const vv = window.visualViewport; const el = ref.current;
+    if (!vv || !el) return;
+    let raf = 0;
+    const fix = () => {
+      raf = 0;
+      const gap = vv.offsetTop + vv.height - window.innerHeight;
+      el.style.bottom = gap > 1 ? `${-Math.round(gap)}px` : '';
+    };
+    const queue = () => { if (!raf) raf = requestAnimationFrame(fix); };
+    vv.addEventListener('resize', queue); vv.addEventListener('scroll', queue);
+    window.addEventListener('scroll', queue, { passive: true }); window.addEventListener('resize', queue);
+    fix();
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      vv.removeEventListener('resize', queue); vv.removeEventListener('scroll', queue);
+      window.removeEventListener('scroll', queue); window.removeEventListener('resize', queue);
+    };
+  }, [ref]);
+}
+
 function AppNav({ pathname }: { pathname: string }) {
+  const navRef = useRef<HTMLElement>(null);
+  usePinToVisibleBottom(navRef);
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main"
+    <nav ref={navRef} className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main"
       // The strip under the floating bar is filled, so content never shows
       // through between the bar and the bottom of the screen.
       style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.92) 45%, #0A0A0A 100%)', paddingTop: 18 }}>

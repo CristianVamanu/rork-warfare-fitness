@@ -16,6 +16,8 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
 import { rollChallenge, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
 import { RipzOdds } from '@/components/ripz/RipzOdds';
+import { useLocalDate } from '@/hooks/useLocalDate';
+import { challengeView, CHALLENGE_DAYS, type ChallengeRecord } from '@/lib/ripzChallenge';
 import { RipzShare } from '@/components/ripz/RipzShare';
 import { getIdToken } from 'firebase/auth';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
@@ -59,6 +61,8 @@ export default function RipzPage() {
   /** Back to the wheel for another pack. */
   function again() { setPack(null); setChallenge(null); setRevealed(false); setLogged(false); }
 
+  const today = useLocalDate();
+  const chal = challengeView((profile as unknown as { ripzChallenge?: ChallengeRecord } | null)?.ripzChallenge ?? null, today);
   const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string } } | null)?.ripz;
 
   // The member's referral code, fetched the first time they share: the link
@@ -148,10 +152,20 @@ export default function RipzPage() {
                 </div>
               ))}
             </div>
+            {/* The 30-day challenge is opt-in and lives here, not on the home screen. */}
             <Link href="/ripz/challenge" className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/[0.07] p-3">
               <span className="flex-1">
-                <span className="block text-sm font-black text-white">30-day Ripz challenge</span>
-                <span className="block text-xs text-text-secondary">One pack a day. It ramps up every week.</span>
+                {chal.state === 'active' ? (
+                  <>
+                    <span className="block text-sm font-black text-white">30-day challenge · Day {chal.day} of {CHALLENGE_DAYS}</span>
+                    <span className="block text-xs text-text-secondary">{chal.doneToday ? 'Done for today. Come back tomorrow.' : `Today's pack is waiting: ${chal.range.min}–${chal.range.max} reps.`}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="block text-sm font-black text-white">Want more? Take the 30-day challenge</span>
+                    <span className="block text-xs text-text-secondary">One pack a day. It ramps up every week.</span>
+                  </>
+                )}
               </span>
               <ChevronRight className="w-4 h-4 text-accent" />
             </Link>

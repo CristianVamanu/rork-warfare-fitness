@@ -1,5 +1,6 @@
 'use client';
 
+import { lockScroll } from '@/lib/scrollLock';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -67,11 +68,10 @@ export function ChatDrawer() {
   // Lock the page behind the panel, and close on Escape.
   useEffect(() => {
     if (!chatOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const release = lockScroll();
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeChat(); };
     document.addEventListener('keydown', onKey);
-    return () => { document.body.style.overflow = prev; document.removeEventListener('keydown', onKey); };
+    return () => { release(); document.removeEventListener('keydown', onKey); };
   }, [chatOpen, closeChat]);
 
   useEffect(() => {

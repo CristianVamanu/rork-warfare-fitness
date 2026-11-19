@@ -1,5 +1,6 @@
 'use client';
 
+import { lockScroll } from '@/lib/scrollLock';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu, X, Home } from 'lucide-react';
@@ -55,9 +56,7 @@ export function AdminShell<Id extends string>({
   useEffect(() => { setOpen(false); }, [active]);
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    return lockScroll();
   }, [open]);
 
   const nav = (

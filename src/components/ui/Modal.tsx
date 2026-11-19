@@ -1,5 +1,6 @@
 'use client';
 
+import { lockScroll } from '@/lib/scrollLock';
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -57,13 +58,11 @@ export function Modal({ open, onClose, title, children, className, footer, dismi
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // Counted, shared lock: see lib/scrollLock for why this must never be
+  // left on by a dialog and a drawer closing in the wrong order.
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
+    if (!open) return;
+    return lockScroll();
   }, [open]);
 
   // This component is the ONLY dialog primitive in the app, and until now it
