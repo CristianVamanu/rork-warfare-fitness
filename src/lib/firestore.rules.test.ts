@@ -218,6 +218,62 @@ describe('users/{uid} — program switch allowance', () => {
   });
 });
 
+describe('1-to-1 coaching programs', () => {
+  // A full-library member: every other gate is open to her, so anything
+  // refused below is refused by the coaching rule alone.
+  async function seedCoaching(aliceProgram = 'lib1') {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'config', 'planEntitlements'), { membership: { vanguard: ['premium-programs'] } });
+      await setDoc(doc(db, 'programs', 'lib1'), { name: 'Library', isPublic: true, visibility: 'public' });
+      await setDoc(doc(db, 'programs', 'lib2'), { name: 'Library two', isPublic: true });
+      // Published coaching programs used to be saved with isPublic: true.
+      await setDoc(doc(db, 'programs', 'coach1'), { name: 'Built for Bob', isPublic: true, visibility: 'coaching' });
+      await setDoc(doc(db, 'users', ALICE), {
+        role: 'user', displayName: 'A', membership: { status: 'active', planId: 'vanguard' },
+        activeProgram: { programId: aliceProgram, programName: 'x', completedWorkouts: 1 },
+      });
+    });
+  }
+
+  it('refuses a member enrolling herself in a coaching program', async () => {
+    await seedCoaching();
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'coach1', programName: 'Built for Bob' } }));
+  });
+
+  it('is not fooled by a forged programProgress entry', async () => {
+    await seedCoaching();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { programProgress: { coach1: { programName: 'x', completedWorkouts: 3, totalWorkouts: 10 } } }));
+    await assertFails(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'coach1', programName: 'Built for Bob' } }));
+  });
+
+  it('still lets her switch between library programs', async () => {
+    await seedCoaching();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'lib2', programName: 'Library two' } }));
+  });
+
+  it('lets an admin assign one, and the member then log progress on it', async () => {
+    await seedCoaching();
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', ALICE), { activeProgram: { programId: 'coach1', programName: 'Built for Bob', completedWorkouts: 0 } }));
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'coach1', programName: 'Built for Bob', completedWorkouts: 1, lastCompletedDayIndex: 0 } }));
+  });
+
+  it('keeps the program itself private to staff and the member it was assigned to', async () => {
+    await seedCoaching();
+    await assertFails(getDoc(doc(asAlice(), 'programs', 'coach1')));
+    await assertSucceeds(getDoc(doc(asAlice(), 'programs', 'lib1')));
+    await assertSucceeds(getDoc(doc(asAdmin(), 'programs', 'coach1')));
+    await seedCoaching('coach1'); // as if a trainer had assigned it
+    await assertSucceeds(getDoc(doc(asAlice(), 'programs', 'coach1')));
+    await assertFails(getDoc(doc(asBob(), 'programs', 'coach1')));
+  });
+
+  it('refuses a member listing the whole collection, and allows staff', async () => {
+    await seedCoaching();
+    await assertFails(getDocs(collection(asAlice(), 'programs')));
+    await assertSucceeds(getDocs(collection(asAdmin(), 'programs')));
+  });
+});
+
 describe('channel mute', () => {
   async function seedChannelAnd(muteUntil: 'none' | 'forever' | 'past') {
     await seed(async (db) => {

@@ -689,7 +689,9 @@ function BuilderInner() {
         // value on save (stripUndefinedDeep would drop undefined and keep it).
         nextProgramId: prog.nextProgramId || null,
         schedule: prog.phases.length > 0 ? prog.phases[0].schedule : prog.schedule,
-        isPublic: publish || prog.visibility === 'public',
+        // A 1-to-1 coaching program is never public, published or not: public
+        // is what puts a program in front of the quiz matcher and the library.
+        isPublic: prog.visibility === 'coaching' ? false : (publish || prog.visibility === 'public'),
         exercises: unique.map(e => ({ ...e, reps: e.reps })),
         createdBy: user.uid,
         trainerId: user.uid,

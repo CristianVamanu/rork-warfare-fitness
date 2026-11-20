@@ -1,5 +1,6 @@
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { MOCK_PROGRAMS, rankPrograms } from '@/lib/programs';
+import { isCoachingProgram } from '@/lib/coachingPrograms';
 import { buildProgramMarketing, type ProgramMarketing } from '@/lib/programMarketing';
 import type { Program } from '@/types';
 
@@ -76,7 +77,9 @@ export async function programPool(): Promise<Program[]> {
   const app = getAdminApp();
   if (!app) return MOCK_PROGRAMS;
   const snap = await getAdminDb(app).collection('programs').where('isPublic', '==', true).get();
-  const adminPrograms = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Program);
+  // 1-to-1 coaching programs are assigned by a trainer, never matched. A
+  // published one used to carry isPublic: true, so the query alone let it in.
+  const adminPrograms = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Program).filter((p) => !isCoachingProgram(p));
   return adminPrograms.length > 0 ? adminPrograms : MOCK_PROGRAMS;
 }
 

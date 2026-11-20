@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { isCoachingProgram } from '@/lib/coachingPrograms';
 import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -707,7 +708,9 @@ function OnboardingPageInner() {
         if (preselectedProgramId) {
           try {
             const resolved = await resolveProgram(preselectedProgramId);
-            if (resolved) {
+            // A 1-to-1 coaching program cannot be picked through a link:
+            // fall through to the normal match instead.
+            if (resolved && !isCoachingProgram(resolved)) {
               program = { id: resolved.id, name: resolved.name, description: resolved.description, weeks: resolved.weeks, daysPerWeek: resolved.daysPerWeek, marketing: buildProgramMarketing(resolved) };
             }
           } catch {

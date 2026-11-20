@@ -17,6 +17,7 @@ export const dynamic = 'force-dynamic';
  * double anyone's inbox.
  */
 
+import { isCoachingProgram } from '@/lib/coachingPrograms';
 import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp, FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
@@ -63,7 +64,8 @@ export async function POST(req: NextRequest) {
     const progSnap = await db.collection('programs').doc(offer.id).get();
     const program = (progSnap.exists ? { id: progSnap.id, ...progSnap.data() } : MOCK_PROGRAMS.find((p) => p.id === offer.id)) as Program | undefined;
     const first = program ? dripDayFor(program, 1) : null;
-    if (!program || !first) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 404 });
+    // A 1-to-1 coaching program is never given away as a free plan either.
+    if (!program || !first || isCoachingProgram(program)) return NextResponse.json({ ok: false, reason: 'Not available' }, { status: 404 });
 
     // Already running for this address? Say yes and change nothing.
     const existing = await db.collection('landingLeads').where('email', '==', email).where('source', '==', 'free-plan').limit(5).get();

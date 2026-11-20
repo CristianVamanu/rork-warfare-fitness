@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 
 /** One-time purchase checkout for an individual program (alternative to membership gating). */
 
+import { isCoachingProgram } from '@/lib/coachingPrograms';
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe } from '@/lib/stripe';
 import { getOrCreateStripeCustomer } from '@/lib/stripeCustomer';
@@ -28,6 +29,8 @@ export async function POST(req: NextRequest) {
     const progSnap = await db.collection('programs').doc(programId).get();
     if (!progSnap.exists) return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     const program = progSnap.data() as Program;
+    // A 1-to-1 coaching program is assigned by a trainer, never bought.
+    if (isCoachingProgram(program)) return NextResponse.json({ error: 'Program not found' }, { status: 404 });
     if (!program.price || program.price <= 0) return NextResponse.json({ error: 'Program price not set' }, { status: 400 });
 
     // Unlike plan-checkout (which already rejects a duplicate subscription

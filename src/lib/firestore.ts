@@ -952,8 +952,19 @@ async function loadProgramList(): Promise<Record<string, unknown>[]> {
     return body.programs as Record<string, unknown>[];
   } catch (err) {
     console.warn('[programs] Lean list unavailable, falling back to a direct read:', err);
-    const snap = await getDocs(collection(db, 'programs'));
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    try {
+      const snap = await getDocs(collection(db, 'programs'));
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    } catch (readErr) {
+      // The whole collection is readable by staff only (firestore.rules keeps
+      // 1-to-1 coaching programs private). A member whose list request failed
+      // gets the last list this device loaded rather than an error.
+      const { getAuth } = await import('firebase/auth');
+      const uid = getAuth().currentUser?.uid;
+      const cached = uid ? peekProgramList(uid) : null;
+      if (cached) return cached;
+      throw readErr;
+    }
   }
 }
 
@@ -985,7 +996,8 @@ export function selectPublicPrograms(all: Record<string, unknown>[], trainerId?:
     return list.filter((p) => p.trainerId === trainerId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   }
   return list
-    .filter((p) => p.isPublic === true || p.visibility === 'public')
+    // Never a 1-to-1 coaching program: those reach a member by assignment only.
+    .filter((p) => p.visibility !== 'coaching' && (p.isPublic === true || p.visibility === 'public'))
     .sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 

@@ -204,6 +204,27 @@ service cloud.firestore {
           && get(/databases/$(database)/documents/config/membership).data.get('lockedProgramIds', []).hasAny([programId]));
     }
 
+    // A 1-to-1 coaching program (programs/{id}.visibility == 'coaching') is
+    // written for one client and reaches them only when a trainer or admin
+    // assigns it. Nothing else may put a member on one: not the quiz, not a
+    // link with its id, not a write from the browser console.
+    function programIsCoaching(programId) {
+      return exists(/databases/$(database)/documents/programs/$(programId))
+        && get(/databases/$(database)/documents/programs/$(programId)).data.get('visibility', '') == 'coaching';
+    }
+
+    // A member's own write may keep the program they are on (logging a
+    // session rewrites activeProgram with the same programId, including one a
+    // trainer assigned), but may never CHANGE to a coaching program. Having
+    // been on one before does not count: programProgress is the member's own
+    // to write, so it cannot be the proof. Going back needs the trainer.
+    function coachingEnrollAllowed() {
+      return !('activeProgram' in request.resource.data.diff(resource.data).affectedKeys())
+        || !('programId' in request.resource.data.activeProgram)
+        || request.resource.data.activeProgram.programId == resource.data.get('activeProgram', {}).get('programId', null)
+        || !programIsCoaching(request.resource.data.activeProgram.programId);
+    }
+
     // Same idea for a program with a one-time price set (pay-per-program,
     // independent of membership) — only meaningful for a promoted program
     // doc, same limitation as programIsMembersOnly above.
@@ -426,6 +447,7 @@ service cloud.firestore {
           ) &&
           activeProgramWriteAllowed() &&
           premiumEnrollAllowed() &&
+          coachingEnrollAllowed() &&
           switchCounterSane() &&
           // xp is computed in the browser and written here, so nothing stopped
           // a member setting it to any number they liked and having the
@@ -578,7 +600,21 @@ service cloud.firestore {
 
     // ── Programs ──────────────────────────────────────────────────────────
     match /programs/{programId} {
-      allow read:  if isAuthed();
+      // Everyone signed in may read the library. A 1-to-1 coaching program
+      // is private: staff, and the one member a trainer has put on it (their
+      // activeProgram, which they cannot point at a coaching program
+      // themselves, see coachingEnrollAllowed).
+      allow get: if isAuthed() && (
+        resource == null
+        || resource.data.get('visibility', '') != 'coaching'
+        || callerRole() in ['admin', 'trainer']
+        || get(/databases/$(database)/documents/users/$(uid())).data.get('activeProgram', {}).get('programId', '') == programId
+      );
+      // Listing the collection is for staff only. A member's list comes from
+      // /api/programs/list, which leaves out coaching programs that are not
+      // theirs. (A per-document condition here is not enough: tested in the
+      // emulator, a member's unfiltered query was still allowed through.)
+      allow list: if isAuthed() && callerRole() in ['admin', 'trainer'];
       allow write: if isAdmin();
     }
 

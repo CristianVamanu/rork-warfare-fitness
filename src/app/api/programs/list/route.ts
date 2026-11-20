@@ -26,6 +26,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Timestamp } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { verifyAuthed } from '@/lib/verifyAdmin';
+import { isCoachingProgram, memberHasCoachingProgram } from '@/lib/coachingPrograms';
 
 /** Big enough to be worth removing, and never read by a list view. */
 const HEAVY_FIELDS = ['schedule', 'phases', 'exercises'] as const;
@@ -38,9 +39,15 @@ export async function GET(req: NextRequest) {
   if (!app) return NextResponse.json({ error: 'Firebase Admin not configured' }, { status: 500 });
 
   try {
-    const snap = await getAdminDb(app).collection('programs').get();
+    const db = getAdminDb(app);
+    const [snap, meSnap] = await Promise.all([db.collection('programs').get(), db.collection('users').doc(check.uid).get()]);
+    const me = meSnap.data() ?? {};
+    const staff = me.role === 'admin' || me.role === 'trainer';
 
-    const programs = snap.docs.map((d) => {
+    // 1-to-1 coaching programs go only to staff and to the member a trainer
+    // put on them. Everyone else never receives them, not even by name.
+    const visible = snap.docs.filter((d) => staff || !isCoachingProgram(d.data()) || memberHasCoachingProgram(me, d.id));
+    const programs = visible.map((d) => {
       const data = d.data() as Record<string, unknown>;
       for (const f of HEAVY_FIELDS) delete data[f];
 
