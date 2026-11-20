@@ -274,6 +274,42 @@ describe('1-to-1 coaching programs', () => {
   });
 });
 
+// The admin audit (api/admin/coaching-audit) signs in as a throwaway member
+// and makes exactly these reads and writes against the live database. This
+// pins what each must return under the rules in this repo, so a verdict from
+// the audit means the published rules differ, never that the probe is wrong.
+describe('the coaching audit probe', () => {
+  const enrol = (programId: string, extra: object = {}) =>
+    updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId, programName: 'audit', lastCompletedDayIndex: -1, ...extra } });
+  async function seedProbe() {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'programs', 'a-coach'), { name: 'Audit (temporary 1-to-1)', visibility: 'coaching', isPublic: false, _audit: true });
+      await setDoc(doc(db, 'programs', 'a-lib'), { name: 'Audit (temporary library)', visibility: 'personal', ownerId: ALICE, isPublic: false, _audit: true });
+      await setDoc(doc(db, 'users', ALICE), { role: 'user', displayName: 'Rules audit', purchasedProgramIds: ['a-coach', 'a-lib'], _audit: true });
+    });
+  }
+
+  it('is refused the coaching program three ways', async () => {
+    await seedProbe();
+    await assertFails(enrol('a-coach'));
+    await assertFails(getDoc(doc(asAlice(), 'programs', 'a-coach')));
+    await assertFails(getDocs(collection(asAlice(), 'programs')));
+  });
+
+  it('is allowed the control program', async () => {
+    await seedProbe();
+    await assertSucceeds(getDoc(doc(asAlice(), 'programs', 'a-lib')));
+    await assertSucceeds(enrol('a-lib'));
+  });
+
+  it('can open and log on the coaching program once an admin has assigned it', async () => {
+    await seedProbe();
+    await seed(async (db) => { await setDoc(doc(db, 'users', ALICE), { activeProgram: { programId: 'a-coach', programName: 'audit', lastCompletedDayIndex: -1 } }, { merge: true }); });
+    await assertSucceeds(getDoc(doc(asAlice(), 'programs', 'a-coach')));
+    await assertSucceeds(enrol('a-coach', { lastCompletedDayIndex: 0, completedWorkouts: 1 }));
+  });
+});
+
 describe('library programs are unaffected by the coaching rule', () => {
   // The coaching rule sits on every activeProgram write and every program
   // read. These pin the ordinary paths it must leave alone.

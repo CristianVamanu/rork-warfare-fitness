@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, Dumbbell, Crown, Stethoscope, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Trash2, EyeOff, Users, Sparkles, Dumbbell, Crown, Stethoscope, AlertTriangle, ShieldCheck, CheckCircle2, XCircle, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getIdToken } from 'firebase/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +31,15 @@ interface HealthFinding {
   missingVideoMatch: boolean;
 }
 
+interface CoachingAudit {
+  verdict: 'pass' | 'fail' | 'incomplete';
+  summary: string;
+  checks: { id: string; label: string; status: 'pass' | 'fail' | 'unknown'; detail: string }[];
+  coachingPrograms: { id: string; name: string; flaggedPublic: boolean; status: string }[];
+  membersOnCoaching: { uid: string; name: string; email: string; program: string }[];
+  ranAt: string;
+}
+
 export default function ProgramsPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -44,7 +53,31 @@ export default function ProgramsPage() {
   const [importing, setImporting] = useState(false);
   const [healthChecking, setHealthChecking] = useState(false);
   const [healthResult, setHealthResult] = useState<{ programsChecked: number; librarySize: number; findings: HealthFinding[] } | null>(null);
+  const [auditing, setAuditing] = useState(false);
+  const [audit, setAudit] = useState<CoachingAudit | null>(null);
   const [deletingForever, setDeletingForever] = useState<string | null>(null);
+
+  async function runCoachingAudit(fix = false) {
+    if (!user) return;
+    setAuditing(true);
+    try {
+      const headers = { Authorization: `Bearer ${await getIdToken(user)}` };
+      if (fix) {
+        const r = await fetch('/api/admin/coaching-audit', { method: 'POST', headers });
+        if (!r.ok) throw new Error((await r.json()).error || 'Fix failed');
+      }
+      const res = await fetch('/api/admin/coaching-audit', { headers });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Audit failed');
+      setAudit(data);
+      if (data.verdict === 'pass') toast.success(data.summary);
+      else toast.error(data.summary);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Audit failed');
+    } finally {
+      setAuditing(false);
+    }
+  }
 
   async function runHealthCheck() {
     if (!user) return;
@@ -273,11 +306,57 @@ export default function ProgramsPage() {
           <Button size="sm" variant="secondary" className="flex-1 sm:flex-none" onClick={runHealthCheck} disabled={healthChecking}>
             <Stethoscope className="w-4 h-4" /> {healthChecking ? 'Checking...' : 'Health Check'}
           </Button>
+          <Button size="sm" variant="secondary" className="flex-1 sm:flex-none" onClick={() => runCoachingAudit()} disabled={auditing}>
+            <ShieldCheck className="w-4 h-4" /> {auditing ? 'Auditing...' : 'Audit 1-to-1'}
+          </Button>
           <Button size="sm" className="flex-1 sm:flex-none" onClick={() => router.push('/admin/programs/builder')}>
             <Sparkles className="w-4 h-4" /> Create with AI
           </Button>
         </div>
       </div>
+
+      {/* 1-to-1 audit — proves, against the live database and the published
+          rules, that a coaching program reaches a member only by a trainer
+          or admin assigning it. */}
+      {audit && (
+        <Card className="p-4">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <ShieldCheck className={`w-4 h-4 ${audit.verdict === 'pass' ? 'text-emerald-400' : audit.verdict === 'fail' ? 'text-red-400' : 'text-amber-400'}`} />
+            <p className="text-sm font-bold text-white">1-to-1 programs — {audit.summary}</p>
+            {audit.coachingPrograms.some((p) => p.flaggedPublic) && (
+              <Button size="sm" variant="secondary" className="ml-auto" onClick={() => runCoachingAudit(true)} disabled={auditing}>Fix flags</Button>
+            )}
+          </div>
+          <div className="space-y-1.5">
+            {audit.checks.map((c) => (
+              <div key={c.id} className="flex items-start gap-2 text-xs p-2 rounded-lg bg-white/5">
+                {c.status === 'pass' ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0 mt-0.5" />
+                  : c.status === 'fail' ? <XCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0 mt-0.5" />
+                  : <HelpCircle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />}
+                <div className="min-w-0">
+                  <p className="text-white font-semibold">{c.label}</p>
+                  <p className="text-text-secondary break-words">{c.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs font-bold text-white mt-4 mb-1.5">Members currently on a 1-to-1 program ({audit.membersOnCoaching.length})</p>
+          {audit.membersOnCoaching.length === 0 ? (
+            <p className="text-xs text-text-secondary">Nobody.</p>
+          ) : (
+            <div className="space-y-1 max-h-60 overflow-y-auto">
+              {audit.membersOnCoaching.map((m) => (
+                <p key={m.uid} className="text-xs text-text-secondary break-words">
+                  <span className="text-white">{m.name || m.email || m.uid}</span>{m.name && m.email ? ` (${m.email})` : ''} — {m.program}
+                </p>
+              ))}
+            </div>
+          )}
+          <p className="text-[11px] text-text-secondary mt-3">
+            Check that list by eye: everyone on it should be someone you or a trainer assigned. Run {new Date(audit.ranAt).toLocaleString()}.
+          </p>
+        </Card>
+      )}
 
       {/* Health check results — flags exercises missing a muscleGroup tag
           or with no matching video in the exerciseLibrary, checked live
