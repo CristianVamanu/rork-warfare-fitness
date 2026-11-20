@@ -274,6 +274,53 @@ describe('1-to-1 coaching programs', () => {
   });
 });
 
+describe('library programs are unaffected by the coaching rule', () => {
+  // The coaching rule sits on every activeProgram write and every program
+  // read. These pin the ordinary paths it must leave alone.
+  async function seedLibrary(extra: Record<string, unknown> = {}) {
+    await seed(async (db) => {
+      await setDoc(doc(db, 'programs', 'pub'), { name: 'Public', isPublic: true, visibility: 'public' });
+      await setDoc(doc(db, 'programs', 'legacy'), { name: 'Old doc, no visibility field', isPublic: true });
+      await setDoc(doc(db, 'programs', 'mine'), { name: 'Built by Alice', visibility: 'personal', ownerId: ALICE });
+      await setDoc(doc(db, 'users', ALICE), { role: 'user', displayName: 'A', onboardingComplete: false, ...extra });
+    });
+  }
+
+  it('a brand-new member is enrolled by the quiz: an admin program, and a seed program with no document', async () => {
+    await seedLibrary();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'pub', programName: 'Public', completedWorkouts: 0, lastCompletedDayIndex: -1 }, onboardingComplete: true }));
+    await seedLibrary();
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'p16', programName: 'Alpha Bulk', completedWorkouts: 0, lastCompletedDayIndex: -1 } }));
+  });
+
+  it('a member switches between library programs, old-style and personal ones included', async () => {
+    await seedLibrary({ activeProgram: { programId: 'pub', programName: 'Public', lastCompletedDayIndex: -1 } });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'legacy', programName: 'Old', lastCompletedDayIndex: -1 } }));
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'mine', programName: 'Mine', lastCompletedDayIndex: -1 } }));
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'p13', programName: 'Seed', lastCompletedDayIndex: -1 } }));
+  });
+
+  it('a member logs progress on the program they are on', async () => {
+    await seedLibrary({ activeProgram: { programId: 'pub', programName: 'Public', completedWorkouts: 0, lastCompletedDayIndex: -1 } });
+    await assertSucceeds(updateDoc(doc(asAlice(), 'users', ALICE), { activeProgram: { programId: 'pub', programName: 'Public', completedWorkouts: 1, lastCompletedDayIndex: 0 } }));
+  });
+
+  it('a member opens any library program, and one that does not exist reads as missing rather than refused', async () => {
+    await seedLibrary();
+    for (const id of ['pub', 'legacy', 'mine']) await assertSucceeds(getDoc(doc(asAlice(), 'programs', id)));
+    const snap = await assertSucceeds(getDoc(doc(asAlice(), 'programs', 'p16')));
+    expect(snap.exists()).toBe(false);
+    await assertFails(getDoc(doc(asAnon(), 'programs', 'pub')));
+  });
+
+  it('an admin assigns a library program and still edits programs', async () => {
+    await seedLibrary();
+    await assertSucceeds(updateDoc(doc(asAdmin(), 'users', ALICE), { activeProgram: { programId: 'pub', programName: 'Public' } }));
+    await assertSucceeds(setDoc(doc(asAdmin(), 'programs', 'pub'), { name: 'Public (edited)', isPublic: true, visibility: 'public' }));
+    await assertFails(setDoc(doc(asAlice(), 'programs', 'pub'), { name: 'hacked' }));
+  });
+});
+
 describe('channel mute', () => {
   async function seedChannelAnd(muteUntil: 'none' | 'forever' | 'past') {
     await seed(async (db) => {
