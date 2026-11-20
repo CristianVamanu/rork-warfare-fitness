@@ -100,9 +100,9 @@ export function RipzPublic() {
         <p className="text-sm text-text-secondary mt-2">Pick a pack. Rip it open. Do what it deals: {RIPZ_MIN} to {RIPZ_MAX} reps.</p>
       )}
 
-      <div className={`mt-5 ${pack ? 'mb-16 min-h-[380px]' : 'mb-4'}`}>
+      <div className={`mt-5 ${pack ? (revealed ? 'mb-16' : 'mb-28') + ' min-h-[380px]' : 'mb-4'}`}>
         {pack && challenge
-          ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} />
+          ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} onBack={again} />
           : used === null ? <div className="h-[300px]" />
           : capped ? (
             <div className="rounded-2xl border border-accent/30 bg-accent/[0.07] p-5 text-center">

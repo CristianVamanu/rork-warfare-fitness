@@ -7,14 +7,16 @@
  * users get a plain "Rip it open" button that does the same thing.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { ChevronsRight } from 'lucide-react';
+import { ChevronsRight, ChevronLeft } from 'lucide-react';
 import { RIPZ_TIERS, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
 import { packVars, PackArt } from './RipzWheel';
 import { RipzAudio, buzz } from './ripzAudio';
 
 const OPEN_AT = 0.9;
 
-export function RipzPack({ challenge, audio, packKey, onRevealed, pack }: {
+export function RipzPack({ challenge, audio, packKey, onRevealed, pack, onBack }: {
+  /** Back to the wheel while the pack is still sealed: a mis-tap costs nothing. */
+  onBack?: () => void;
   /** Which coloured pack was picked off the wheel. */
   pack: RipzPackDef;
   challenge: RipzChallenge;
@@ -141,8 +143,13 @@ export function RipzPack({ challenge, audio, packKey, onRevealed, pack }: {
       </div>
 
       {sealed && (
-        <div className="absolute inset-x-0 -bottom-12 flex flex-col items-center gap-1">
+        <div className="absolute inset-x-0 -bottom-[92px] flex flex-col items-center gap-3">
           <p className="flex items-center gap-1 wf-readout text-[11px] font-bold text-accent ripz-hint">Swipe across to rip <ChevronsRight className="w-4 h-4" /></p>
+          {onBack && (
+            <button type="button" onClick={() => { audio.dragEnd(); onBack(); }} className="flex items-center gap-1 px-4 py-2 rounded-xl border border-white/15 text-sm font-semibold text-text-secondary hover:text-white">
+              <ChevronLeft className="w-4 h-4" /> Choose another pack
+            </button>
+          )}
           <button type="button" onClick={open} className="sr-only focus:not-sr-only focus:text-xs focus:text-white focus:underline">Rip it open</button>
         </div>
       )}

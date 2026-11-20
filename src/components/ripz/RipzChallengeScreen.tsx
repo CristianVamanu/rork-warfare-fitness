@@ -243,9 +243,9 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
               </div>
             ) : (
               <>
-                <div className={`mt-5 ${showingPack || staticPending ? 'mb-16 min-h-[380px]' : 'mb-4'}`}>
+                <div className={`mt-5 ${showingPack || staticPending ? (showingPack && !revealed ? 'mb-28' : 'mb-16') + ' min-h-[380px]' : 'mb-4'}`}>
                   {showingPack ? (
-                    <RipzPack pack={pack!} challenge={live!} audio={audio} packKey={packKey} onRevealed={onRevealed} />
+                    <RipzPack pack={pack!} challenge={live!} audio={audio} packKey={packKey} onRevealed={onRevealed} onBack={() => { setPack(null); setLive(null); setRevealed(false); }} />
                   ) : staticPending ? (
                     /* Came back after ripping: the number stands, shown without the pack. */
                     <div className="mx-auto w-[216px] h-[346px] mt-6 rounded-2xl border bg-surface flex flex-col items-center justify-center text-center px-3" style={{ borderColor: RIPZ_TIERS[tierFor(pending!.count)].color, boxShadow: `0 0 46px ${RIPZ_TIERS[tierFor(pending!.count)].color}55` }}>

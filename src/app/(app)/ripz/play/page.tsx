@@ -118,9 +118,9 @@ export default function RipzPage() {
           </button>
         </div>
 
-        <div className={`mt-5 ${pack ? 'mb-16 min-h-[380px]' : 'mb-4'}`}>
+        <div className={`mt-5 ${pack ? (revealed ? 'mb-16' : 'mb-28') + ' min-h-[380px]' : 'mb-4'}`}>
           {pack && challenge
-            ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} />
+            ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} onBack={again} />
             : <RipzWheel audio={audio} onPick={pick} />}
         </div>
 
