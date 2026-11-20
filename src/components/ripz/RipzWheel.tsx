@@ -6,7 +6,7 @@
  * the back face away, so you see their dimmed backs through the ring. Tap
  * the pack in front to pick it.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { RIPZ_PACKS, type RipzPackDef } from '@/lib/ripz';
 import { RipzAudio, buzz } from './ripzAudio';
@@ -18,68 +18,33 @@ export function packVars(p: RipzPackDef): React.CSSProperties {
   return { ['--ripz-1' as string]: p.colors[0], ['--ripz-2' as string]: p.colors[1], ['--ripz-3' as string]: p.colors[2] };
 }
 
-// Zig-zag crimped ends, like a sealed foil booster: one polygon, in percent.
-const TEETH = 16;
-const ZIG = (() => {
-  const top: string[] = []; const bottom: string[] = [];
-  for (let i = 0; i <= TEETH * 2; i++) {
-    const x = (i / (TEETH * 2)) * 100;
-    top.push(`${x.toFixed(2)}% ${i % 2 ? 0 : 1.5}%`);
-    bottom.push(`${(100 - x).toFixed(2)}% ${i % 2 ? 100 : 98.5}%`);
-  }
-  return `polygon(${[...top, ...bottom].join(',')})`;
-})();
-
-// Faceted foil: a fixed mosaic of light and dark triangles laid over the
-// colour, so each pack catches the light like cut crystal. Deterministic
-// (no Math.random) so the server and the browser draw the same thing.
-const FACETS = (() => {
-  let seed = 7; const rnd = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; };
-  const cols = 5; const rows = 8; const pts: [number, number][][] = [];
-  for (let r = 0; r <= rows; r++) { pts.push([]); for (let c = 0; c <= cols; c++) {
-    const edge = r === 0 || r === rows || c === 0 || c === cols;
-    pts[r].push([(c + (edge ? 0 : (rnd() - 0.5) * 0.7)) * (100 / cols), (r + (edge ? 0 : (rnd() - 0.5) * 0.7)) * (100 / rows)]);
-  } }
-  let out = '';
-  const tri = (a: [number, number], b: [number, number], c: [number, number]) => {
-    const v = rnd(); const fill = v > 0.5 ? '255,255,255' : '0,0,0'; const op = (Math.abs(v - 0.5) * 0.62).toFixed(2);
-    out += `<polygon points='${a.map((n) => n.toFixed(1)).join(',')} ${b.map((n) => n.toFixed(1)).join(',')} ${c.map((n) => n.toFixed(1)).join(',')}' fill='rgba(${fill},${op})'/>`;
-  };
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    tri(pts[r][c], pts[r][c + 1], pts[r + 1][c]); tri(pts[r][c + 1], pts[r + 1][c + 1], pts[r + 1][c]);
-  }
-  return `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'>${out}</svg>`)}")`;
-})();
+/** Where a pack's rendered artwork lives. `small` is the half-size copy the wheel uses. */
+export function packImage(pack: RipzPackDef, opts: { back?: boolean; small?: boolean } = {}): string {
+  return `/ripz/${pack.id}${opts.back ? '_back' : opts.small ? '_sm' : ''}.webp`;
+}
 
 /**
- * The pack artwork, drawn at any size: `w` is the pack width in px and
- * everything inside is sized from it. Crimped ends, faceted foil, tall white
- * lettering and a glowing crosshair in the middle.
+ * The pack artwork at any size: `w` is the pack width in px.
+ *
+ * The packs are 3D renders (a crinkled foil pouch with crimped, zig-zag
+ * ends, the print laid on the foil), one image per colour with a
+ * transparent background, plus a plain foil back for the far side of the
+ * wheel. They were drawn in CSS before, which read as a flat illustration;
+ * real foil needs real light. A moving sheen is laid over the front, masked
+ * to the pack's own shape.
  */
 export function PackArt({ pack, w, back }: { pack: RipzPackDef; w: number; back?: boolean }) {
+  const src = packImage(pack, { back, small: w <= 200 });
   return (
-    <div className="wf-dark absolute left-0 top-0" style={{ ...packVars(pack), width: w, height: w * 1.585, fontSize: w / 10, clipPath: ZIG, WebkitClipPath: ZIG }}>
-      <div className="absolute inset-0 ripz-foil-base" />
-      <div className="absolute inset-0 mix-blend-overlay" style={{ backgroundImage: FACETS, backgroundSize: '100% 100%' }} aria-hidden />
-      {/* No moving sheen on the backs: six fewer animations on a slow phone. */}
-      {!back && <div className="absolute inset-0 ripz-sheen" aria-hidden />}
-      {/* crimped seals */}
-      <div className="absolute inset-x-0 top-0 h-[8%] ripz-seal" aria-hidden />
-      <div className="absolute inset-x-0 bottom-0 h-[8%] ripz-seal" aria-hidden />
+    <div className="absolute left-0 top-0" style={{ width: w, height: w * 1.585 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={src} alt="" draggable={false} className="absolute inset-0 w-full h-full select-none" style={back ? { filter: 'brightness(0.5)' } : undefined} />
       {!back && (
-        <>
-          <p className="absolute left-[7%] top-[16.5%] text-[0.52em] font-bold tracking-wide text-white/95">WARFARE FITNESS</p>
-          <p className="absolute right-[7%] top-[16.3%] text-[0.62em] font-black italic uppercase text-white">{pack.id}</p>
-          <p className="absolute inset-x-0 top-[22.5%] text-center font-black text-white leading-none ripz-letters" style={{ fontSize: '3.55em' }}>RIPZ</p>
-          <div className="absolute left-1/2 top-[52%] w-[44%] aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full ripz-emblem" aria-hidden>
-            <span className="absolute inset-[26%] rounded-full ripz-emblem-core" />
-            <span className="absolute left-1/2 top-[-6%] bottom-[-6%] w-[3%] -translate-x-1/2 bg-white/80 ripz-emblem-tick" />
-            <span className="absolute top-1/2 left-[-6%] right-[-6%] h-[3%] -translate-y-1/2 bg-white/80 ripz-emblem-tick" />
-          </div>
-          <p className="absolute inset-x-[4%] bottom-[11%] text-center text-[0.6em] font-bold uppercase tracking-[0.12em] text-white">{pack.label} challenge pack</p>
-        </>
+        <div
+          className="absolute inset-0 ripz-sheen" aria-hidden
+          style={{ WebkitMaskImage: `url(${src})`, maskImage: `url(${src})`, WebkitMaskSize: '100% 100%', maskSize: '100% 100%' }}
+        />
       )}
-      {back && <div className="absolute inset-0 bg-black/55" />}
     </div>
   );
 }
@@ -101,6 +66,8 @@ export function RipzWheel({ audio, onPick }: { audio: RipzAudio; onPick: (pack: 
 
   const idxAt = (a: number) => ((Math.round(-a / STEP) % RIPZ_PACKS.length) + RIPZ_PACKS.length) % RIPZ_PACKS.length;
   const front = RIPZ_PACKS[idxAt(angle)];
+  // The rip screen uses the full-size render; fetch it while the pack is in front.
+  useEffect(() => { const im = new Image(); im.src = packImage(front); }, [front]);
 
   function turn(by: number) { setAngle((a) => Math.round(a / STEP) * STEP + by * STEP); audio.tick(0.3); buzz(8); }
 

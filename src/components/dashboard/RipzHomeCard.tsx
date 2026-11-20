@@ -20,7 +20,8 @@ export function RipzHomeCard() {
   const active = v.state === 'active';
   return (
     <Link href={active ? '/ripz/challenge' : '/ripz/play'} className="flex items-center gap-3 p-3 rounded-2xl border border-accent/30 bg-accent/[0.07] wf-rise">
-      <span className="w-10 h-12 rounded-md ripz-foil flex items-center justify-center text-[10px] font-black italic text-black/85 -rotate-6">RIPZ</span>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/ripz/gold_sm.webp" alt="" className="w-9 h-auto -rotate-6 drop-shadow-[0_4px_10px_rgba(245,166,35,0.45)]" />
       <span className="flex-1">
         {active ? (
           <>
