@@ -19,7 +19,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, Menu, X, PlayCircle, Dumbbell, LineChart, Trophy, Zap, ShieldCheck,
-  Utensils, Droplets, Wind, Swords, Users, ClipboardList, Download, Apple, Play,
+  Utensils, Droplets, Wind, Swords, Users, ClipboardList, Download, Apple, Play, BarChart3,
 } from 'lucide-react';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { OperatorLine } from '@/components/ui/OperatorLine';
@@ -48,13 +48,30 @@ export function Reveal({ children, className = '', delay = 0 }: { children: Reac
   );
 }
 
-/** A phone showing a real screenshot. `src` is 990×2000-ish; the frame keeps
- *  that ratio so nothing is cropped or stretched. */
-export function PhoneFrame({ src, alt, className = '', priority = false }: { src: string; alt: string; className?: string; priority?: boolean }) {
+/** Status bar: time, the island, signal, wifi and battery. Sized in container
+ *  units so it scales with whatever width the phone is drawn at. */
+function StatusBar() {
+  return (
+    <div className="lx-status" aria-hidden>
+      <span className="lx-status-time">9:41</span>
+      <span className="lx-island" />
+      <span className="lx-status-icons">
+        <svg viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx=".7" /><rect x="5" y="5.5" width="3" height="6.5" rx=".7" /><rect x="10" y="3" width="3" height="9" rx=".7" /><rect x="15" y="0" width="3" height="12" rx=".7" /></svg>
+        <svg viewBox="0 0 16 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M1 4.2a10 10 0 0 1 14 0M3.4 6.8a6.5 6.5 0 0 1 9.2 0M5.9 9.3a3 3 0 0 1 4.2 0" /></svg>
+        <svg viewBox="0 0 26 12" fill="none"><rect x=".6" y=".6" width="21.8" height="10.8" rx="3" stroke="currentColor" strokeOpacity=".5" strokeWidth="1.2" /><rect x="2.2" y="2.2" width="18.6" height="7.6" rx="1.6" fill="currentColor" /><rect x="23.6" y="4" width="1.8" height="4" rx=".9" fill="currentColor" fillOpacity=".5" /></svg>
+      </span>
+    </div>
+  );
+}
+
+/** An iPhone-style frame: slim black bezel, metal edge, status bar. Shows a
+ *  real screenshot (`src`), or whatever is passed as children. */
+export function PhoneFrame({ src, alt = '', className = '', priority = false, children }: { src?: string; alt?: string; className?: string; priority?: boolean; children?: ReactNode }) {
   return (
     <div className={`lx-phone ${className}`}>
       <div className="lx-phone-screen">
-        <img src={src} alt={alt} width={560} height={1131} loading={priority ? 'eager' : 'lazy'} decoding="async" />
+        <StatusBar />
+        {children ?? <img src={src} alt={alt} width={900} height={1818} loading={priority ? 'eager' : 'lazy'} decoding="async" />}
       </div>
     </div>
   );
@@ -84,7 +101,7 @@ export function LandingNav({ sections, pages, appName, showIos }: {
 }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const barLinks = ['/', '/programs', '/standards', '/challenges', '/trainers', '/partners'];
+  const barLinks = ['/', '/programs', '/standards', '/challenges', '/ripz', '/trainers', '/partners'];
 
   useEffect(() => {
     const onScroll = () => {
@@ -192,7 +209,7 @@ export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, dis
             ) : (
               <a href="#screens" className="lx-demo">
                 <span className="lx-demo-icon"><PlayCircle className="w-7 h-7" aria-hidden /></span>
-                <span><b>See the App</b><small>Real screens, no mock-ups</small></span>
+                <span><b>See the App</b><small>See the app in action</small></span>
               </a>
             )}
             {playBadge && <div className="lx-hero-badge">{playBadge}</div>}
@@ -204,7 +221,15 @@ export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, dis
         {/* Product, in the hand. Desktop only: on a phone the visitor is
             already holding one, and the screens get their own section. */}
         <div className="lx-hero-phones" aria-hidden>
-          <PhoneFrame src="/landing/web-mobile.webp" alt="" className="lx-phone-back lx-float-b" priority />
+          <PhoneFrame className="lx-phone-back lx-float-b">
+            <div className="lx-crest-screen">
+              <img src="/landing/crest.webp" alt="" className="lx-crest" />
+              <p className="lx-crest-title"><span>{line1}</span><span>{line2}</span></p>
+              <p className="lx-crest-sub">{sub}</p>
+              <span className="lx-crest-btn">{ctaLabel} <ArrowRight aria-hidden /></span>
+              <p className="lx-crest-note">{ctaNote}</p>
+            </div>
+          </PhoneFrame>
           <PhoneFrame src="/landing/app-home.webp" alt="" className="lx-phone-front lx-float-a" priority />
         </div>
       </div>
@@ -216,7 +241,7 @@ export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, dis
 
 const STRIP = [
   { Icon: Dumbbell, title: 'Custom Training Plans', sub: 'For all levels' },
-  { Icon: LineChart, title: 'Track Your Progress', sub: 'In real time' },
+  { Icon: BarChart3, title: 'Track Your Progress', sub: 'In real time' },
   { Icon: Trophy, title: 'Reach Your Goals', sub: 'Faster' },
   { Icon: Zap, title: 'Build Strength', sub: '& endurance' },
   { Icon: ShieldCheck, title: 'Stay Accountable', sub: 'With challenges' },

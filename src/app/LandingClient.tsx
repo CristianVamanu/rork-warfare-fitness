@@ -118,6 +118,7 @@ const NAV_LINKS = [
   // are reached from that page or from search, never from the menu.
   { href: '/standards', label: 'Standards' },
   { href: '/challenges', label: 'Challenges' },
+  { href: '/ripz', label: 'Ripz' },
   { href: '/download', label: 'Download App' },
   { href: '/trainers', label: 'For Trainers' },
   { href: '/partners', label: 'Partners' },
