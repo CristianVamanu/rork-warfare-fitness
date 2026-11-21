@@ -304,6 +304,9 @@ function OnboardingPageInner() {
     const validAge = !!qAge && /^\d+$/.test(qAge) && +qAge >= MIN_AGE && +qAge <= 100;
     if (validSex) setSex(qSex);
     if (validAge) setAge(qAge!);
+    // A goal card on the landing page opens the quiz with that goal picked.
+    const qGoal = searchParams.get('goal');
+    if (qGoal && GOALS.some((g) => g.value === qGoal)) setGoal(qGoal as FitnessGoal);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

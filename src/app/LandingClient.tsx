@@ -10,7 +10,8 @@ import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
-import { LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
+import { LandingNav } from '@/components/landing/Redesign';
+import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter } from '@/components/landing/Warfare';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -478,32 +479,26 @@ export default function LandingPage({
     <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
       <LandingNav sections={sectionLinks} pages={navLinks} appName={appName} showIos={!!storeUrls.ios} />
 
-      {/* Copy is the brief's; the button label, its note and the renewal
-          terms all come from buildTrialTerms, so the hero can never promise
-          "no card" on a trial that takes one. */}
-      <LandingHero
-        eyebrow="Train • Progress • Dominate"
-        line1="Build your"
-        line2="Perfect body"
-        sub="Military-inspired training for people who refuse to be average. Build strength. Build endurance. Build a body that performs."
+      {/* The owner's reference design. The button label, its note and the
+          renewal terms all come from buildTrialTerms, so nothing here can
+          promise "no card" on a trial that takes one. */}
+      <WxHero
         ctaLabel={primaryCtaLabel}
         ctaNote={ctaNote}
         disclosure={noCardTrial ? null : paidTrialDisclosure}
         onDemo={landing.heroDemoVideoUrl ? () => setDemoOpen(true) : undefined}
-        playBadge={showPlayBadge ? <GooglePlayBadge href={storeUrls.android} height={58} /> : undefined}
-      >
-        <FeatureStrip />
-        <FactsBar facts={facts} />
-      </LandingHero>
-      <FeatureCards />
-      <CommandCentre />
+      />
+      <WxStrip />
+      <WxFacts facts={facts} />
+      <WxCards />
+      <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
       {/* An admin who has uploaded their own screenshots still gets them shown. */}
       {landing.screenshotUrls && landing.screenshotUrls.length >= 3 && (
         <section className="relative max-w-5xl mx-auto px-5 pb-14">
           <AppShowcase items={landing.screenshotUrls.map((src, i) => ({ src, title: `Screen ${i + 1}`, caption: '' }))} />
         </section>
       )}
-      <HowItWorks />
+      <WxSteps />
 
       {/* Feature grid — uniform equal-size cards. Deliberately NOT a
           position-dependent bento layout (a wide "hero" first tile, a
@@ -1235,7 +1230,7 @@ export default function LandingPage({
       <DataDivider />
 
       {/* Final CTA. Same button, same terms as the hero. */}
-      <FinalCta ctaLabel={primaryCtaLabel} note={finalNote} disclosure={noCardTrial ? null : paidTrialDisclosure} />
+      <WxFinal ctaLabel={primaryCtaLabel} note={noCardTrial ? finalNote : (paidTrialDisclosure || finalNote)} />
 
       {/* Partner program — one bracketed panel for coaches and creators,
           above the footer so it never competes with the member CTA. */}
@@ -1257,7 +1252,7 @@ export default function LandingPage({
         </div>
       </section>
 
-      <LandingFooter appName={appName} sections={sectionLinks} pages={navLinks} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
+      <WxFooter appName={appName} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
     </div>
     </>
   );
