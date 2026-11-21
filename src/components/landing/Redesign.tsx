@@ -19,7 +19,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight, Menu, X, PlayCircle, Dumbbell, LineChart, Trophy, Zap, ShieldCheck,
-  Utensils, Droplets, Wind, Swords, Users, ClipboardList, Download, Apple, Play, BarChart3, Home, Layers, UserRound,
+  Utensils, Droplets, Wind, Swords, Users, ClipboardList, Download, Apple, Play, BarChart3,
 } from 'lucide-react';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { OperatorLine } from '@/components/ui/OperatorLine';
@@ -84,32 +84,6 @@ export function CtaButton({ href, children, sub, className = '' }: { href: strin
       <span className="lx-cta-label">{children} <ArrowRight className="w-5 h-5" aria-hidden /></span>
       {sub && <span className="lx-cta-sub">{sub}</span>}
     </Link>
-  );
-}
-
-// ───────────────────────────────────────────────────────── Mobile tab bar
-
-/**
- * The app's bottom bar, on the website. Phones only. It slides in once the
- * hero's own button has scrolled away, so the way to start is always one
- * thumb-reach from wherever the visitor is, exactly as it is in the app.
- */
-export function MobileTabBar() {
-  const [show, setShow] = useState(false);
-  useEffect(() => {
-    const onScroll = () => setShow(window.scrollY > 520);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
-  return (
-    <nav className={`lx-tabbar ${show ? 'is-on' : ''}`} aria-label="Quick links" aria-hidden={!show}>
-      <a href="#top" tabIndex={show ? 0 : -1}><Home aria-hidden /><span>Home</span></a>
-      <Link href="/programs" tabIndex={show ? 0 : -1}><Dumbbell aria-hidden /><span>Programs</span></Link>
-      <Link href="/onboarding" className="lx-tabbar-go" tabIndex={show ? 0 : -1} aria-label="Start now"><Zap aria-hidden /></Link>
-      <Link href="/ripz" tabIndex={show ? 0 : -1}><Layers aria-hidden /><span>Ripz</span></Link>
-      <Link href="/login" tabIndex={show ? 0 : -1}><UserRound aria-hidden /><span>Sign In</span></Link>
-    </nav>
   );
 }
 

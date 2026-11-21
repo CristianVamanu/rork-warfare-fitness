@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
-import { MobileTabBar, LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
+import { LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -1257,7 +1257,6 @@ export default function LandingPage({
         </div>
       </section>
 
-      <MobileTabBar />
       <LandingFooter appName={appName} sections={sectionLinks} pages={navLinks} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
     </div>
     </>

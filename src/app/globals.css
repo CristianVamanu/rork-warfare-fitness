@@ -1355,9 +1355,7 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
 
 /* ════ Phone layout: the site should handle like the app. Long stacks become
    swipe rows, spacing tightens, and the app's bottom bar comes along. ════ */
-.lx-tabbar { display: none; }
 @media (max-width: 767px) {
-  [data-landing-body] { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .lx-section { padding-block: 40px; }
   [data-landing-body] > section.pb-16 { padding-bottom: 44px; }
   [data-landing-body] > section.pt-16 { padding-top: 40px; }
@@ -1389,16 +1387,5 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
   .lx-footer-base { margin-top: 24px; }
   .lx-final { padding-block: 64px; }
 
-  /* the app's bottom bar */
-  .lx-tabbar { position: fixed; left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom)); z-index: 60; display: grid; grid-template-columns: 1fr 1fr 76px 1fr 1fr; align-items: center; height: 66px; padding: 0 6px; border-radius: 24px;
-    background: rgba(16,16,16,.86); border: 1px solid rgba(255,165,30,.28); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); box-shadow: 0 18px 40px -10px rgba(0,0,0,.9), 0 0 30px -12px rgba(255,150,20,.5);
-    transform: translateY(140%); opacity: 0; transition: transform .45s cubic-bezier(.22,1,.36,1), opacity .3s; pointer-events: none; }
-  .lx-tabbar.is-on { transform: none; opacity: 1; pointer-events: auto; }
-  .lx-tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; height: 100%; color: #b9b9b9; font-size: 10.5px; font-weight: 600; letter-spacing: .01em; -webkit-tap-highlight-color: transparent; }
-  .lx-tabbar a svg { width: 22px; height: 22px; }
-  .lx-tabbar a:first-child { color: var(--lx-orange); }
-  .lx-tabbar a:active { transform: scale(.94); }
-  .lx-tabbar .lx-tabbar-go { justify-self: center; width: 62px; height: 62px; margin-top: -26px; border-radius: 50%; color: #160b00; background: linear-gradient(180deg, #FFC457, var(--lx-orange) 50%, var(--lx-orange2)); box-shadow: 0 0 0 5px #0b0b0b, 0 0 0 6px rgba(255,165,30,.45), 0 10px 26px rgba(255,140,0,.55); }
-  .lx-tabbar .lx-tabbar-go svg { width: 28px; height: 28px; }
 }
-@media (max-width: 767px) and (prefers-reduced-motion: reduce) { .lx-tabbar { transition: none; } }
+
