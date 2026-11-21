@@ -490,10 +490,10 @@ export default function LandingPage({
         disclosure={noCardTrial ? null : paidTrialDisclosure}
         onDemo={landing.heroDemoVideoUrl ? () => setDemoOpen(true) : undefined}
         playBadge={showPlayBadge ? <GooglePlayBadge href={storeUrls.android} height={58} /> : undefined}
-      />
-
-      <FeatureStrip />
-      <FactsBar facts={facts} />
+      >
+        <FeatureStrip />
+        <FactsBar facts={facts} />
+      </LandingHero>
       <FeatureCards />
       <CommandCentre />
       {/* An admin who has uploaded their own screenshots still gets them shown. */}

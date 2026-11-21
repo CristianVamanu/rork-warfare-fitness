@@ -152,7 +152,9 @@ export function LandingNav({ sections, pages, appName, showIos }: {
 /** For not printing the same sentence twice when the terms are one short line. */
 const same = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
 
-export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, disclosure, onDemo, playBadge }: {
+export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, disclosure, onDemo, playBadge, children }: {
+  /** The feature strip and facts row, which sit inside the hero. */
+  children?: ReactNode;
   eyebrow: string; line1: string; line2: string; sub: string;
   ctaLabel: string;
   /** The short line inside the button, e.g. "No credit card required". */
@@ -168,7 +170,10 @@ export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, dis
       {/* Atmosphere. Painted once; nothing here animates on a phone. */}
       <div className="lx-hero-bg" aria-hidden>
         <div className="lx-hero-grid" />
-        <img src="/home/hero.webp" alt="" className="lx-hero-warrior" fetchPriority="high" />
+        <picture>
+          <source media="(min-width: 1024px)" srcSet="/landing/hero-battlefield.webp" />
+          <img src="/landing/hero-mobile.webp" alt="" className="lx-hero-art" fetchPriority="high" />
+        </picture>
         <div className="lx-hero-streak" />
         <div className="lx-hero-fade" />
       </div>
@@ -195,15 +200,16 @@ export function LandingHero({ eyebrow, line1, line2, sub, ctaLabel, ctaNote, dis
                 <span><b>See the App</b><small>Real screens, no mock-ups</small></span>
               </a>
             )}
+            {playBadge && <div className="lx-hero-badge">{playBadge}</div>}
           </div>
           {disclosure && same(disclosure) !== same(ctaNote) && <p className="lx-fine">{disclosure}</p>}
-          {playBadge && <div className="mt-5 flex justify-center lg:justify-start">{playBadge}</div>}
+          {children}
         </div>
 
         {/* Product, in the hand. Desktop only: on a phone the visitor is
             already holding one, and the screens get their own section. */}
         <div className="lx-hero-phones" aria-hidden>
-          <PhoneFrame src="/landing/app-training.webp" alt="" className="lx-phone-back lx-float-b" priority />
+          <PhoneFrame src="/landing/web-mobile.webp" alt="" className="lx-phone-back lx-float-b" priority />
           <PhoneFrame src="/landing/app-home.webp" alt="" className="lx-phone-front lx-float-a" priority />
         </div>
       </div>
@@ -243,18 +249,23 @@ export function FeatureStrip() {
 
 /** Facts about the product, each one true of the app as it stands. Counts of
  *  members appear only once there are enough for the number to be real. */
+const FACT_ICONS = [Dumbbell, PlayCircle, Trophy];
+
 export function FactsBar({ facts }: { facts: { value: string; label: string }[] }) {
   if (!facts.length) return null;
   return (
     <section className="lx-wrap lx-facts-wrap" aria-label="The product in numbers">
       <Reveal className="lx-facts">
         <dl>
-          {facts.map((f) => (
-            <div key={f.label}>
-              <dt>{f.value}</dt>
-              <dd>{f.label}</dd>
-            </div>
-          ))}
+          {facts.map((f, i) => {
+            const Icon = FACT_ICONS[i % FACT_ICONS.length];
+            return (
+              <div key={f.label}>
+                <Icon className="lx-fact-icon" aria-hidden />
+                <span><dt>{f.value}</dt><dd>{f.label}</dd></span>
+              </div>
+            );
+          })}
         </dl>
         <p className="lx-display lx-facts-tag"><span className="lx-chrome">Train smarter.</span> <span className="lx-orange">Get stronger.</span></p>
       </Reveal>
@@ -266,9 +277,9 @@ export function FactsBar({ facts }: { facts: { value: string; label: string }[] 
 
 export function FeatureCards() {
   const cards = [
-    { title: 'Elite Training Programs', text: 'Advanced workout plans built for real results.', href: '/programs', img: '/home/cards/prwall.webp', alt: 'A loaded barbell lit by firelight', phone: false },
-    { title: 'Track Every Detail', text: 'Monitor your workouts, nutrition and progress.', href: '#screens', img: '/landing/app-set.webp', alt: 'The set-logging screen in the Warfare Fitness app', phone: true },
-    { title: 'Nutrition Guidance', text: 'Fuel your body with science-backed nutrition.', href: '#screens', img: '/home/nutrition.webp', alt: 'A bowl of chicken, rice and vegetables', phone: false },
+    { title: 'Elite Training Programs', text: 'Advanced workout plans built for real results.', href: '/programs', img: '/landing/card-training.webp', alt: 'An athlete doing push-ups in a dark gym', phone: false },
+    { title: 'Track Every Detail', text: 'Monitor your workouts, nutrition and progress.', href: '#screens', img: '/landing/card-tracking.webp', alt: 'A phone showing a rising progress chart', phone: false },
+    { title: 'Nutrition Guidance', text: 'Fuel your body with science-backed nutrition.', href: '#screens', img: '/landing/card-nutrition.webp', alt: 'Sliced steak with vegetables on a dark tray', phone: false },
   ];
   return (
     <section id="features" className="lx-wrap lx-section">
