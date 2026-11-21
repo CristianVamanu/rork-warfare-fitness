@@ -1713,3 +1713,69 @@ html.light .wf-art::after {
   .wx-step-arrow { right: -2.4vw; top: 50%; width: 1.8vw; height: 1.8vw; }
 }
 @media (max-width: 599px) { .wx-phones { right: -52px; top: 396px; } .wx-hero-mob .wx-cta, .wx-hero-mob .wx-ghost { width: 52%; min-width: 0; } }
+
+/* ── Phone layout, sized to the owner's mobile reference (its positions,
+   measured off the reference and scaled to a 390px screen). Text keeps a
+   readable floor. ── */
+@media (max-width: 599px) {
+  .wx-hero { min-height: 0; height: 372px; padding: 78px 16px 0; }
+  .wx-hero-bg img { object-position: 64% 8%; }
+  .wx-hero-bg::after { background: radial-gradient(70% 45% at 80% 80%, rgba(255,120,0,.4), transparent 70%), linear-gradient(90deg, rgba(8,8,8,.85) 0%, rgba(8,8,8,.5) 50%, rgba(8,8,8,0) 75%), linear-gradient(180deg, rgba(8,8,8,.25) 0%, rgba(8,8,8,0) 20%, rgba(8,8,8,0) 82%, #080808 100%); }
+  .wx-hero-mob .wx-eyebrow { font-size: 11px; letter-spacing: .12em; }
+  .wx-hero-mob .wx-h1 { font-size: 35px; line-height: .98; margin-top: 6px; }
+  .wx-hero-mob .wx-hero-sub { font-size: 12.5px; line-height: 1.4; max-width: 50%; margin-top: 8px; }
+  .wx-hero-mob .wx-cta { width: 47%; height: 40px; font-size: 11.5px; padding: 0 8px; margin-top: 12px; gap: 6px; }
+  .wx-hero-mob .wx-cta svg { width: 14px; height: 14px; }
+  .wx-hero-mob .wx-ghost { width: 47%; height: 36px; font-size: 11.5px; margin-top: 8px; gap: 6px; border-width: 1.2px; }
+  .wx-hero-mob .wx-ghost svg { width: 12px; height: 12px; }
+  .wx-note { font-size: 10.5px; margin-top: 8px; gap: 6px; max-width: 50%; }
+  .wx-note svg { width: 13px; height: 13px; }
+  .wx-phones { right: 4px; top: 146px; width: 178px; height: 200px; }
+  .wx-phones .lx-phone { padding: 3px; }
+  .wx-phone-front { left: 0; top: 4px; width: 112px; }
+  .wx-phone-back { left: 84px; top: 0; width: 96px; }
+
+  .wx-strip { padding: 0 10px; margin-top: 2px; }
+  .wx-strip ul { border-radius: 14px; }
+  .wx-strip li { padding: 8px 2px 7px; gap: 2px; }
+  .wx-strip svg { width: 17px; height: 17px; }
+  .wx-strip b { font-size: 8.5px; margin-top: 2px; }
+  .wx-strip span { font-size: 8px; }
+
+  .wx-facts { padding: 12px 12px 0; }
+  .wx-facts dt { font-size: 22px; }
+  .wx-facts dd { font-size: 10.5px; }
+
+  .wx-cards { gap: 6px; padding: 12px 10px 0; }
+  .wx-card { border-radius: 12px; padding: 0 7px 8px; border-width: 1.2px; }
+  .wx-card-art { margin: 0 -7px; aspect-ratio: 16 / 10.5; }
+  .wx-card h3 { font-size: 11px; }
+  .wx-card p { font-size: 9.5px; margin-top: 3px; }
+  .wx-more { height: 22px; padding: 0 8px; font-size: 9.5px; margin-top: 6px; gap: 3px; }
+  .wx-more svg { width: 10px; height: 10px; }
+
+  .wx-centre { margin: 10px 10px 0; padding: 16px 14px; min-height: 0; height: 172px; border-radius: 16px; }
+  .wx-centre-copy { max-width: 52%; }
+  .wx-h2 { font-size: 18px; line-height: 1; }
+  .wx-stores { margin-top: 10px; gap: 6px; }
+  .wx-play img { height: 34px !important; }
+  .wx-store { height: 34px; font-size: 12px; padding: 0 8px; }
+  .wx-fan { top: 8px; right: 0; width: 46%; height: 170px; }
+  .wx-fan-1 { top: 18px; width: 48%; }
+  .wx-fan-3 { top: 0; width: 50%; }
+
+  .wx-steps { margin: 16px 10px 0; padding: 16px 8px 10px; border-radius: 16px; }
+  .wx-steps-head { top: -9px; }
+  .wx-steps-head .wx-eyebrow { font-size: 11px; }
+  .wx-steps li { flex-direction: row; gap: 5px; padding-right: 12px; align-items: center; }
+  .wx-num { width: 24px; height: 24px; font-size: 10px; border-width: 1.5px; }
+  .wx-steps li b { font-size: 9px; }
+  .wx-steps li small { font-size: 8.5px; margin-top: 2px; }
+  .wx-step-arrow { top: 50%; transform: translateY(-50%); right: -2px; width: 12px; height: 12px; }
+
+  .wx-final { margin-top: 12px; padding: 22px 14px 20px; }
+  .wx-final-title { font-size: 19px; }
+  .wx-final p { font-size: 11px; margin-top: 6px; }
+  .wx-final .wx-cta { height: 38px; font-size: 11.5px; margin-top: 12px; padding: 0 18px; }
+  .wx-final small { font-size: 9.5px; margin-top: 8px; }
+}
