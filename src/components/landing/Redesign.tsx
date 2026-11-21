@@ -84,24 +84,16 @@ export function LandingNav({ sections, pages, appName, showIos }: {
 }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [active, setActive] = useState('#top');
+  const barLinks = ['/', '/programs', '/standards', '/challenges', '/trainers', '/partners'];
 
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 12);
-      // The last section whose top has passed under the bar is the active one.
-      let cur = '#top';
-      for (const s of sections) {
-        if (!s.href.startsWith('#')) continue;
-        const el = document.querySelector(s.href);
-        if (el && el.getBoundingClientRect().top <= 120) cur = s.href;
-      }
-      setActive(cur);
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, [sections]);
+  }, []);
 
   return (
     <header className={`lx-nav ${scrolled || open ? 'is-solid' : ''}`}>
@@ -110,13 +102,16 @@ export function LandingNav({ sections, pages, appName, showIos }: {
           <img src={WORDMARK} alt={appName} width={920} height={155} className="h-7 lg:h-9 w-auto" />
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-9" aria-label="Sections">
-          {sections.map((l) => (
-            <a key={l.href} href={l.href} className={`lx-nav-link ${active === l.href ? 'is-active' : ''}`}>{l.label}</a>
+        {/* The site's own pages, as the bar has always carried them. The
+            in-page sections are reached by scrolling and from the menu and
+            footer; "Download App" is the button on the right. */}
+        <nav className="hidden xl:flex items-center gap-8" aria-label="Main">
+          {pages.filter((l) => barLinks.includes(l.href)).map((l) => (
+            <Link key={l.href} href={l.href} className={`lx-nav-link ${l.href === '/' ? 'is-active' : ''}`}>{l.label}</Link>
           ))}
         </nav>
 
-        <div className="hidden lg:flex items-center gap-5">
+        <div className="hidden xl:flex items-center gap-5">
           <Link href="/login" className="lx-nav-link">Sign In</Link>
           <Link href="/download" className="lx-pill">
             Download App
@@ -125,13 +120,13 @@ export function LandingNav({ sections, pages, appName, showIos }: {
           </Link>
         </div>
 
-        <button onClick={() => setOpen((v) => !v)} className="lg:hidden lx-icon-btn" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
+        <button onClick={() => setOpen((v) => !v)} className="xl:hidden lx-icon-btn" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
           {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {open && (
-        <div className="lg:hidden lx-menu">
+        <div className="xl:hidden lx-menu">
           <div className="lx-wrap py-4 grid grid-cols-2 gap-x-6 gap-y-1">
             {[...sections, ...pages.filter((p) => p.href !== '/')].map((l) => (
               <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="lx-menu-link">{l.label}</a>

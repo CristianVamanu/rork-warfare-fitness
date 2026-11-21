@@ -1202,3 +1202,4 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
     -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent 100%), linear-gradient(180deg, #000 82%, transparent 100%); -webkit-mask-composite: source-in;
     mask-image: linear-gradient(90deg, #000 88%, transparent 100%), linear-gradient(180deg, #000 82%, transparent 100%); mask-composite: intersect; }
 }
+.lx-nav-link, .lx-pill { white-space: nowrap; }
