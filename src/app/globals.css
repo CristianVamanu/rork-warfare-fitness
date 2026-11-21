@@ -1216,3 +1216,4 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
   .lx-hero-art { left: -14%; width: 114%; }
   .lx-card-art img { object-position: 30% center; }
 }
+@media (max-width: 1023px) { .lx-hero-art { object-position: 50% top; } }
