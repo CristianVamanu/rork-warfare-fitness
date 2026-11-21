@@ -244,13 +244,11 @@ export default function LandingPage({
   // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
   // Store listings, shown in the footer once the admin enters them (Settings).
-  // Not on an iPhone, where the badge leads nowhere useful, and not inside
-  // the app itself. Decided after mount so server and client HTML agree.
-  const [showPlayBadge, setShowPlayBadge] = useState(false);
-  useEffect(() => {
-    const ua = navigator.userAgent;
-    setShowPlayBadge(!/iPhone|iPad|iPod/i.test(ua) && !isNativeApp());
-  }, []);
+  // Shown to every visitor, iPhone included: it is proof the app is real as
+  // much as a download link. Hidden only inside the app itself, which is
+  // decided after mount so server and client HTML agree.
+  const [showPlayBadge, setShowPlayBadge] = useState(true);
+  useEffect(() => { if (isNativeApp()) setShowPlayBadge(false); }, []);
   const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: PLAY_STORE_URL, ios: '' });
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
