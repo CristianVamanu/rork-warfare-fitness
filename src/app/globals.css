@@ -1321,3 +1321,34 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
 }
 @media (min-width: 1024px) { .lx-hero-phones .lx-phone-front { padding: .44vw; } .lx-hero-phones .lx-phone-back { padding: .36vw; } }
 @media (max-width: 1023px) { .lx-hero-actions { grid-template-columns: 1fr 1fr; justify-content: stretch; justify-items: center; } .lx-hero-actions .lx-demo { justify-self: end; } .lx-hero-actions .lx-hero-badge { justify-self: start; } }
+
+/* ── Feature cards, second design: full-image, words over the photo. ── */
+.lx-cards { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin-inline: -20px; padding: 4px 20px 8px; }
+.lx-cards::-webkit-scrollbar { display: none; }
+.lx-card { position: relative; display: block; flex: 0 0 80%; aspect-ratio: 4 / 5; min-height: 0; height: auto; scroll-snap-align: center; overflow: hidden; isolation: isolate;
+  border-radius: 26px; clip-path: none; border: 1px solid rgba(255,255,255,.10); background: #0c0c0c; grid-template-columns: none;
+  box-shadow: 0 30px 60px -34px rgba(0,0,0,.9); transition: transform .45s cubic-bezier(.22,1,.36,1), border-color .3s, box-shadow .45s; }
+.lx-card > img { position: absolute; inset: 0; z-index: -2; width: 100%; height: 100%; object-fit: cover; transition: transform .9s cubic-bezier(.22,1,.36,1); }
+.lx-card::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(8,8,8,.35) 0%, rgba(8,8,8,0) 26%, rgba(8,8,8,.25) 48%, rgba(8,8,8,.9) 78%, #080808 100%); }
+.lx-card-tag { position: absolute; left: 16px; top: 16px; display: inline-flex; align-items: center; gap: 9px; height: 34px; padding: 0 14px 0 6px; border-radius: 999px; font-size: 12.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #fff;
+  background: rgba(14,14,14,.55); border: 1px solid rgba(255,255,255,.14); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.lx-card-tag i { font-style: normal; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 11px; color: #160b00; background: linear-gradient(180deg, #FFC457, var(--lx-orange)); }
+.lx-card-body { position: absolute; left: 0; right: 0; bottom: 0; display: block; padding: 0 76px 22px 22px; }
+.lx-card-body h3 { font-family: 'Kanit', 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; text-transform: uppercase; font-size: 27px; line-height: 1.04; color: #fff; text-shadow: 0 2px 18px rgba(0,0,0,.8); }
+.lx-card-body p { color: #cfcfcf; font-size: 15px; line-height: 1.45; margin-top: 8px; }
+.lx-card-go { position: absolute; right: 18px; bottom: 20px; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; color: #160b00; background: linear-gradient(180deg, #FFC457, var(--lx-orange) 50%, var(--lx-orange2)); box-shadow: 0 0 26px rgba(255,150,20,.5); transition: transform .35s cubic-bezier(.22,1,.36,1); }
+.lx-card-go svg { width: 20px; height: 20px; }
+.lx-card:hover { transform: translateY(-6px); border-color: rgba(255,165,30,.55); box-shadow: 0 40px 70px -34px rgba(255,140,0,.5); }
+.lx-card:hover > img { transform: scale(1.06); }
+.lx-card:hover .lx-card-go { transform: translateX(4px) scale(1.06); }
+@media (min-width: 768px) { .lx-card { flex-basis: 46%; } }
+@media (min-width: 1024px) {
+  .lx-cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(16px, 1.5vw, 28px); overflow: visible; margin-inline: 0; padding: 0; }
+  .lx-card { aspect-ratio: 16 / 12.5; grid-template-columns: none; }
+  .lx-card-body { padding: 0 90px 26px 26px; }
+  .lx-card-body h3 { font-size: clamp(24px, 1.9vw, 34px); }
+  .lx-card-body p { font-size: clamp(14px, 1.02vw, 17px); }
+  .lx-card-go { right: 24px; bottom: 26px; width: 52px; height: 52px; }
+  #features.lx-section { padding-top: 1.6vw; }
+}
+@media (prefers-reduced-motion: reduce) { .lx-card, .lx-card > img, .lx-card-go { transition: none; } }

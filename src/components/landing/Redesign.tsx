@@ -297,26 +297,25 @@ export function FactsBar({ facts }: { facts: { value: string; label: string }[] 
 
 export function FeatureCards() {
   const cards = [
-    { title: 'Elite Training Programs', text: 'Advanced workout plans built for real results.', href: '/programs', img: '/landing/card-training.webp', alt: 'An athlete doing push-ups in a dark gym', phone: false },
-    { title: 'Track Every Detail', text: 'Monitor your workouts, nutrition and progress.', href: '#screens', img: '/landing/card-tracking.webp', alt: 'A phone showing a rising progress chart', phone: false },
-    { title: 'Nutrition Guidance', text: 'Fuel your body with science-backed nutrition.', href: '#screens', img: '/landing/card-nutrition.webp', alt: 'Sliced steak with vegetables on a dark tray', phone: false },
+    { tag: 'Training', title: 'Elite Training Programs', text: 'Advanced workout plans built for real results.', href: '/programs', img: '/landing/card-training.webp', alt: 'An athlete doing push-ups in a dark gym', pos: '28% center' },
+    { tag: 'Tracking', title: 'Track Every Detail', text: 'Monitor your workouts, nutrition and progress.', href: '#screens', img: '/landing/card-tracking.webp', alt: 'A phone showing a rising progress chart', pos: '22% center' },
+    { tag: 'Nutrition', title: 'Nutrition Guidance', text: 'Fuel your body with science-backed nutrition.', href: '#screens', img: '/landing/card-nutrition.webp', alt: 'Sliced steak with vegetables on a dark tray', pos: '32% center' },
   ];
   return (
     <section id="features" className="lx-wrap lx-section">
+      {/* Full-image cards with the words over the photo. On a phone they are
+          a swipe strip, with the next card peeking in to say so. */}
       <div className="lx-cards">
         {cards.map((c, i) => (
-          <Reveal key={c.title} delay={i * 80}>
-            <a href={c.href} className="lx-card">
-              <div className={`lx-card-art ${c.phone ? 'is-phone' : ''}`}>
-                <img src={c.img} alt={c.alt} loading="lazy" decoding="async" />
-              </div>
-              <div className="lx-card-body">
-                <h3 className="lx-label">{c.title}</h3>
-                <p>{c.text}</p>
-                <span className="lx-more">Learn more <ArrowRight className="w-4 h-4" aria-hidden /></span>
-              </div>
-            </a>
-          </Reveal>
+          <a key={c.title} href={c.href} className="lx-card">
+            <img src={c.img} alt={c.alt} loading="lazy" decoding="async" style={{ objectPosition: c.pos }} />
+            <span className="lx-card-tag"><i>{String(i + 1).padStart(2, '0')}</i>{c.tag}</span>
+            <div className="lx-card-body">
+              <h3>{c.title}</h3>
+              <p>{c.text}</p>
+            </div>
+            <span className="lx-card-go" aria-hidden><ArrowRight /></span>
+          </a>
         ))}
       </div>
     </section>
