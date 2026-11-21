@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
-import { LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
+import { MobileTabBar, LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -531,7 +531,7 @@ export default function LandingPage({
             closing panel instead of an orphan. Admins add and remove
             features from the landing editor, so anything keyed to a
             hard-coded index is a layout that breaks on the next save. */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+        <div className="lx-swipe grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
           {landing.features.map((f, i) => {
             const style = getFeatureStyle(f.title);
             const lonelyLast = landing.features.length % 3 === 1 && i === landing.features.length - 1;
@@ -701,7 +701,7 @@ export default function LandingPage({
             <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
             <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="lx-swipe grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {programs.map((p, i) => {
               const badge = PROGRAM_BADGE[p.id];
               return (
@@ -1053,7 +1053,7 @@ export default function LandingPage({
                 : `Start free — ${trialDays} days on us, no card required.`}
             </p>
           </div>
-          <div className={`grid gap-4 items-stretch ${
+          <div className={`lx-swipe lx-swipe-plans grid gap-4 items-stretch ${
             (membershipPlans.length + coachingPlans.length) >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3'
             : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto'
             : 'max-w-sm mx-auto'
@@ -1257,6 +1257,7 @@ export default function LandingPage({
         </div>
       </section>
 
+      <MobileTabBar />
       <LandingFooter appName={appName} sections={sectionLinks} pages={navLinks} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
     </div>
     </>
