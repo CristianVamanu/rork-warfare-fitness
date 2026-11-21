@@ -2,17 +2,15 @@
 
 import { isNativeApp } from '@/lib/native/health';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
-import { PLAY_STORE_URL, PLAY_TRADEMARK_LINE, androidStoreUrl } from '@/lib/storeLinks';
+import { PLAY_STORE_URL, androidStoreUrl } from '@/lib/storeLinks';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { OperatorLine } from '@/components/ui/OperatorLine';
 import Link from 'next/link';
-import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
-import { BrandVideo } from '@/components/ui/BrandVideo';
+import { LandingNav, LandingHero, FeatureStrip, FactsBar, FeatureCards, CommandCentre, HowItWorks, FinalCta, LandingFooter } from '@/components/landing/Redesign';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -229,7 +227,6 @@ export default function LandingPage({
   initialMembershipPlans: MembershipPlan[];
 }) {
   const navLinks = NAV_LINKS;
-  const headerLinks = navLinks.filter((l) => HEADER_LINKS.includes(l.href));
   const { user, loading } = useAuth();
   const router = useRouter();
   // Top of the funnel: one count per browser session, cookie-free.
@@ -260,7 +257,6 @@ export default function LandingPage({
   const [stats, setStats] = useState<{ totalUsers: number; totalWorkouts: number } | null>(null);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [programs, setPrograms] = useState<PublicProgram[]>([]);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [selectedProgram, setSelectedProgram] = useState<PublicProgram | null>(null);
   const [demoOpen, setDemoOpen] = useState(false);
   const [exitIntentOpen, setExitIntentOpen] = useState(false);
@@ -449,263 +445,64 @@ export default function LandingPage({
   // stops the charge being a surprise.
   const paidTrialDisclosure = trialTerms.disclosure;
 
+  // The anchors in the bar. Pricing is only offered when there are plans.
+  const hasPricing = membershipPlans.length > 0 || coachingPlans.length > 0;
+  const sectionLinks = [
+    { href: '#top', label: 'Home' },
+    { href: '#features', label: 'Features' },
+    { href: '#screens', label: 'App Screens' },
+    ...(hasPricing ? [{ href: '#pricing', label: 'Pricing' }] : []),
+    { href: '#faq', label: 'FAQ' },
+  ];
+  // "No credit card required" only when that is true of the trial as configured.
+  const noCardTrial = trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial;
+  const ctaNote = noCardTrial ? 'No credit card required' : 'Cancel anytime';
+  const finalNote = noCardTrial ? 'No credit card required. Cancel anytime.' : 'Cancel anytime.';
+  // Facts, not claims: the program count is the live library, the video
+  // count is the exercise library, and member numbers appear only once
+  // there are enough of them to be worth stating.
+  const facts = [
+    ...(programs.length > 0 ? [{ value: String(programs.length), label: 'Training programs' }] : []),
+    { value: '600+', label: 'Exercise demo videos' },
+    ...(stats && stats.totalUsers >= 15
+      ? [{ value: `${stats.totalWorkouts.toLocaleString()}+`, label: 'Workouts logged' }]
+      : [{ value: trialDays > 0 ? `${trialDays} days` : '2 min', label: trialDays > 0 ? 'Free to try' : 'To get your program' }]),
+  ];
+
   return (
     <>
       {/* Both are always in the HTML. Which one is visible is decided by CSS
           from the html[data-wf-session] attribute — see BrandSplash. */}
       <BrandSplash gated />
     <div data-landing-body className="min-h-screen bg-background overflow-x-hidden relative">
-      {/* Static backdrop behind the hero. See .wf-field — it paints once and
-          then costs nothing, which is the whole point of it. */}
-      <div aria-hidden className="wf-field" />
-      {/* Ambient glow + grid texture, contained to the hero viewport so it
-          doesn't bleed color into the feature/social-proof sections below. */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[640px] overflow-hidden">
-        <div
-          className="absolute inset-0 opacity-[0.07]"
-          style={{
-            backgroundImage:
-              'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
-            backgroundSize: '48px 48px',
-            maskImage: 'radial-gradient(ellipse 80% 60% at 50% 0%, black 40%, transparent 100%)',
-          }}
-        />
-      </div>
+      <LandingNav sections={sectionLinks} pages={navLinks} appName={appName} showIos={!!storeUrls.ios} />
 
-      {/* Hero background image — full-bleed behind the entire hero, not
-          confined to the narrow text column, so it actually reads as a
-          background rather than a sliver hidden behind the copy. */}
-      {landing.heroImageUrl && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[820px] overflow-hidden">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={landing.heroImageUrl}
-            alt=""
-            className="w-full h-full object-cover object-top sm:object-center opacity-40 sm:opacity-45"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/30 via-background/75 to-background" />
-          <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background" />
-        </div>
+      {/* Copy is the brief's; the button label, its note and the renewal
+          terms all come from buildTrialTerms, so the hero can never promise
+          "no card" on a trial that takes one. */}
+      <LandingHero
+        eyebrow="Train • Progress • Dominate"
+        line1="Build your"
+        line2="Perfect body"
+        sub="Military-inspired training for people who refuse to be average. Build strength. Build endurance. Build a body that performs."
+        ctaLabel={primaryCtaLabel}
+        ctaNote={ctaNote}
+        disclosure={noCardTrial ? null : paidTrialDisclosure}
+        onDemo={landing.heroDemoVideoUrl ? () => setDemoOpen(true) : undefined}
+        playBadge={showPlayBadge ? <GooglePlayBadge href={storeUrls.android} height={58} /> : undefined}
+      />
+
+      <FeatureStrip />
+      <FactsBar facts={facts} />
+      <FeatureCards />
+      <CommandCentre />
+      {/* An admin who has uploaded their own screenshots still gets them shown. */}
+      {landing.screenshotUrls && landing.screenshotUrls.length >= 3 && (
+        <section className="relative max-w-5xl mx-auto px-5 pb-14">
+          <AppShowcase items={landing.screenshotUrls.map((src, i) => ({ src, title: `Screen ${i + 1}`, caption: '' }))} />
+        </section>
       )}
-
-      {/* Nav */}
-      <nav className="relative max-w-5xl mx-auto px-5 py-5">
-        <div className="flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 shrink-0">
-            <div className={`w-14 h-14 md:w-[4.5rem] md:h-[4.5rem] rounded-2xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
-              {logoUrl ? (
-                <Image src={logoUrl} alt={appName} width={72} height={72} className="w-full h-full object-cover" onError={() => setLogoUrl(null)} />
-              ) : (
-                <span className="text-xl font-black text-black">{appName[0]}</span>
-              )}
-            </div>
-            <span className="text-base font-black text-white tracking-tight whitespace-nowrap">{appName}</span>
-          </Link>
-
-          {/* Desktop links: md and up, so a tablet in portrait gets the menu
-              button rather than a squeezed row. */}
-          <div className="hidden md:flex items-center gap-7">
-            {headerLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-sm font-medium text-text-secondary hover:text-white transition-colors whitespace-nowrap">
-                {link.label}
-              </a>
-            ))}
-            <Link href="/login" className="inline-flex items-center rounded-xl bg-accent text-black text-sm font-bold px-4 py-2 whitespace-nowrap hover:brightness-110 transition">
-              Sign In
-            </Link>
-          </div>
-
-          {/* Menu button below md */}
-          <button
-            onClick={() => setMobileMenuOpen((v) => !v)}
-            className="md:hidden p-2 -mr-2 text-text-secondary hover:text-white transition-colors"
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <XIcon className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-        </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="md:hidden overflow-hidden"
-          >
-            <div className="flex flex-col gap-1 mt-4 pb-2 border-t border-white/8 pt-4">
-              {navLinks.map((link) => (
-                <a
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="text-sm font-medium text-text-secondary hover:text-white transition-colors py-2.5"
-                >
-                  {link.label}
-                </a>
-              ))}
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="text-sm font-bold text-accent py-2.5"
-              >
-                Sign In
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </nav>
-
-      {/* Hero */}
-      <section className="relative max-w-3xl mx-auto px-5 pt-10 pb-16 text-center">
-        <div className="wf-rise">
-          {/* Animated brand mark — logo emerging through smoke into flame.
-              Muted/looped/inline so it autoplays everywhere including iOS
-              Safari; the poster frame paints instantly so there's no blank
-              gap while the ~900KB clip loads. */}
-          <div className="relative w-32 h-32 mx-auto mb-6">
-            <BrandVideo className="relative w-full h-full rounded-2xl object-cover shadow-glow-accent" ariaHidden={false} />
-          </div>
-          {landing.badgeText && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted text-accent text-[11px] uppercase tracking-[0.1em] mb-5 border border-accent/20">
-              <Trophy className="w-3.5 h-3.5" /> {landing.badgeText}
-            </div>
-          )}
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.15] sm:leading-[1.1] text-balance">
-            {landing.headlineLine1}<br className="hidden sm:block" />{' '}
-            <span className="wf-lit">{landing.headlineLine2}</span>
-          </h1>
-          <p className="text-text-secondary text-base sm:text-lg mt-5 max-w-xl mx-auto leading-relaxed">
-            {subheadline}
-          </p>
-          {/* Quick-start selector — getting a visitor to make one small,
-              personal choice (their sex) before they even leave the landing
-              page builds investment in the result, the same trick
-              quiz-funnel apps use. Age used to be asked here too, but it's
-              the less important of the two to front-load — it's asked in
-              onboarding instead (still right at the start there, just not
-              on the landing page itself). Rides along as a query param and
-              pre-fills the same field on the biometrics step. */}
-          {/* The start card wears the same targeting brackets as the rest of
-              the page's panels, so the one thing we want tapped reads as the
-              instrument's control rather than as a generic form box. */}
-          {/* One button, no gate. This used to ask for the visitor's sex
-              before the button worked: a question and a price before a
-              single screen of the product. Sex is asked on the quiz's own
-              screen for it, one tap, right where it is needed. */}
-          <div className="group relative max-w-md mx-auto mt-8 p-5 rounded-2xl border border-accent/20 bg-surface/60 backdrop-blur-sm">
-            <CornerBrackets size="w-3.5 h-3.5" />
-            <p className="wf-readout text-[10px] font-bold text-accent mb-3">Two minutes. A few taps. Your program.</p>
-            <Link href="/onboarding" className="block">
-              <Button size="lg" fullWidth>
-                {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-            {paidTrialDisclosure && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2">
-                {paidTrialDisclosure}
-              </p>
-            )}
-          </div>
-
-          {/* There used to be an "Or find out if you could pass selection"
-              link here, directly under the start button. It read as a second
-              option at the exact moment the visitor was being asked to pick
-              one, and the standards test is a route AWAY from signup — so the
-              cheaper choice won and onboarding lost people at the last step.
-              The test still has its own section further down the page, where
-              it catches the visitors who were never going to sign up today
-              instead of poaching the ones who were. */}
-
-          <div className="flex items-center justify-center gap-4 mt-5 flex-wrap">
-            <p className="text-xs text-text-tertiary">{paidTrialEnabled || cardUpFrontTrial ? `Cancel anytime` : 'No credit card required'}</p>
-            <span className="text-text-tertiary">·</span>
-            {/* The matched program is the first thing a new member sees and
-                the first thing they can dislike; saying up front that it is
-                changeable removes the "what if it picks wrong" hesitation
-                before the quiz, which is where it actually costs signups. */}
-            <p className="text-xs text-text-tertiary">Switch programs any time</p>
-            <span className="text-text-tertiary">·</span>
-            <Link href="/login" className="text-xs text-accent font-medium hover:underline">
-              {landing.ctaSecondaryLabel}
-            </Link>
-            {landing.heroDemoVideoUrl && (
-              <>
-                <span className="text-text-tertiary">·</span>
-                <button
-                  onClick={() => setDemoOpen(true)}
-                  className="inline-flex items-center gap-1.5 text-xs text-accent font-medium hover:underline"
-                >
-                  <PlayCircle className="w-3.5 h-3.5" /> Watch Demo
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* The store badge, under the start button rather than beside it:
-              the quiz stays the one thing to do, and the badge answers "is
-              this a real app?" for the visitor who was wondering. */}
-          {showPlayBadge && (
-            <div className="flex justify-center mt-5">
-              <GooglePlayBadge href={storeUrls.android} height={62} />
-            </div>
-          )}
-
-          {/* Verifiable trust signals about the product itself — shown
-              unconditionally, unlike the real-usage stats/testimonials below
-              which are correctly gated behind having real data. A brand-new
-              install with zero users yet would otherwise show NO trust
-              signal at all above the fold, right when a cold visitor needs
-              one most. These claims are true regardless of user count, so
-              there's nothing fabricated about showing them from day one. */}
-          {/* Set as one hairline-divided strip rather than three floating
-              phrases — a spec row reads as stated fact, loose text reads as
-              marketing. Divider suppressed on the first item and whenever a
-              row wraps to one item per line on a narrow phone. */}
-          <div className="inline-flex flex-wrap items-center justify-center gap-y-2 mt-6 rounded-xl border border-white/8 bg-white/[0.02] px-1.5 py-2">
-            {[
-              { Icon: ShieldCheck, label: 'Secure checkout' },
-              { Icon: XCircle, label: 'Cancel anytime' },
-              { Icon: CheckCircle2, label: 'Matched to you in 2 minutes' },
-            ].map(({ Icon, label }, i) => (
-              <div
-                key={label}
-                className={`flex items-center gap-1.5 px-3 text-[11px] text-text-tertiary wf-readout ${
-                  i > 0 ? 'sm:border-l sm:border-white/10' : ''
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {label}
-              </div>
-            ))}
-          </div>
-
-          {/* Real usage numbers only — hidden below a threshold so a brand
-              new install never shows an awkwardly small count. */}
-          {stats && stats.totalUsers >= 15 && (
-            <div className="flex items-center justify-center gap-6 mt-8 text-sm">
-              <div className="text-center">
-                <p className="text-xl font-bold text-white tabular-nums">{stats.totalUsers.toLocaleString()}+</p>
-                <p className="text-xs text-text-tertiary">athletes</p>
-              </div>
-              <div className="w-px h-8 bg-white/10" />
-              <div className="text-center">
-                <p className="text-xl font-bold text-white tabular-nums">{stats.totalWorkouts.toLocaleString()}+</p>
-                <p className="text-xs text-text-tertiary">workouts logged</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* What's inside. The product, before anything is asked for. */}
-      <section id="inside" className="relative max-w-5xl mx-auto px-5 pt-4 pb-14 scroll-mt-6">
-        <div className="text-center mb-6">
-          <div className="flex justify-center mb-3"><SectionEyebrow live>What&apos;s inside</SectionEyebrow></div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white">You show up. It does the rest.</h2>
-          <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">Real screens from the app. Swipe through what a day looks like.</p>
-        </div>
-        <AppShowcase items={landing.screenshotUrls && landing.screenshotUrls.length >= 3 ? landing.screenshotUrls.map((src, i) => ({ src, title: `Screen ${i + 1}`, caption: '' })) : undefined} />
-      </section>
+      <HowItWorks />
 
       {/* Feature grid — uniform equal-size cards. Deliberately NOT a
           position-dependent bento layout (a wide "hero" first tile, a
@@ -1245,7 +1042,7 @@ export default function LandingPage({
       {/* Pricing */}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && <DataDivider />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
-        <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
+        <section id="pricing" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <p className="text-text-secondary text-sm mt-2">
@@ -1407,7 +1204,7 @@ export default function LandingPage({
       )}
 
       {/* FAQ — kills objections right before the final ask */}
-      <section className="max-w-2xl mx-auto px-5 pb-16">
+      <section id="faq" className="max-w-2xl mx-auto px-5 pb-16">
         <div className="text-center mb-6">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
@@ -1436,41 +1233,12 @@ export default function LandingPage({
 
       <DataDivider />
 
-      {/* Final CTA */}
-      <section className="relative overflow-hidden max-w-2xl mx-auto px-5 pt-16 pb-20 text-center">
-        <h2 className="text-2xl sm:text-3xl font-black text-white">{landing.finalCtaHeadline}</h2>
-        <p className="text-text-secondary text-sm mt-2 mb-6">{fillPlaceholders(landing.finalCtaSubtext)}</p>
-        <Link href="/onboarding">
-          <Button size="lg" className="px-10">
-            {primaryCtaLabel} <ArrowRight className="w-4 h-4" />
-          </Button>
-        </Link>
-        {/* Same renewal terms as the hero. This button is identical to the
-            one above — including the "$1.00" — so it needs the same
-            disclosure; it previously had none. */}
-        {paidTrialDisclosure && (
-          <p className="text-[11px] text-text-tertiary text-center mt-3">
-            {paidTrialDisclosure}
-          </p>
-        )}
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-5">
-          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-            <ShieldCheck className="w-3.5 h-3.5 text-accent" /> Secure checkout
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-            <XCircle className="w-3.5 h-3.5 text-accent" /> Cancel anytime
-          </div>
-          {trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial && (
-            <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
-              <CheckCircle2 className="w-3.5 h-3.5 text-accent" /> No card required for trial
-            </div>
-          )}
-        </div>
-      </section>
+      {/* Final CTA. Same button, same terms as the hero. */}
+      <FinalCta ctaLabel={primaryCtaLabel} note={finalNote} disclosure={noCardTrial ? null : paidTrialDisclosure} />
 
       {/* Partner program — one bracketed panel for coaches and creators,
           above the footer so it never competes with the member CTA. */}
-      <section className="max-w-3xl mx-auto px-5 pb-16">
+      <section className="max-w-3xl mx-auto px-5 pt-16 pb-16">
         <div className="group relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/60 p-6 sm:p-8 backdrop-blur-sm">
           <CornerBrackets size="w-3.5 h-3.5" />
           <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
@@ -1488,24 +1256,7 @@ export default function LandingPage({
         </div>
       </section>
 
-      <footer className="max-w-5xl mx-auto px-5 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-white/8">
-        <div>
-          <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
-          <OperatorLine className="mt-1" />
-          <p className="text-[10px] text-text-tertiary mt-1">{PLAY_TRADEMARK_LINE}</p>
-        </div>
-        <div className="flex items-center gap-4 flex-wrap justify-center">
-          <GooglePlayBadge href={storeUrls.android} height={46} />
-          {storeUrls.ios && (
-            <a href={storeUrls.ios} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:text-white transition-colors">Download on the App Store</a>
-          )}
-          <Link href="/download" className="text-xs text-text-tertiary hover:text-white transition-colors">Download App</Link>
-          <Link href="/trainers" className="text-xs text-text-tertiary hover:text-white transition-colors">For Trainers</Link>
-          <Link href="/partners" className="text-xs text-text-tertiary hover:text-white transition-colors">Partners</Link>
-          <Link href="/privacy" className="text-xs text-text-tertiary hover:text-white transition-colors">Privacy</Link>
-          <Link href="/terms" className="text-xs text-text-tertiary hover:text-white transition-colors">Terms</Link>
-        </div>
-      </footer>
+      <LandingFooter appName={appName} sections={sectionLinks} pages={navLinks} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
     </div>
     </>
   );
