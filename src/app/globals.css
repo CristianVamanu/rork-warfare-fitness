@@ -1793,3 +1793,30 @@ html.light .wf-art::after {
   .wx-footer-stores img { height: 36px !important; }
   .wx-footer-base { margin-top: 16px; padding: 12px 0 18px; font-size: 10.5px; gap: 4px; }
 }
+
+/* Streak card in light mode */
+:root { --hc-num-shadow: 0 2px 14px rgba(0,0,0,0.75); }
+html.light { --hc-num-shadow: 0 2px 10px rgba(255,140,0,0.45); }
+/* The flame and mountain art sit on black, so on a light card they are
+   replaced by a warm glow drawn in CSS. */
+html.light .hc-streak .hc-flame, html.light .hc-streak .hc-mtn { display: none; }
+html.light .hc-streak .hc-flame + div { background: radial-gradient(closest-side, rgba(255,170,60,.55), rgba(255,150,30,.18) 60%, transparent 100%); border-radius: 50%; }
+html.light .hc-streak::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 60%; pointer-events: none; background: radial-gradient(80% 90% at 100% 0%, rgba(255,170,60,.16), transparent 70%); }
+html.light .hc-root .hc-streak [class*="text-white/"] { color: rgba(20,16,12,0.62) !important; }
+html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08) !important; }
+
+/* Pricing cards equal height in the swipe row */
+[data-landing-body] .lx-swipe { align-items: stretch !important; }
+[data-landing-body] .lx-swipe > * { height: auto !important; align-self: stretch !important; }
+
+/* Goal cards in the phone hero */
+.wx-mgoals { margin-top: 14px; position: relative; z-index: 3; }
+.wx-mgoals .wx-q { color: #fff; font-weight: 800; font-size: 14px; margin-bottom: 8px; }
+.wx-mgoals .wx-goals { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wx-mgoals .wx-goal { position: relative; display: block; height: 82px; border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,165,30,.6); background: #111; box-shadow: 0 0 16px -6px rgba(255,140,0,.7); }
+.wx-mgoals .wx-goal img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.wx-mgoals .wx-goal::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgba(0,0,0,.85)); }
+.wx-mgoals .wx-goal b { position: absolute; z-index: 1; left: 10px; bottom: 9px; color: #fff; font-size: 13.5px; font-weight: 700; }
+.wx-mgoals .wx-goal i { position: absolute; z-index: 1; right: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #1a0d00; background: linear-gradient(180deg, #FFC45A, #FFA51E); }
+.wx-mgoals .wx-goal i svg { width: 14px; height: 14px; }
+@media (max-width: 1023px) { .wx-hero { height: auto !important; padding-bottom: 18px !important; } }

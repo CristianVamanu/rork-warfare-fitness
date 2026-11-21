@@ -94,8 +94,8 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
   const litres = (waterMl / 1000).toFixed(waterMl % 1000 ? 1 : 0);
 
   return (
-    // 11pt side margins like the design (the page gives 16). The photo hero and
-    // the streak card stay dark in both themes (wf-dark); the rest follows it.
+    // 11pt side margins like the design (the page gives 16). The photo hero
+    // stays dark in both themes (wf-dark); everything below follows the theme.
     <div className="hc-root -mx-[5px]">
       <div className="wf-dark">
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
@@ -110,25 +110,26 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
           <span aria-hidden className="block mt-[14px] h-[2px] w-[70px] rounded-full" style={{ background: AMBER, boxShadow: '0 0 6px rgba(245,166,35,0.8)' }} />
         </div>
       </div>
+      </div>
 
-      {/* Readiness / weekly score */}
-      <div className="relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
+      {/* Readiness / weekly score: follows the theme */}
+      <div className="hc-streak relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
         {/* Faint mountain behind the right half of the card. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/home/mountain.webp" alt="" aria-hidden className="absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)' }} />
+        <img src="/home/mountain.webp" alt="" aria-hidden className="hc-mtn absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)' }} />
         <span className="absolute left-[22px] top-[17px] flex items-center gap-[7px] text-[9.5px] font-semibold tracking-[0.04em] text-white/75 uppercase">
           <Flame className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> Your streak
         </span>
-        <span className="absolute right-[14px] top-[11px] h-[20px] px-[8px] rounded-full flex items-center gap-[4px] text-[7.5px] font-bold text-white" style={{ background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.14)' }}>
+        <span className="absolute right-[14px] top-[11px] h-[20px] px-[8px] rounded-full flex items-center gap-[4px] text-[7.5px] font-bold text-white" style={ROUND_BTN}>
           <Sparkles className="w-[10px] h-[10px] text-accent" /> AI COACH
         </span>
         {/* Streak: the flame with the day count over it. */}
         <div className="absolute left-[14px] top-[34px] w-[136px] h-[130px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/home/flame.webp" alt="" aria-hidden className="absolute left-1/2 -translate-x-1/2 top-0 h-full w-auto object-contain"
+          <img src="/home/flame.webp" alt="" aria-hidden className="hc-flame absolute left-1/2 -translate-x-1/2 top-0 h-full w-auto object-contain"
             style={{ mixBlendMode: 'screen', maskImage: 'radial-gradient(closest-side, #000 55%, transparent)', WebkitMaskImage: 'radial-gradient(closest-side, #000 55%, transparent)', filter: streak > 0 ? 'brightness(1.35) saturate(1.2)' : 'grayscale(0.6) brightness(0.8)' }} />
           <div className="absolute inset-0 flex flex-col items-center justify-center pt-3">
-            <span className="text-[46px] font-black italic text-white leading-none" style={{ textShadow: '0 2px 14px rgba(0,0,0,0.75)' }}>{streak}</span>
+            <span className="text-[46px] font-black italic text-white leading-none" style={{ textShadow: 'var(--hc-num-shadow)' }}>{streak}</span>
             <span className="text-[10px] font-bold text-white/85 uppercase tracking-[0.18em] mt-1" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.8)' }}>{streak === 1 ? 'day' : 'days'}</span>
           </div>
         </div>
@@ -143,7 +144,6 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         </div>
       </div>
 
-      </div>
 
       {/* Today's numbers */}
       <div className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'var(--hc-strip-bg)', boxShadow: 'var(--hc-strip-shadow)' }}>
