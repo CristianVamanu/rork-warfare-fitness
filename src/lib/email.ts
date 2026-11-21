@@ -1,3 +1,4 @@
+import { PLAY_STORE_URL, PLAY_BADGE_PNG, PLAY_TRADEMARK_LINE, androidStoreUrl } from '@/lib/storeLinks';
 import { Resend } from 'resend';
 import { getSecret } from './secrets';
 import { emailKindAllowed, resolveEmailProvider, parseFromAddress, type EmailKind, type EmailControls, type EmailProvider } from './emailControls';
@@ -319,9 +320,11 @@ function shell(brand: EmailBrand, bodyHtml: string, preheader = ''): string {
         <!-- Footer -->
         <tr>
           <td align="center" style="padding:20px 8px 0;">
-            <p style="margin:0;font-size:11px;line-height:1.6;color:#8a8a8a;">
+            <a href="${PLAY_STORE_URL}" style="text-decoration:none;"><img src="${PLAY_BADGE_PNG}" width="155" height="60" alt="Get it on Google Play" style="display:inline-block;width:155px;height:60px;border:0;"></a>
+            <p style="margin:6px 0 0;font-size:11px;line-height:1.6;color:#8a8a8a;">
               You're receiving this because you have an account with ${safeName}.
             </p>
+            <p style="margin:4px 0 0;font-size:10px;line-height:1.5;color:#6a6a6a;">${PLAY_TRADEMARK_LINE}</p>
           </td>
         </tr>
 
@@ -411,7 +414,7 @@ export function welcomeEmailHtml(name: string, brand: EmailBrand, appUrl: string
 /** "Get the app" row for the store listings the admin has entered; nothing while both are empty. */
 function storeLinks(stores: { androidAppUrl?: string; iosAppUrl?: string }): string {
   const links: string[] = [];
-  if (stores.androidAppUrl) links.push(`<a href="${escapeHtml(stores.androidAppUrl)}" style="color:#F5A623;font-weight:700;text-decoration:none;">Get it on Google Play</a>`);
+  links.push(`<a href="${escapeHtml(androidStoreUrl(stores.androidAppUrl))}" style="text-decoration:none;"><img src="${PLAY_BADGE_PNG}" width="186" height="72" alt="Get it on Google Play" style="display:inline-block;vertical-align:middle;width:186px;height:72px;border:0;"></a>`);
   if (stores.iosAppUrl) links.push(`<a href="${escapeHtml(stores.iosAppUrl)}" style="color:#F5A623;font-weight:700;text-decoration:none;">Download on the App Store</a>`);
   if (!links.length) return '';
   return `

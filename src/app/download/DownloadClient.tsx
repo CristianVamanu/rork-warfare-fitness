@@ -1,5 +1,7 @@
 'use client';
 
+import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
+import { PLAY_STORE_URL, androidStoreUrl } from '@/lib/storeLinks';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -69,7 +71,7 @@ export default function DownloadClient({
   const [activePlatform, setActivePlatform] = useState<string>('ios');
   // Store listings from Settings; the "Add to Home Screen" steps below stay
   // as the route for platforms without a listing yet.
-  const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: '', ios: '' });
+  const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: PLAY_STORE_URL, ios: '' });
   // A signed-in member reaches this page from Profile → "Install the app".
   // It lives outside the app shell (no bottom nav, no header back button),
   // so without this they had no way back except the browser's own control.
@@ -79,7 +81,7 @@ export default function DownloadClient({
     getSystemConfig().then((cfg) => {
       if (cfg?.appName) setAppName(cfg.appName as string);
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
-      setStoreUrls({ android: ((cfg?.androidAppUrl as string) || '').trim(), ios: ((cfg?.iosAppUrl as string) || '').trim() });
+      setStoreUrls({ android: androidStoreUrl(cfg?.androidAppUrl), ios: ((cfg?.iosAppUrl as string) || '').trim() });
     }).catch(() => {});
   }, []);
 
@@ -150,10 +152,8 @@ export default function DownloadClient({
             <div className="mb-8 p-4 rounded-2xl border border-accent/25 bg-accent-muted/40">
               <p className="text-sm font-bold text-white">The native app</p>
               <p className="text-xs text-text-secondary mt-1">Install from the store and log in with the same email. Your watch&apos;s steps, sleep and heart rate show up on your dashboard.</p>
-              <div className="flex flex-wrap justify-center gap-2 mt-3">
-                {storeUrls.android && (
-                  <a href={storeUrls.android} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl bg-accent text-black text-sm font-bold">Get it on Google Play</a>
-                )}
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3">
+                {storeUrls.android && <GooglePlayBadge href={storeUrls.android} height={64} />}
                 {storeUrls.ios && (
                   <a href={storeUrls.ios} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl bg-accent text-black text-sm font-bold">Download on the App Store</a>
                 )}

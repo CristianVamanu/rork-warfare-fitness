@@ -7,6 +7,8 @@
  * apps (nothing to get) and after the member dismisses it, for 60 days.
  * Renders nothing when neither store URL is configured.
  */
+import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
+import { androidStoreUrl } from '@/lib/storeLinks';
 import { useEffect, useState } from 'react';
 import { Smartphone, X } from 'lucide-react';
 import { getSystemConfig } from '@/lib/firestore';
@@ -27,7 +29,7 @@ export function GetTheAppCard() {
     let alive = true;
     getSystemConfig().then((cfg) => {
       if (!alive) return;
-      const a = (cfg?.androidAppUrl as string | undefined)?.trim() || '';
+      const a = androidStoreUrl(cfg?.androidAppUrl);
       const i = (cfg?.iosAppUrl as string | undefined)?.trim() || '';
       setAndroid(a); setIos(i);
       setVisible(!!(a || i));
@@ -61,12 +63,8 @@ export function GetTheAppCard() {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white">Get the app</p>
           <p className="text-xs text-text-secondary mt-0.5">Full screen, faster, reminders that reach you, and your watch&apos;s steps and sleep on the dashboard. Log in with the same email.</p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            {showAndroid && (
-              <a href={android} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg bg-accent text-black text-xs font-bold active:scale-95 transition-transform">
-                Get it on Google Play
-              </a>
-            )}
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            {showAndroid && <GooglePlayBadge href={android} height={52} className="-ml-2" />}
             {showIos && (
               <a href={ios} target="_blank" rel="noopener noreferrer" className="px-3 py-2 rounded-lg bg-accent text-black text-xs font-bold active:scale-95 transition-transform">
                 Download on the App Store

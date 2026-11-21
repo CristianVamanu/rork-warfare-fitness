@@ -1,5 +1,8 @@
 'use client';
 
+import { isNativeApp } from '@/lib/native/health';
+import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
+import { PLAY_STORE_URL, PLAY_TRADEMARK_LINE, androidStoreUrl } from '@/lib/storeLinks';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { OperatorLine } from '@/components/ui/OperatorLine';
@@ -241,7 +244,14 @@ export default function LandingPage({
   // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
   // Store listings, shown in the footer once the admin enters them (Settings).
-  const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: '', ios: '' });
+  // Not on an iPhone, where the badge leads nowhere useful, and not inside
+  // the app itself. Decided after mount so server and client HTML agree.
+  const [showPlayBadge, setShowPlayBadge] = useState(false);
+  useEffect(() => {
+    const ua = navigator.userAgent;
+    setShowPlayBadge(!/iPhone|iPad|iPod/i.test(ua) && !isNativeApp());
+  }, []);
+  const [storeUrls, setStoreUrls] = useState<{ android: string; ios: string }>({ android: PLAY_STORE_URL, ios: '' });
   const [logoUrl, setLogoUrl] = useState<string | null>(initialLogoUrl);
   const [landing, setLanding] = useState<LandingPageConfig>(initialLanding);
   const [membership, setMembership] = useState<MembershipConfig | null>(initialMembership);
@@ -278,7 +288,7 @@ export default function LandingPage({
     getSystemConfig().then((cfg) => {
       if (cfg?.appName) setAppName(cfg.appName as string);
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
-      setStoreUrls({ android: ((cfg?.androidAppUrl as string) || '').trim(), ios: ((cfg?.iosAppUrl as string) || '').trim() });
+      setStoreUrls({ android: androidStoreUrl(cfg?.androidAppUrl), ios: ((cfg?.iosAppUrl as string) || '').trim() });
       if (cfg?.landingPage) setLanding({ ...DEFAULT_LANDING_CONFIG, ...(cfg.landingPage as LandingPageConfig) });
     }).catch(() => {});
     getMembershipConfig().then(setMembership).catch(() => {});
@@ -633,6 +643,15 @@ export default function LandingPage({
               </>
             )}
           </div>
+
+          {/* The store badge, under the start button rather than beside it:
+              the quiz stays the one thing to do, and the badge answers "is
+              this a real app?" for the visitor who was wondering. */}
+          {showPlayBadge && (
+            <div className="flex justify-center mt-5">
+              <GooglePlayBadge href={storeUrls.android} height={62} />
+            </div>
+          )}
 
           {/* Verifiable trust signals about the product itself — shown
               unconditionally, unlike the real-usage stats/testimonials below
@@ -1475,11 +1494,10 @@ export default function LandingPage({
         <div>
           <p className="text-xs text-text-tertiary">&copy; {new Date().getFullYear()} {appName}. All rights reserved.</p>
           <OperatorLine className="mt-1" />
+          <p className="text-[10px] text-text-tertiary mt-1">{PLAY_TRADEMARK_LINE}</p>
         </div>
         <div className="flex items-center gap-4 flex-wrap justify-center">
-          {storeUrls.android && (
-            <a href={storeUrls.android} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:text-white transition-colors">Get it on Google Play</a>
-          )}
+          <GooglePlayBadge href={storeUrls.android} height={46} />
           {storeUrls.ios && (
             <a href={storeUrls.ios} target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent hover:text-white transition-colors">Download on the App Store</a>
           )}
