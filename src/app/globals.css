@@ -1217,3 +1217,13 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
   .lx-card-art img { object-position: 30% center; }
 }
 @media (max-width: 1023px) { .lx-hero-art { object-position: 50% top; } }
+@media (max-width: 1023px) {
+  /* Button full width; "See the App" and the store badge share one centred row. */
+  .lx-hero-actions { display: grid; grid-template-columns: auto auto; justify-content: center; align-items: center; column-gap: 14px; row-gap: 16px; }
+  .lx-hero-actions .lx-cta { grid-column: 1 / -1; justify-self: stretch; }
+  .lx-hero-actions .lx-demo { min-height: 52px; gap: 10px; }
+  .lx-hero-actions .lx-demo small { display: none; }
+  .lx-hero-actions .lx-demo-icon { width: 42px; height: 42px; }
+  .lx-hero-badge { margin: 0; }
+  .lx-hero-badge img { height: 52px !important; }
+}
