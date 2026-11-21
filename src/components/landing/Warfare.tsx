@@ -74,9 +74,10 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
   /** Only when the admin has uploaded a demo video. */
   onDemo?: () => void;
 }) {
+  // Only when there is a demo video to watch; no stand-in button otherwise.
   const demo = onDemo
     ? <button type="button" onClick={onDemo} className="wx-ghost"><Play aria-hidden /> Watch demo</button>
-    : <a href="#screens" className="wx-ghost"><Play aria-hidden /> See the app</a>;
+    : null;
   return (
     <section id="top" className="wx-hero">
       <div className="wx-hero-bg" aria-hidden>
