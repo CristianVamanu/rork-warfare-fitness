@@ -14,7 +14,7 @@ export default function WeightHistoryChart({ data, unit }: { data: { date: strin
         <XAxis dataKey="date" tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} />
         <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fill: '#475569', fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
         <Tooltip
-          contentStyle={{ background: '#1A1A1A', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, fontSize: 12 }}
+          contentStyle={{ background: 'var(--surface)', color: 'var(--foreground)', border: '1px solid var(--card-glass-border)', borderRadius: 12, fontSize: 12 }}
           labelStyle={{ color: '#94a3b8' }}
           formatter={(v: number) => [`${v} ${unit}`, 'Weight']}
         />

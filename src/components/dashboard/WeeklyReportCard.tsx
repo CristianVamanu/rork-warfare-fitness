@@ -122,7 +122,7 @@ export function WeeklyReportCard() {
         {strip.length > 0 && (
           <div className="mt-3 grid gap-1.5" style={{ gridTemplateColumns: `repeat(${strip.length}, minmax(0, 1fr))` }} aria-label="This week in numbers">
             {strip.map((t) => { const Icon = t.icon; return (
-              <div key={t.label} className="rounded-xl px-1.5 py-2 text-center min-w-0 border" style={{ background: 'linear-gradient(180deg,#161411,#0d0c0b)', borderColor: 'rgba(255,255,255,0.07)' }}>
+              <div key={t.label} className="rounded-xl px-1.5 py-2 text-center min-w-0 border" style={{ background: 'var(--hc-tile-bg)', borderColor: 'var(--hc-tile-border)' }}>
                 <div className="flex items-center justify-center gap-1 min-w-0">
                   <Icon className="w-3.5 h-3.5 flex-shrink-0 text-text-secondary" strokeWidth={2.2} />
                   <p className={`text-[14px] font-black text-white tabular-nums leading-none truncate`}>{t.value}</p>
@@ -158,7 +158,7 @@ export function WeeklyReportCard() {
               <div className="grid grid-cols-6 gap-2">
                 {numTiles.slice(4).map((t, i, arr) => { const Icon = t.icon; const rest = arr.length % 3; const inLast = i >= arr.length - rest; return (
                   <div key={t.label} className={`rounded-xl p-2.5 min-w-0 border ${inLast ? (rest === 1 ? 'col-span-6' : 'col-span-3') : 'col-span-2'}`}
-                    style={{ background: 'linear-gradient(180deg,#161411,#0d0c0b)', borderColor: 'rgba(255,255,255,0.07)', boxShadow: `inset 0 -2px 0 ${t.color}, 0 8px 16px -12px ${t.color}` }}>
+                    style={{ background: 'var(--hc-tile-bg)', borderColor: 'var(--hc-tile-border)', boxShadow: `inset 0 -2px 0 ${t.color}, 0 8px 16px -12px ${t.color}` }}>
                     <Icon className="w-4 h-4" style={{ color: t.color }} />
                     <p className="text-[15px] font-black text-white tabular-nums mt-1 truncate">{t.value}</p>
                     <p className="text-[9px] text-text-tertiary uppercase tracking-wide truncate">{t.label}</p>

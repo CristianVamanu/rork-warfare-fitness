@@ -166,23 +166,23 @@ export function GuidedVideo({ videoId, title, credit }: { videoId: string; title
             onKeyUp={() => { if (scrubbing !== null) { seek(scrubbing); setScrubbing(null); } }}
             aria-label="Seek"
             className="w-full h-1.5 appearance-none rounded-full cursor-pointer accent-[var(--accent)]"
-            style={{ background: `linear-gradient(90deg, rgb(var(--accent-rgb)) ${pct}%, rgba(255,255,255,.12) ${pct}%)` }}
+            style={{ background: `linear-gradient(90deg, rgb(var(--accent-rgb)) ${pct}%, var(--progress-track) ${pct}%)` }}
           />
           <div className="flex items-center justify-between mt-2">
             <div className="flex items-center gap-1">
               <button type="button" onClick={toggle} className="w-9 h-9 rounded-lg border flex items-center justify-center" style={{ borderColor: 'rgba(245,166,35,.45)', background: 'rgba(245,166,35,.15)', color: '#F5A623' }} aria-label={playing ? 'Pause' : 'Play'}>
                 {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
               </button>
-              <button type="button" onClick={() => seek(0)} className="w-9 h-9 rounded-lg border border-white/15 text-white/75 flex items-center justify-center hover:text-white" aria-label="Restart">
+              <button type="button" onClick={() => seek(0)} className="w-9 h-9 rounded-lg border border-white/10 text-text-secondary flex items-center justify-center hover:text-white" aria-label="Restart">
                 <RotateCcw className="w-4 h-4" />
               </button>
-              <button type="button" onClick={toggleMute} className="w-9 h-9 rounded-lg border border-white/15 text-white/75 flex items-center justify-center hover:text-white" aria-label={muted ? 'Unmute' : 'Mute'}>
+              <button type="button" onClick={toggleMute} className="w-9 h-9 rounded-lg border border-white/10 text-text-secondary flex items-center justify-center hover:text-white" aria-label={muted ? 'Unmute' : 'Mute'}>
                 {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
             </div>
-            <p className="wf-readout text-[11px] font-bold text-white tabular-nums">{fmt(shown)} <span className="text-white/50">/ {fmt(dur)}</span></p>
+            <p className="wf-readout text-[11px] font-bold text-white tabular-nums">{fmt(shown)} <span className="text-text-tertiary">/ {fmt(dur)}</span></p>
           </div>
-          {credit && <p className="text-[10px] text-white/45 mt-2">{credit}</p>}
+          {credit && <p className="text-[10px] text-text-tertiary mt-2">{credit}</p>}
         </div>
       )}
     </div>

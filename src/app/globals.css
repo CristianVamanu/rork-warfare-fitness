@@ -1389,3 +1389,68 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
 
 }
 
+
+/* ── Home cards and report tiles: one set of colours per theme. ── */
+:root, html.light .wf-dark {
+  --hc-card-bg: linear-gradient(180deg, #161310, #0d0b0a) padding-box, linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(245,166,35,0.25) 55%, rgba(255,150,40,0.85) 100%) border-box;
+  --hc-card-shadow: 0 8px 16px -12px rgba(245,140,20,0.75);
+  --hc-strip-bg: linear-gradient(180deg, #121010, #0c0b0a) padding-box, linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06)) border-box;
+  --hc-strip-shadow: none;
+  --hc-round-bg: rgba(0,0,0,0.55);
+  --hc-round-border: rgba(255,255,255,0.16);
+  --hc-photo-fade: rgba(12,10,9,0.95);
+  --hc-divider: rgba(255,255,255,0.09);
+  --hc-tile-bg: linear-gradient(180deg, #161411, #0d0c0b);
+  --hc-tile-border: rgba(255,255,255,0.07);
+}
+html.light {
+  --hc-card-bg: linear-gradient(180deg, #FFFFFF, #FBF8F3) padding-box, linear-gradient(180deg, rgba(0,0,0,0.06) 0%, rgba(245,166,35,0.30) 60%, rgba(245,150,40,0.85) 100%) border-box;
+  --hc-card-shadow: 0 10px 20px -14px rgba(200,110,10,0.55);
+  --hc-strip-bg: linear-gradient(180deg, #FFFFFF, #FBF8F3) padding-box, linear-gradient(180deg, rgba(0,0,0,0.07), rgba(0,0,0,0.05)) border-box;
+  --hc-strip-shadow: 0 8px 18px -14px rgba(0,0,0,0.25);
+  --hc-round-bg: rgba(255,255,255,0.92);
+  --hc-round-border: rgba(0,0,0,0.09);
+  --hc-photo-fade: rgba(255,255,255,0.97);
+  --hc-divider: rgba(0,0,0,0.08);
+  --hc-tile-bg: linear-gradient(180deg, #FFFFFF, #F6F2EC);
+  --hc-tile-border: rgba(0,0,0,0.07);
+}
+/* Faded white text (text-white/60 and so on) becomes faded dark text on the
+   light Home cards. The dark hero and streak card keep theirs. */
+html.light .hc-root > :not(.wf-dark) [class*="text-white/"] { color: rgba(20,16,12,0.62) !important; }
+html.light .hc-root > :not(.wf-dark) .bg-white\/12,
+html.light .hc-root > :not(.wf-dark) .bg-white\/10 { background-color: rgba(0,0,0,0.08) !important; }
+/* Photo tiles on light cards: show the subject, let its black backdrop melt away. */
+html.light .hc-root > :not(.wf-dark) .hc-photo { -webkit-mask-image: radial-gradient(58% 72% at 62% 48%, #000 40%, transparent 100%) !important; mask-image: radial-gradient(58% 72% at 62% 48%, #000 40%, transparent 100%) !important; }
+
+/* ── Light versions of the warfare surfaces. Each of these had a dark rule
+   only, so in light mode the element had no background at all (the see-
+   through Quit Workout popup was .wf-set-active). ── */
+html.light .wf-glow {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(180deg, #FFFFFF 0%, #FBF8F3 100%) padding-box,
+    linear-gradient(180deg, rgba(0,0,0,0.06) 0%, rgba(245,166,35,0.30) 55%, rgba(245,150,40,0.85) 100%) border-box !important;
+  box-shadow: 0 10px 20px -14px rgba(200,110,10,0.5) !important;
+}
+html.light .wf-set-active {
+  border: 1.5px solid transparent;
+  background:
+    linear-gradient(180deg, #FFFFFF 0%, #FFF8EE 100%) padding-box,
+    linear-gradient(180deg, rgba(255,190,90,0.9), rgba(245,140,20,0.55) 50%, rgba(240,140,30,1)) border-box;
+  box-shadow: 0 0 18px rgba(245,140,20,0.22), 0 14px 26px -16px rgba(200,110,10,0.55);
+}
+html.light .wf-round {
+  background: radial-gradient(circle at 50% 30%, #FFFFFF, #F4EFE8 80%);
+  border: 1.5px solid rgba(232,140,20,0.6);
+  box-shadow: 0 4px 10px -4px rgba(200,110,10,0.35);
+  color: var(--foreground);
+}
+html.light .wf-art { position: relative; isolation: isolate; overflow: hidden; }
+html.light .wf-art::after {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: var(--art) right center / cover no-repeat;
+  opacity: .9;
+  -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 80%);
+  mask-image: linear-gradient(90deg, transparent 35%, #000 80%);
+}

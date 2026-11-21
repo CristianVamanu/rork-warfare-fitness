@@ -218,7 +218,7 @@ function RestPill({ seconds, total, onSkip, onExtend }: RestPillProps) {
           {/* Circular timer */}
           <div className="relative flex-shrink-0">
             <svg width={52} height={52} className="-rotate-90">
-              <circle cx={26} cy={26} r={22} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={4} />
+              <circle cx={26} cy={26} r={22} fill="none" stroke="var(--progress-track)" strokeWidth={4} />
               <motion.circle
                 cx={26} cy={26} r={22} fill="none"
                 stroke="#F5A623" strokeWidth={4}
@@ -416,7 +416,7 @@ function CardioTimerRow({
         {/* Compact circular ring */}
         <div className="relative flex-shrink-0">
           <svg width={72} height={72} className="-rotate-90">
-            <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
+            <circle cx={36} cy={36} r={30} fill="none" stroke="var(--progress-track)" strokeWidth={5} />
             <motion.circle
               cx={36} cy={36} r={30} fill="none"
               stroke="#F5A623" strokeWidth={5}
@@ -884,7 +884,7 @@ function HiitTimerRow({
       <div className="flex items-center gap-4 px-4 py-4">
         <div className="relative flex-shrink-0">
           <svg width={72} height={72} className="-rotate-90">
-            <circle cx={36} cy={36} r={30} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={5} />
+            <circle cx={36} cy={36} r={30} fill="none" stroke="var(--progress-track)" strokeWidth={5} />
             <motion.circle
               cx={36} cy={36} r={30} fill="none"
               stroke={phase === 'work' ? '#F5A623' : '#60A5FA'} strokeWidth={5}

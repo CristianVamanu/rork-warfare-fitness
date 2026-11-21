@@ -18,9 +18,10 @@ const AMBER = '#F5A623';
 const GLOW_CARD: React.CSSProperties = {
   // Thin edge: faint at the top, amber along the bottom (gradient border),
   // and a small glow just under the card. Mostly dark, like the design.
+  // Colours come from --hc-* in globals.css, so light mode gets light cards.
   border: '1px solid transparent',
-  background: 'linear-gradient(180deg, #161310, #0d0b0a) padding-box, linear-gradient(180deg, rgba(255,255,255,0.10) 0%, rgba(245,166,35,0.25) 55%, rgba(255,150,40,0.85) 100%) border-box',
-  boxShadow: '0 8px 16px -12px rgba(245,140,20,0.75)',
+  background: 'var(--hc-card-bg)',
+  boxShadow: 'var(--hc-card-shadow)',
 };
 
 function Gauge({ value, size = 124 }: { value: number; size?: number }) {
@@ -40,15 +41,15 @@ function Gauge({ value, size = 124 }: { value: number; size?: number }) {
   );
 }
 
-const ROUND_BTN: React.CSSProperties = { background: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.16)' };
+const ROUND_BTN: React.CSSProperties = { background: 'var(--hc-round-bg)', border: '1px solid var(--hc-round-border)' };
 
 function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { href: string; img: string; icon: React.ElementType; iconColor?: string; title: string; sub: string }) {
   return (
     <Link href={href} className="relative rounded-[15px] overflow-hidden h-[99px] active:scale-[.98] transition-transform" style={GLOW_CARD}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={img} alt="" className="absolute right-0 top-0 h-[68%] w-[64%] object-cover"
+      <img src={img} alt="" className="hc-photo absolute right-0 top-0 h-[68%] w-[64%] object-cover"
         style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 35%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 35%)' }} />
-      <div aria-hidden className="absolute inset-x-0 bottom-0 h-[55%]" style={{ background: 'linear-gradient(180deg, transparent, rgba(12,10,9,0.95) 55%)' }} />
+      <div aria-hidden className="absolute inset-x-0 bottom-0 h-[55%]" style={{ background: 'linear-gradient(180deg, transparent, var(--hc-photo-fade) 55%)' }} />
       <span className="absolute left-[8px] top-[8px] w-[30px] h-[30px] rounded-full flex items-center justify-center" style={ROUND_BTN}>
         <Icon className="w-[15px] h-[15px]" style={{ color: iconColor }} strokeWidth={1.9} />
       </span>
@@ -93,9 +94,10 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
   const litres = (waterMl / 1000).toFixed(waterMl % 1000 ? 1 : 0);
 
   return (
-    // 11pt side margins like the design (the page gives 16). Always the dark
-    // design, also when the app is in light mode (wf-dark keeps text white).
-    <div className="wf-dark -mx-[5px]">
+    // 11pt side margins like the design (the page gives 16). The photo hero and
+    // the streak card stay dark in both themes (wf-dark); the rest follows it.
+    <div className="hc-root -mx-[5px]">
+      <div className="wf-dark">
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
       <div className="home-hero-box relative -mx-[11px] h-[182px] overflow-hidden">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -141,15 +143,17 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         </div>
       </div>
 
+      </div>
+
       {/* Today's numbers */}
-      <div className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'linear-gradient(180deg, #121010, #0c0b0a) padding-box, linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.06)) border-box', boxShadow: 'none' }}>
+      <div className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'var(--hc-strip-bg)', boxShadow: 'var(--hc-strip-shadow)' }}>
         {[
           { icon: Flame, color: AMBER, label: 'Calories', value: kcal.toLocaleString(), unit: `/${kcalGoal}` },
           { icon: Droplet, color: '#3B9BFF', label: 'Water', value: litres, unit: `/${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 1 : 0)}L` },
           { icon: Dumbbell, color: '#D4D4D4', label: 'Workouts', value: String(workouts), unit: 'Total' },
           { icon: Trophy, color: AMBER, label: 'Streak', value: String(streak), unit: streak === 1 ? 'day' : 'days' },
         ].map((x, i) => (
-          <div key={x.label} className="flex flex-col items-center text-center h-[60px] justify-between" style={i ? { borderLeft: '1px solid rgba(255,255,255,0.09)' } : undefined}>
+          <div key={x.label} className="flex flex-col items-center text-center h-[60px] justify-between" style={i ? { borderLeft: '1px solid var(--hc-divider)' } : undefined}>
             <x.icon className="w-[17px] h-[17px]" style={{ color: x.color }} strokeWidth={1.9} />
             <span className="text-[7.5px] font-medium text-white/70 uppercase leading-none">{x.label}</span>
             <span className="text-[16px] font-black italic text-white leading-none tabular-nums">{x.value}</span>

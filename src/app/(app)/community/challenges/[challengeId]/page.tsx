@@ -155,7 +155,7 @@ export default function ChallengePage() {
             {challenge.rules && (
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-accent mb-1">The rules</p>
-                <p className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">{challenge.rules}</p>
+                <p className="text-sm text-white whitespace-pre-wrap leading-relaxed">{challenge.rules}</p>
               </div>
             )}
             <div className="flex items-center justify-between gap-3">
