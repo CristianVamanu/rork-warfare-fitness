@@ -36,10 +36,8 @@ export function resolveTheme(input: {
 }): Theme | null {
   const { preference, signedIn, inAppShell, authResolved = true } = input;
   if (!authResolved) return null;
-  // The app is dark only: the design is built for it. The saved preference
-  // and arguments are kept so nothing that calls this has to change.
-  void preference; void signedIn; void inAppShell;
-  return 'dark';
+  if (!signedIn || !inAppShell) return 'dark';
+  return preference;
 }
 
 /**
@@ -60,6 +58,8 @@ export const APP_SHELL_PREFIXES: readonly string[] = [
   '/achievements', '/banned', '/body', '/breathing', '/community', '/dashboard', '/goals', '/habits',
   '/messages', '/notifications', '/nutrition', '/profile', '/progress', '/pt-test', '/quests',
   '/settings', '/support', '/training', '/verify-2fa',
+  // Only the member pages under /ripz; /ripz itself is the public page.
+  '/ripz/play', '/ripz/challenge',
   '/admin',
 ];
 
@@ -68,7 +68,9 @@ export const APP_SHELL_PREFIXES: readonly string[] = [
  * Empty at the moment: the last entry was /programs, shared with a public
  * route until the retired member stub under it was replaced by a redirect.
  */
-export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {};
+export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {
+  '/ripz': 'Shared with the public Ripz page, which stays dark; its member pages are listed by full path above.',
+};
 
 /**
  * The inline script for the root layout. Runs before any React; adds the
@@ -78,7 +80,9 @@ export const APP_SHELL_BOOTSTRAP_EXCLUDED: Readonly<Record<string, string>> = {}
  */
 export function themeBootstrapScript(): string {
   const prefixes = JSON.stringify(APP_SHELL_PREFIXES);
-  // Dark only: make sure no saved light preference ever applies.
-  void prefixes;
-  return "try{document.documentElement.classList.remove('light')}catch(e){}";
+  return (
+    "try{if(localStorage.getItem('theme')==='light'&&localStorage.getItem('wf:session')==='1'){" +
+    `var p=location.pathname,a=${prefixes};` +
+    "for(var i=0;i<a.length;i++){if(p===a[i]||p.indexOf(a[i]+'/')===0){document.documentElement.classList.add('light');break}}}}catch(e){}"
+  );
 }
