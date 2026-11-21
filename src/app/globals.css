@@ -1203,3 +1203,16 @@ html:has([data-landing-body]) { scroll-behavior: smooth; scroll-padding-top: 88p
     mask-image: linear-gradient(90deg, #000 88%, transparent 100%), linear-gradient(180deg, #000 82%, transparent 100%); mask-composite: intersect; }
 }
 .lx-nav-link, .lx-pill { white-space: nowrap; }
+/* Top bar that scales with the screen: type, gaps and logo all shrink
+   together, so every link fits on one line from 1024px up. */
+.lx-nav-logo { height: 28px; }
+@media (min-width: 1024px) {
+  .lx-nav-logo { height: clamp(26px, 2.5vw, 38px); }
+  .lx-nav-links { gap: clamp(12px, 2.1vw, 38px); }
+  .lx-nav-right { gap: clamp(10px, 1.4vw, 22px); }
+  .lx-nav .lx-nav-link { font-size: clamp(12.5px, 1.02vw, 15.5px); }
+  .lx-nav .lx-pill { font-size: clamp(12.5px, 1vw, 15px); height: clamp(36px, 3.1vw, 46px); padding: 0 clamp(12px, 1.4vw, 22px); gap: 8px; }
+  /* Less zoom on the battlefield, so it stays crisp on wide screens. */
+  .lx-hero-art { left: -14%; width: 114%; }
+  .lx-card-art img { object-position: 30% center; }
+}

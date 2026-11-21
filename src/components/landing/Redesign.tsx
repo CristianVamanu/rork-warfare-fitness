@@ -99,19 +99,19 @@ export function LandingNav({ sections, pages, appName, showIos }: {
     <header className={`lx-nav ${scrolled || open ? 'is-solid' : ''}`}>
       <div className="lx-wrap flex items-center justify-between h-16 lg:h-20">
         <Link href="/" className="shrink-0" aria-label={`${appName} home`}>
-          <img src={WORDMARK} alt={appName} width={920} height={155} className="h-7 lg:h-9 w-auto" />
+          <img src={WORDMARK} alt={appName} width={920} height={155} className="lx-nav-logo w-auto" />
         </Link>
 
         {/* The site's own pages, as the bar has always carried them. The
             in-page sections are reached by scrolling and from the menu and
             footer; "Download App" is the button on the right. */}
-        <nav className="hidden xl:flex items-center gap-8" aria-label="Main">
+        <nav className="lx-nav-links hidden lg:flex items-center" aria-label="Main">
           {pages.filter((l) => barLinks.includes(l.href)).map((l) => (
             <Link key={l.href} href={l.href} className={`lx-nav-link ${l.href === '/' ? 'is-active' : ''}`}>{l.label}</Link>
           ))}
         </nav>
 
-        <div className="hidden xl:flex items-center gap-5">
+        <div className="lx-nav-right hidden lg:flex items-center">
           <Link href="/login" className="lx-nav-link">Sign In</Link>
           <Link href="/download" className="lx-pill">
             Download App
@@ -120,13 +120,13 @@ export function LandingNav({ sections, pages, appName, showIos }: {
           </Link>
         </div>
 
-        <button onClick={() => setOpen((v) => !v)} className="xl:hidden lx-icon-btn" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
+        <button onClick={() => setOpen((v) => !v)} className="lg:hidden lx-icon-btn" aria-label={open ? 'Close menu' : 'Open menu'} aria-expanded={open}>
           {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
       </div>
 
       {open && (
-        <div className="xl:hidden lx-menu">
+        <div className="lg:hidden lx-menu">
           <div className="lx-wrap py-4 grid grid-cols-2 gap-x-6 gap-y-1">
             {[...sections, ...pages.filter((p) => p.href !== '/')].map((l) => (
               <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="lx-menu-link">{l.label}</a>
