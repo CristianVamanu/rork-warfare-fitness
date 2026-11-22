@@ -2192,3 +2192,9 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 .pf-ic { width: 50px; height: 50px; flex: none; display: grid; place-items: center; border-radius: 14px; border: 1px solid rgba(245,166,35,.5); background: rgba(20,16,10,.85); }
 .pf-glow { filter: drop-shadow(0 0 8px rgba(245,166,35,.55)); }
 html.light .pf-card { background: #0c0b0a !important; }
+/* Light mode: the profile cards stay dark (the art is dark), so their text
+   keeps its dark-mode colours instead of the light theme's dark ink. */
+html.light .pf-card .text-white, html.light .pf-card p.text-white, html.light .pf-card span.text-white { color: #fff !important; }
+html.light .pf-card .text-text-secondary { color: #c4c4c4 !important; }
+html.light .pf-card .text-text-tertiary { color: #9a9a9a !important; }
+html.light .pf-card { color: #fff; }
