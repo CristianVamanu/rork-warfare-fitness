@@ -58,21 +58,10 @@ export function PublicHeader({
             on the page people arrive at from search is the fastest way to
             look like two unrelated sites. */}
         <Link href="/" className="flex items-center gap-2.5 flex-shrink-0">
-          <span className={`w-9 h-9 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0 ${logo ? '' : 'bg-accent'}`}>
-            {logo ? (
-              <Image
-                src={logo}
-                alt={appName}
-                width={36}
-                height={36}
-                className="w-full h-full object-cover"
-                onError={() => setLogoFailed(true)}
-              />
-            ) : (
-              <span className="text-base font-black text-black">{appName[0]}</span>
-            )}
-          </span>
-          <span className="text-sm font-black text-white tracking-tight hidden sm:inline">{appName}</span>
+          {/* The same wordmark as the landing nav. The admin's uploaded square
+              logo was the old mark, so it is no longer used here. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-wf.webp" alt={appName} width={920} height={155} className="h-8 sm:h-9 w-auto" />
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">

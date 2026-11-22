@@ -9,7 +9,12 @@ const LEVEL_KEY = 'wf.ripz.level';
  *  so nobody's first pack is a wall of 150 push-ups. */
 export function useRipzLevel(): [RipzLevel, (l: RipzLevel) => void] {
   const [level, setLevel] = useState<RipzLevel>('beginner');
-  useEffect(() => { try { const v = localStorage.getItem(LEVEL_KEY); if (isRipzLevel(v)) setLevel(v); } catch { /* private mode */ } }, []);
+  useEffect(() => {
+    // A level chosen on the landing page arrives as ?level=…; it wins and is remembered.
+    const q = new URLSearchParams(window.location.search).get('level');
+    if (isRipzLevel(q)) { setLevel(q); try { localStorage.setItem(LEVEL_KEY, q); } catch { /* private mode */ } return; }
+    try { const v = localStorage.getItem(LEVEL_KEY); if (isRipzLevel(v)) setLevel(v); } catch { /* private mode */ }
+  }, []);
   const set = (l: RipzLevel) => { setLevel(l); try { localStorage.setItem(LEVEL_KEY, l); } catch { /* private mode */ } };
   return [level, set];
 }
