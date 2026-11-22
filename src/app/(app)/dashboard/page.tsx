@@ -727,9 +727,28 @@ export default function DashboardPage() {
         {/* Below the fold the screen is three labelled groups, in the order
             a day actually goes: the tools you use, the things you are
             building, and how you recover. The icons sit in tinted badges so
-            each tile reads as a button rather than a glyph on glass. The
-            eight quick actions now live in the sheet behind the centre nav
-            button (QuickActionsSheet). */}
+            each tile reads as a button rather than a glyph on glass. */}
+        {/* Quick actions — the eight small tiles, as they were. */}
+        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 gap-2.5">
+          {[
+            { icon: Dumbbell, label: 'Workout', href: '/training', tone: '' },
+            { icon: Apple, label: 'Log food', href: '/nutrition', tone: '' },
+            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', tone: '' },
+            { icon: CheckSquare, label: 'Habits', href: '/habits', tone: '' },
+            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: '' },
+            { icon: TrendingUp, label: 'Progress', href: '/progress', tone: '' },
+            { icon: Trophy, label: 'Achievements', href: '/achievements', tone: '' },
+            { icon: Swords, label: 'Quests', href: '/quests', tone: '' },
+          ].map((action) => (
+            <motion.div key={action.label} variants={stagger.item}>
+              <Link href={action.href} className="block">
+                {/* Glass tool tile with the amber edge glow; white line icon, amber for the reward tools. */}
+                <div className="wf-glow rounded-[18px] h-[84px] flex flex-col items-center justify-center gap-2 card-float">
+                  <action.icon className={`w-6 h-6 ${action.tone || 'text-foreground'}`} strokeWidth={1.6} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.35))' }} />
+                  <span className="text-[10px] font-semibold text-foreground/85 text-center leading-tight px-1">{action.label}</span>
+                </div>
+              </Link>
+            </motion.div>
 
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
           {/* Level — personal progression, not a ranking. */}
