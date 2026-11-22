@@ -2183,3 +2183,12 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 /* The banner: a framed card with an orange edge, on phones and desktop. */
 .wx-centre { margin: 18px 12px 0 !important; border-radius: 20px !important; border: 1px solid rgba(245,166,35,.75) !important; box-shadow: 0 0 26px -8px rgba(245,166,35,.65), inset 0 0 40px -20px rgba(245,166,35,.4); }
 @media (min-width: 1024px) { .wx-centre { max-width: 1240px; margin: 26px auto 0 !important; border-radius: 24px !important; } }
+
+/* ── Profile cards: glowing orange edge, dark art on the right ── */
+.pf-card { position: relative; overflow: hidden; isolation: isolate; border: 1px solid rgba(245,166,35,.7) !important; box-shadow: 0 0 20px -6px rgba(245,166,35,.6), inset 0 0 22px -12px rgba(245,166,35,.55) !important; background: #0c0b0a !important; }
+.pf-card > :not(.pf-art) { position: relative; z-index: 1; }
+.pf-art { position: absolute; z-index: 0; top: 0; right: 0; bottom: 0; width: 58%; background-size: cover; background-position: right center; pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%); mask-image: linear-gradient(90deg, transparent, #000 50%); opacity: .95; }
+.pf-ic { width: 50px; height: 50px; flex: none; display: grid; place-items: center; border-radius: 14px; border: 1px solid rgba(245,166,35,.5); background: rgba(20,16,10,.85); }
+.pf-glow { filter: drop-shadow(0 0 8px rgba(245,166,35,.55)); }
+html.light .pf-card { background: #0c0b0a !important; }

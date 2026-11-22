@@ -61,12 +61,13 @@ export function ReferralCard() {
   if (!data) return null;
 
   return (
-    <Card className="p-4 flex items-center gap-3">
-      <div className="p-2 bg-accent-muted rounded-lg">
-        <Users className="w-4 h-4 text-accent" />
+    <Card className="pf-card p-4 flex items-center gap-3">
+      <span aria-hidden className="pf-art" style={{ backgroundImage: 'url(/profile/referral.webp)' }} />
+      <div className="pf-ic">
+        <Users className="w-6 h-6 text-accent" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white">
+        <p className="text-base font-bold text-white">
           Give a month, get a month
         </p>
         <p className="text-xs text-text-secondary">

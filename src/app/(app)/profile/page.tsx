@@ -354,13 +354,13 @@ export default function ProfilePage() {
   const trialEndsAt = freeTrialEndsAt(membershipConfig, profile?.createdAt);
 
   const stats = [
-    { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-purple-400' },
-    { icon: Flame, label: 'Streak', value: `${streak}d`, color: 'text-orange-400' },
-    { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent' },
+    { icon: Dumbbell, label: 'Workouts', value: totalWorkouts, color: 'text-accent', art: 'equipment' },
+    { icon: Flame, label: 'Streak', value: `${streak}d`, color: 'text-accent', art: 'progress' },
+    { icon: Zap, label: 'Fitness Level', value: powerLevel, color: 'text-accent', art: 'plate' },
     // Was `currentWeightKg ?? totalWeightLifted` — i.e. it showed the user's
     // BODY weight under a "total lifted" label for anyone who'd ever logged a
     // weigh-in, contradicting the badge above that reads totalWeightLifted.
-    { icon: Trophy, label: `Total ${weightUnit}`, value: totalLiftedShown, color: 'text-yellow-400' },
+    { icon: Trophy, label: `Total ${weightUnit}`, value: totalLiftedShown, color: 'text-accent', art: 'stack' },
   ];
 
   // Show membership to all non-admin/trainer users, and also to admin so they can see what users see
@@ -689,13 +689,12 @@ export default function ProfilePage() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 gap-3"
         >
-          {stats.map(({ icon: Icon, label, value, color }) => (
-            <Card key={label} className="p-4 flex items-center gap-3.5 card-float">
-              <span className={`w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0 bg-white/6 ${color}`}>
-                <Icon className="w-5 h-5" strokeWidth={1.75} />
-              </span>
+          {stats.map(({ icon: Icon, label, value, color, art }) => (
+            <Card key={label} className="pf-card p-4 flex items-center gap-3 card-float">
+              <PfArt name={art} />
+              <Icon className={`w-9 h-9 flex-shrink-0 ${color} pf-glow`} strokeWidth={1.75} />
               <div className="min-w-0">
-                <p className="text-[22px] font-black text-white leading-none tabular-nums">{value}</p>
+                <p className="text-[28px] font-black italic text-white leading-none tabular-nums">{value}</p>
                 <p className="text-[10px] font-bold uppercase tracking-wide text-text-tertiary mt-1">{label}</p>
               </div>
             </Card>
@@ -704,10 +703,11 @@ export default function ProfilePage() {
 
         {/* Fitness Level Bar */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
-          <Card className="p-4">
+          <Card className="pf-card p-4">
+            <PfArt name="level" />
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-white">Fitness Level</span>
-              <span className="text-accent font-black">{powerLevel}</span>
+              <span className="text-base font-bold text-white">Fitness Level</span>
+              <span className="text-accent text-2xl font-black italic">{powerLevel}</span>
             </div>
             <div className="h-3 bg-white/8 rounded-full overflow-hidden">
               <motion.div
@@ -741,12 +741,13 @@ export default function ProfilePage() {
         {/* Progress Hub */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }}>
           <Link href="/progress">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="p-2 bg-green-400/10 rounded-lg">
-                <TrendingUp className="w-4 h-4 text-green-400" />
+            <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <PfArt name="progress" />
+              <div className="pf-ic">
+                <TrendingUp className="w-6 h-6 text-accent" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Progress Hub</p>
+                <p className="text-base font-bold text-white">Progress Hub</p>
                 <p className="text-xs text-text-secondary">Level, weight trend, weekly activity</p>
               </div>
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
@@ -780,12 +781,13 @@ export default function ProfilePage() {
         {/* Achievements */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.17 }}>
           <Link href="/achievements">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="p-2 bg-accent-muted rounded-lg">
-                <Trophy className="w-4 h-4 text-accent" />
+            <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <PfArt name="achievements" />
+              <div className="pf-ic">
+                <Trophy className="w-6 h-6 text-accent" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Achievements</p>
+                <p className="text-base font-bold text-white">Achievements</p>
                 <p className="text-xs text-text-secondary">{(profile?.achievements?.length ?? 0)} unlocked</p>
               </div>
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
@@ -1078,12 +1080,13 @@ function EquipmentCard() {
   return (
     <>
       <button onClick={openEditor} className="w-full text-left">
-        <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-          <div className="p-2 bg-accent-muted rounded-lg">
-            <Dumbbell className="w-4 h-4 text-accent" />
+        <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+          <PfArt name="equipment" />
+          <div className="pf-ic">
+            <Dumbbell className="w-6 h-6 text-accent" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white">Your equipment</p>
+            <p className="text-base font-bold text-white">Your equipment</p>
             <p className="text-xs text-text-secondary truncate">
               {current.length === 0 ? 'Not set. Tell the app what you have and it flags what a session needs.' : current.map(equipmentLabel).join(', ')}
             </p>
@@ -1101,4 +1104,9 @@ function EquipmentCard() {
       </Modal>
     </>
   );
+}
+
+/** Dark artwork behind the right side of a profile card, fading in from the left. */
+function PfArt({ name }: { name: string }) {
+  return <span aria-hidden className="pf-art" style={{ backgroundImage: `url(/profile/${name}.webp)` }} />;
 }
