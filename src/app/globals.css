@@ -1939,3 +1939,10 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 @media (min-width: 600px) and (max-width: 1023px) { .wx-phones3d { left: auto; right: 12px; top: 300px; width: 380px; } }
 @media (min-width: 1024px) { .wx-phones3d { left: 63vw; top: calc(80px + 1.6vw); width: 33vw; } }
 @media (max-width: 599px) { .wx-phones3d { left: calc(var(--u) * 190); top: calc(var(--u) * 134); width: calc(var(--u) * 208); } }
+/* Phone hero: positions measured from the reference (in 390-wide units). */
+@media (max-width: 599px) {
+  .wx-hero-mob { width: calc(var(--u) * 240); }
+  .wx-hero-mob .wx-h1 { font-size: calc(var(--u) * 30); }
+  .wx-hero-mob .wx-hero-sub { max-width: calc(var(--u) * 178); font-size: calc(var(--u) * 10); }
+  .wx-phones3d { left: calc(var(--u) * 210); top: calc(var(--u) * 150); width: calc(var(--u) * 172); }
+}
