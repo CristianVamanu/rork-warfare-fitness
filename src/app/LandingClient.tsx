@@ -499,6 +499,7 @@ export default function LandingPage({
         ctaNote={ctaNote}
         disclosure={noCardTrial ? null : paidTrialDisclosure}
         priceLine={priceLine}
+        facts={facts}
         onDemo={() => setDemoOpen(true)}
       />
       <div className="wx-mid">

@@ -15,7 +15,7 @@
 
 import Link from 'next/link';
 import {
-  ArrowRight, ChevronRight, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple,
+  ArrowRight, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck,
 } from 'lucide-react';
 import { PhoneFrame, Reveal } from '@/components/landing/Redesign';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
@@ -54,7 +54,11 @@ function HeroPhones() {
   return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={1806} height={2007} fetchPriority="high" />;
 }
 
-export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo }: {
+const same = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo, facts = [] }: {
+  /** Real product figures for the phone hero's numbers card. */
+  facts?: { value: string; label: string }[];
   /** "7 days free, then $X/mo. Cancel anytime." from the live plans. */
   priceLine?: string | null;
   ctaLabel: string;
@@ -112,6 +116,41 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo }: {
       </div>
 
       <HeroPhones />
+
+      {/* Phone hero, the owner's mobile reference: full-width warrior,
+          centred headline, three promises, the numbers, one big button. */}
+      <div className="wx-m2">
+        <img src="/landing/hero-mobile2.webp" alt="" className="wx-m2-art" fetchPriority="high" />
+        <div className="wx-m2-in">
+          <h1 className="wx-h1 wx-m2-h1" aria-hidden><span>Build your</span><span className="wx-o">Perfect body</span></h1>
+          <p className="wx-m2-tag">Train <i>•</i> Progress <i>•</i> Dominate</p>
+          <p className="wx-m2-sub">Military-inspired training for real people. No experience needed. Home or gym, matched to you in 2 minutes.</p>
+          <ul className="wx-m2-icons">
+            <li><Dumbbell aria-hidden /><span>Custom<br />programs</span></li>
+            <li><TrendingUp aria-hidden /><span>Track<br />progress</span></li>
+            <li><Trophy aria-hidden /><span>Reach<br />your goals</span></li>
+          </ul>
+          {facts.length > 0 && (
+            <dl className="wx-m2-facts">
+              {facts.map((f, i) => {
+                const Icon = [Dumbbell, PlayCircle, CalendarCheck][i % 3];
+                return <div key={f.label}><Icon aria-hidden /><dt>{f.value}</dt><dd>{f.label}</dd></div>;
+              })}
+            </dl>
+          )}
+          <Link href="/onboarding" className="wx-m2-cta">
+            <span>{ctaLabel} <ArrowRight aria-hidden /></span>
+            <small>{ctaNote}</small>
+          </Link>
+          {(disclosure || priceLine) && same(disclosure || priceLine || '') !== same(ctaNote) && <p className="wx-m2-price">{disclosure || priceLine}</p>}
+          {onDemo && <button type="button" onClick={onDemo} className="wx-m2-demo"><Play aria-hidden /> Watch demo</button>}
+          <div className="wx-mgoals">
+            <p className="wx-q">What&apos;s your goal?</p>
+            <GoalGrid />
+          </div>
+          <a href="#features" className="wx-m2-join">Join the warfare <ChevronDown aria-hidden /></a>
+        </div>
+      </div>
     </section>
   );
 }
