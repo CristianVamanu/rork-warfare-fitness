@@ -570,7 +570,7 @@ export default function LandingPage({
 
       {/* Social proof strip */}
       {landing.socialProof.length > 0 && (
-        <section className="max-w-3xl mx-auto px-5 pb-16">
+        <section className="wx-xtra max-w-3xl mx-auto px-5 pb-16">
           <div className="rounded-2xl border border-white/8 bg-surface p-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-8 justify-center">
             {landing.socialProof.map((line) => (
               <div key={line} className="flex items-center gap-2">
@@ -585,7 +585,7 @@ export default function LandingPage({
       {/* Pricing */}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && <DataDivider />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
-        <section id="pricing" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
+        <section id="pricing" className="wx-xtra relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 pt-10">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
             <WxGuarantee trialDays={trialDays} noCard={noCardTrial} />
@@ -747,7 +747,7 @@ export default function LandingPage({
       <WxTrial trialDays={trialDays} ctaLabel={primaryCtaLabel} note={noCardTrial ? 'No credit card required. Cancel anytime.' : (paidTrialDisclosure || 'Cancel anytime.')} />
 
       {/* FAQ — kills objections right before the final ask */}
-      <section id="faq" className="max-w-2xl mx-auto px-5 pb-16">
+      <section id="faq" className="wx-xtra max-w-2xl mx-auto px-5 pb-16 pt-10">
         <div className="text-center mb-6">
           <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
         </div>
@@ -784,7 +784,7 @@ export default function LandingPage({
           brackets, a slow readout sweep, and the numbers in a labelled panel.
           The point it makes visually is the point the product makes, which is
           that these are measurements, not motivation. */}
-      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
+      <section id="selection" className="wx-xtra relative max-w-5xl mx-auto px-5 pt-14 pb-14">
         <Link
           href="/standards"
           className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"

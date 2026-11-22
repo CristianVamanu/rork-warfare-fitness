@@ -2075,3 +2075,20 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 /* Desktop follows the owner's desktop reference: these two phone-only
    panels aren't in it (the hero, steps and final CTA already carry them). */
 @media (min-width: 1024px) { .wx-why, .wx-trial { display: none !important; } }
+
+/* ── The owner's two reference screens are the whole page ──
+   Hero, strip, stats, three cards, command centre, steps, final ask.
+   Pricing and the FAQ stay in the page for the header/footer links: they
+   open when their link is followed (#pricing, #faq) and are otherwise out
+   of the way. */
+.wx-plans, .wx-why, .wx-trial, #selection.wx-xtra { display: none !important; }
+.wx-xtra { display: none; }
+.wx-xtra:target { display: block; }
+@media (max-width: 599px) {
+  .wx-m2 { display: none !important; }
+  .wx-hero-bg, .wx-hero-mob, .wx-phones3d { display: block !important; }
+  .wx-hero-mob .wx-mgoals { display: none; }
+}
+@media (max-width: 599px) {
+  .wx-mid .wx-strip, .wx-mid .wx-facts { display: block !important; }
+}
