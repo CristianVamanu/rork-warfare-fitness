@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { Moon, Flame, Crosshair, Wind, Dumbbell, Apple, Camera, ChevronRight, Play, RefreshCw, RotateCcw, AlertTriangle, TrendingUp, Trophy, CheckSquare, Swords, Sparkles, Plus, Minus, Target, ClipboardCheck, Droplets, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocalDate } from '@/hooks/useLocalDate';
-import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayProtein, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
+import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, subscribeTodayProtein, subscribeTodayWater, getTodayWaterLogs, deleteWaterLog, getTodayMeals, deleteMeal, getPersonalBest, markFlameIgnited, resolveProgram, peekResolvedProgram, type PersonalBest } from '@/lib/firestore';
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { sessionsIntoWeek } from '@/lib/programWeek';
@@ -195,6 +195,24 @@ export default function DashboardPage() {
       await logMealAction(user.uid, { name: 'Protein (quick add)', calories: 40, protein: 10, carbs: 0, fat: 0, mealType: 'snack' });
     } catch {
       toast.error('Failed to log protein');
+    } finally {
+      setAddingProtein(false);
+    }
+  };
+
+  // Undo the last protein quick-add today. Only quick-add entries are removed:
+  // a real meal is edited in Nutrition, never deleted from here by accident.
+  const handleRemoveProtein = async () => {
+    if (!user || addingProtein) return;
+    setAddingProtein(true);
+    try {
+      const meals = await getTodayMeals(user.uid, localDateStr);
+      const ms = (v: unknown) => (v as { toMillis?: () => number } | undefined)?.toMillis?.() ?? 0;
+      const quick = meals.filter((m) => m.name === 'Protein (quick add)').sort((a, b) => ms(b.loggedAt) - ms(a.loggedAt))[0];
+      if (!quick) { toast('Nothing to undo. Edit meals in Nutrition.'); return; }
+      await deleteMeal(quick.id, user.uid);
+    } catch {
+      toast.error('Failed to remove protein');
     } finally {
       setAddingProtein(false);
     }
@@ -439,6 +457,7 @@ export default function DashboardPage() {
             onRemoveWater={handleRemoveWater}
             waterBusy={adjustingWater}
             onAddProtein={handleAddProtein}
+            onRemoveProtein={handleRemoveProtein}
             proteinBusy={addingProtein}
             startHref={activeProgram?.programId && !isRestToday ? `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}` : '/training'}
           />

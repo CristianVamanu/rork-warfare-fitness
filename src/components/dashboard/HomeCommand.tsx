@@ -62,11 +62,11 @@ function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { h
   );
 }
 
-export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy, onAddProtein, proteinBusy }: {
+export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy, onAddProtein, onRemoveProtein, proteinBusy }: {
   name: string; kcal: number; kcalGoal: number; protein: number; proteinGoal: number; waterMl: number; waterGoalMl: number; workouts: number; streak: number;
   startHref: string; sessionsThisWeek: number; daysPerWeek: number;
   onAddWater: () => void; onRemoveWater: () => void; waterBusy: boolean;
-  /** +10 g protein, logged as a quick food entry. */ onAddProtein?: () => void; proteinBusy?: boolean;
+  /** +10 g protein, logged as a quick food entry. */ onAddProtein?: () => void; onRemoveProtein?: () => void; proteinBusy?: boolean;
 }) {
   const { user } = useAuth();
   const { days, loaded } = useHealthHistory(user?.uid, 15);
@@ -192,7 +192,10 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
           <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
             <div className="flex items-center justify-between">
               <Link href="/nutrition" className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Beef className="w-[13px] h-[13px] text-[#F87171]" strokeWidth={2} /> Protein</Link>
+              <span className="flex gap-[5px]">
+              {onRemoveProtein && <button type="button" onClick={onRemoveProtein} disabled={proteinBusy || !protein} aria-label="Remove 10 g protein" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35 active:scale-90 transition-transform" style={ROUND_BTN}><Minus className="w-[10px] h-[10px] text-white" strokeWidth={2.6} /></button>}
               {onAddProtein && <button type="button" onClick={onAddProtein} disabled={proteinBusy} aria-label="Add 10 g protein" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35 active:scale-90 transition-transform" style={{ background: 'rgba(248,113,113,0.18)', border: '1px solid rgba(248,113,113,0.55)' }}><Plus className="w-[10px] h-[10px] text-[#FCA5A5]" strokeWidth={2.6} /></button>}
+              </span>
             </div>
             <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{protein}</span><span className="text-[9px] text-white/55"> {proteinGoal ? `/${proteinGoal} g` : 'g'}</span></p>
             <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${proteinGoal ? Math.min(100, (protein / proteinGoal) * 100) : 0}%`, background: '#F87171', boxShadow: '0 0 6px rgba(248,113,113,0.8)' }} /></span>
