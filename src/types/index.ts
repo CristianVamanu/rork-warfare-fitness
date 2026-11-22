@@ -466,6 +466,8 @@ export interface B2BLandingConfig {
     highlighted?: boolean;
   }[];
   guaranteeText?: string;
+  /** Optional monthly care plan line shown under the prices. */
+  carePlanText?: string;
   faqs: { q: string; a: string }[];
   finalCtaHeadline: string;
   finalCtaSubtext: string;

@@ -14,7 +14,7 @@ import { getSystemConfig, createTrainerLead } from '@/lib/firestore';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { HeroVideoPlayer } from './HeroVideoPlayer';
-import { DEFAULT_B2B_LANDING_CONFIG } from '@/lib/landingDefaults';
+import { DEFAULT_B2B_LANDING_CONFIG, freshB2b } from '@/lib/landingDefaults';
 import type { B2BLandingConfig } from '@/types';
 
 // Icon stays fixed by position — only title/desc are admin-editable.
@@ -46,7 +46,7 @@ export default function TrainersLandingPage({
     getSystemConfig().then((cfg) => {
       if (cfg?.appName) setAppName(cfg.appName as string);
       if (cfg?.logoUrl) setLogoUrl(cfg.logoUrl as string);
-      if (cfg?.b2bLandingPage) setConfig({ ...DEFAULT_B2B_LANDING_CONFIG, ...(cfg.b2bLandingPage as B2BLandingConfig) });
+      if (cfg?.b2bLandingPage) setConfig(freshB2b({ ...DEFAULT_B2B_LANDING_CONFIG, ...(cfg.b2bLandingPage as B2BLandingConfig) }));
     }).catch(() => {});
   }, []);
 
@@ -132,20 +132,20 @@ export default function TrainersLandingPage({
       <section className="max-w-4xl mx-auto px-4 py-14 flex flex-col items-center text-center">
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-accent-muted border border-accent/20 mb-4">
           <Smartphone className="w-3.5 h-3.5 text-accent" />
-          <span className="text-xs font-bold text-accent">Progressive Web App</span>
+          <span className="text-xs font-bold text-accent">Web · Android · iPhone</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">{config.pwaHeadline}</h2>
         <p className="text-sm text-text-secondary max-w-2xl mb-10">{config.pwaSubheadline}</p>
         <div className="w-full rounded-2xl border border-white/10 overflow-hidden text-center">
           <div className="grid grid-cols-3 bg-white/[0.03] text-xs font-bold uppercase tracking-wide text-text-tertiary">
             <div className="p-3.5"></div>
-            <div className="p-3.5 flex items-center justify-center gap-1.5"><XCircle className="w-3.5 h-3.5 text-danger" /> App Store / Play Store</div>
-            <div className="p-3.5 flex items-center justify-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Our PWA</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5 text-accent"><ShieldCheck className="w-3.5 h-3.5" /> Web app</div>
+            <div className="p-3.5 flex items-center justify-center gap-1.5 text-accent"><Smartphone className="w-3.5 h-3.5" /> Android + iPhone apps</div>
           </div>
           {config.pwaPoints.map((row, i) => (
             <div key={row.label} className={`grid grid-cols-3 text-sm ${i % 2 === 1 ? 'bg-white/[0.02]' : ''}`}>
               <div className="p-3.5 font-semibold text-white">{row.label}</div>
-              <div className="p-3.5 text-text-secondary">{row.native}</div>
+              <div className="p-3.5 text-white/85">{row.native}</div>
               <div className="p-3.5 text-white font-medium">{row.pwa}</div>
             </div>
           ))}
@@ -223,7 +223,7 @@ export default function TrainersLandingPage({
               )}
               <p className="text-xs font-bold text-accent uppercase tracking-wide">{tier.name}</p>
               <div className="flex items-baseline justify-center gap-1 mt-2">
-                <span className="text-3xl font-black text-white">{tier.price === 'Custom' ? 'Custom' : `$${tier.price}`}</span>
+                <span className="text-3xl font-black text-white">{/^\d/.test(tier.price) ? `$${tier.price}` : tier.price.replace(/(\d[\d,]*)/, '$$$1')}</span>
                 {tier.period && <span className="text-xs text-text-secondary">{tier.period}</span>}
               </div>
               <p className="text-xs text-text-secondary mt-2 leading-relaxed">{tier.description}</p>
@@ -240,6 +240,7 @@ export default function TrainersLandingPage({
             </motion.div>
           ))}
         </div>
+        {config.carePlanText && <p className="text-sm text-white text-center mt-6">{config.carePlanText}</p>}
         {config.guaranteeText && (
           <p className="text-xs text-text-tertiary text-center mt-6 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-accent flex-shrink-0" /> {config.guaranteeText}
