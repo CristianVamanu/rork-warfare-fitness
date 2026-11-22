@@ -93,7 +93,7 @@ echo "== public pages =="
 # to everyone. These pin that: a hard-coded heading (not admin copy), and the
 # two hooks the returning-member splash depends on. If either goes missing
 # the page has regressed to client-only rendering or the splash gate broke.
-page /                                        'Everything you need. Nothing you don'
+page /                                        'Your command centre'
 page /                                        'data-brand-splash'
 page /                                        'data-landing-body'
 # These genuinely server-render their content, so the markers are the content.
