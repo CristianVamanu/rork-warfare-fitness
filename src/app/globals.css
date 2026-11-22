@@ -1952,3 +1952,34 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-hero-bg::after { background: linear-gradient(90deg, rgba(8,8,8,.62) 0%, rgba(8,8,8,.3) 45%, rgba(8,8,8,0) 66%), linear-gradient(180deg, rgba(8,8,8,.3) 0%, rgba(8,8,8,0) 20%, rgba(8,8,8,0) 84%, #080808 100%); }
   .wx-hero-mob .wx-hero-sub { max-width: calc(var(--u) * 172); }
 }
+
+/* ── Conversion pass: who it's for, guarantee row, goal cards on phones ── */
+.wx-who { margin: 18px 10px 0; padding: 20px 16px 18px; border-radius: 18px; border: 1px solid rgba(255,165,30,.3); background: linear-gradient(180deg, rgba(22,18,14,.96), rgba(10,9,8,.98)); text-align: left; }
+.wx-who .wx-eyebrow { font-size: 12px; }
+.wx-who .wx-h3 { font-size: 24px; color: #fff; margin-top: 4px; }
+.wx-who ul { display: grid; gap: 12px; margin-top: 14px; }
+.wx-who li { display: flex; gap: 10px; align-items: flex-start; }
+.wx-who li > svg { flex: none; width: 22px; height: 22px; padding: 4px; border-radius: 50%; color: #1a0d00; background: var(--wx-o1); margin-top: 1px; }
+.wx-who b { display: block; color: #fff; font-size: 14.5px; }
+.wx-who small { display: block; color: #c9c9c9; font-size: 13px; line-height: 1.45; margin-top: 2px; }
+.wx-who .wx-cta { width: 100%; margin-top: 16px; height: 50px; font-size: 14px; }
+.wx-guarantee { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin-top: 12px; color: #e6e6e6; font-size: 13px; }
+.wx-guarantee li { display: inline-flex; align-items: center; gap: 6px; }
+.wx-guarantee svg { width: 15px; height: 15px; color: var(--wx-o1); }
+@media (min-width: 1024px) {
+  .wx-who { margin: 0; border-radius: 0; border: 0; border-bottom: 1px solid rgba(255,165,30,.25); padding: 3vw 4.9vw; display: grid; grid-template-columns: 22vw 1fr; gap: 1vw 3vw; align-items: start; }
+  .wx-who .wx-eyebrow, .wx-who .wx-h3 { grid-column: 1; }
+  .wx-who .wx-h3 { font-size: clamp(22px, 2vw, 38px); }
+  .wx-who ul { grid-column: 2; grid-row: 1 / span 3; grid-template-columns: 1fr 1fr; gap: 1.6vw 2.4vw; margin-top: 0; }
+  .wx-who b { font-size: clamp(14px, 1.05vw, 19px); } .wx-who small { font-size: clamp(13px, .95vw, 17px); }
+  .wx-who .wx-cta { grid-column: 1; width: auto; justify-self: start; }
+}
+@media (max-width: 599px) {
+  .wx-hero { height: auto !important; padding-bottom: calc(var(--u) * 14) !important; }
+  .wx-hero-mob { position: relative; left: auto; top: auto; margin: calc(var(--u) * 90) 0 0 calc(var(--u) * 22); }
+  .wx-mgoals { width: calc(var(--u) * 346); margin-top: calc(var(--u) * 26); }
+  .wx-mgoals .wx-q { font-size: calc(var(--u) * 13); margin-bottom: calc(var(--u) * 7); }
+  .wx-mgoals .wx-goal { height: calc(var(--u) * 74); }
+  .wx-mgoals .wx-goal b { font-size: calc(var(--u) * 12.5); }
+  .wx-note { justify-content: flex-start; width: calc(var(--u) * 190); }
+}

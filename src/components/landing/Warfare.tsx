@@ -54,7 +54,9 @@ function HeroPhones() {
   return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={1855} height={2022} fetchPriority="high" />;
 }
 
-export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
+export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo }: {
+  /** "7 days free, then $X/mo. Cancel anytime." from the live plans. */
+  priceLine?: string | null;
   ctaLabel: string;
   /** e.g. "No credit card required", true for the trial as configured. */
   ctaNote: string;
@@ -80,7 +82,7 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
       <div className="wx-hero-desk wx-enter">
         <p className="wx-eyebrow">Military-inspired training</p>
         <h1 className="wx-h1"><span>Your plan.</span><span className="wx-o">Built in 2 minutes.</span></h1>
-        <p className="wx-hero-sub">Answer a few questions. Get a full training program, a calorie target and a coach that adjusts every week.</p>
+        <p className="wx-hero-sub">Answer a few questions. Get a full training program, a calorie target and a coach that adjusts every week. No experience needed.</p>
         <span className="wx-rule" aria-hidden />
         <p className="wx-q">What&apos;s your goal?</p>
         <GoalGrid />
@@ -90,17 +92,23 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
           <li><Check aria-hidden /> Cancel anytime</li>
         </ul>
         <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
-        {disclosure && <p className="wx-fine">{disclosure}</p>}
+        {(disclosure || priceLine) && <p className="wx-fine">{disclosure || priceLine}</p>}
       </div>
 
       {/* Phone: the headline and two buttons, the app beside them. */}
       <div className="wx-hero-mob wx-enter">
         <p className="wx-eyebrow">Train • Progress • Dominate</p>
         <h1 className="wx-h1" aria-hidden><span>Build your</span><span className="wx-o">Perfect body</span></h1>
-        <p className="wx-hero-sub">Military-inspired training for people who refuse to be average. Build strength. Build endurance. Build more.</p>
+        <p className="wx-hero-sub">Military-inspired training for real people. No experience needed. Home or gym, matched to you in 2 minutes.</p>
         <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
         {demo}
-        <p className="wx-note"><ShieldCheck aria-hidden /> {disclosure || ctaNote}</p>
+        <p className="wx-note"><ShieldCheck aria-hidden /> {disclosure || priceLine || ctaNote}</p>
+        {/* One tap about themselves gets more people into the quiz than a
+            button alone. Each card opens it with that goal chosen. */}
+        <div className="wx-mgoals">
+          <p className="wx-q">What&apos;s your goal?</p>
+          <GoalGrid />
+        </div>
       </div>
 
       <HeroPhones />
@@ -211,6 +219,41 @@ export function WxSteps() {
         ))}
       </ol>
     </section>
+  );
+}
+
+const WHO = [
+  { title: 'Never trained before', text: 'Beginner programs, easier versions of every move, and a demo video for each one.' },
+  { title: 'Training at home', text: 'Tell us what you have: a full gym, a few dumbbells or just the floor. Your plan uses exactly that.' },
+  { title: 'Short on time', text: 'You pick how many days a week. The plan fits your week, not the other way round.' },
+  { title: 'Tried apps and quit', text: 'Streaks, challenges and a weekly coach check-in that tells you exactly what to do next.' },
+];
+
+/** "Is this for someone like me?" answered before the price is asked. */
+export function WxWhoFor() {
+  return (
+    <section className="wx-who" aria-labelledby="wx-who-h">
+      <p className="wx-eyebrow">Built for real people</p>
+      <h2 id="wx-who-h" className="wx-h3">Start where you are.</h2>
+      <ul>
+        {WHO.map((w) => (
+          <li key={w.title}><Check aria-hidden /><span><b>{w.title}</b><small>{w.text}</small></span></li>
+        ))}
+      </ul>
+      <Link href="/onboarding" className="wx-cta">Find my starting point <ArrowRight aria-hidden /></Link>
+    </section>
+  );
+}
+
+/** Risk removed, right where the price is shown. Only true promises. */
+export function WxGuarantee({ trialDays, noCard }: { trialDays: number; noCard: boolean }) {
+  if (trialDays <= 0) return null;
+  return (
+    <ul className="wx-guarantee">
+      <li><ShieldCheck aria-hidden /> {trialDays} days free{noCard ? ', no card' : ''}</li>
+      <li><Check aria-hidden /> Cancel anytime in your account</li>
+      <li><Check aria-hidden /> Switch programs whenever you like</li>
+    </ul>
   );
 }
 

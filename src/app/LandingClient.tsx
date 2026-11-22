@@ -11,7 +11,7 @@ import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
 import { LandingNav } from '@/components/landing/Redesign';
-import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter } from '@/components/landing/Warfare';
+import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter, WxWhoFor, WxGuarantee } from '@/components/landing/Warfare';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -27,7 +27,7 @@ import { BrandSplash } from '@/components/ui/BrandSplash';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { DEFAULT_LANDING_CONFIG } from '@/lib/landingDefaults';
-import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, buildTrialTerms } from '@/lib/utils';
+import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, buildTrialTerms, getCheapestEntryPrice, formatBillingPeriod } from '@/lib/utils';
 import type { LandingPageConfig, MembershipConfig, CoachingPlan, MembershipPlan } from '@/types';
 
 // Icon/color is matched by keyword in the feature's title rather than by
@@ -54,6 +54,10 @@ function getFeatureStyle(title: string) {
 }
 
 const FAQ_ITEMS = [
+  {
+    q: "I'm overweight and can't do a push-up. Can I still start?",
+    a: "Yes. That is exactly who the beginner programs are for. You start with easier versions of each move, every exercise has a demo video, and the weights and reps only go up when your logged sessions show you're ready.",
+  },
   {
     q: 'Do I need a gym or special equipment?',
     a: 'No — during the quiz you tell us what you have access to (full gym, home dumbbells, or just bodyweight), and your program is built around exactly that.',
@@ -448,6 +452,12 @@ export default function LandingPage({
   const paidTrialDisclosure = trialTerms.disclosure;
   // The admin's own demo video when set, otherwise the built-in app walkthrough.
   const demoUrl = landing.heroDemoVideoUrl || '/videos/demo.mp4';
+  // The price, stated up front. Visitors who want the number scroll past
+  // everything to find it; most of them leave first. Only real plan prices.
+  const cheapestPlan = getCheapestEntryPrice(membershipPlans);
+  const priceLine = (trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial) && cheapestPlan
+    ? `${trialDays} days free, then ${membershipPlans.length > 1 ? 'from ' : ''}${formatBillingPeriod(cheapestPlan)}. Cancel anytime.`
+    : null;
 
   // The anchors in the bar. Pricing is only offered when there are plans.
   const hasPricing = membershipPlans.length > 0 || coachingPlans.length > 0;
@@ -488,6 +498,7 @@ export default function LandingPage({
         ctaLabel={primaryCtaLabel}
         ctaNote={ctaNote}
         disclosure={noCardTrial ? null : paidTrialDisclosure}
+        priceLine={priceLine}
         onDemo={() => setDemoOpen(true)}
       />
       <div className="wx-mid">
@@ -495,201 +506,21 @@ export default function LandingPage({
         <WxFacts facts={facts} />
         <WxCards />
       </div>
-      <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
       {/* An admin who has uploaded their own screenshots still gets them shown. */}
       {landing.screenshotUrls && landing.screenshotUrls.length >= 3 && (
         <section className="relative max-w-5xl mx-auto px-5 pb-14">
           <AppShowcase items={landing.screenshotUrls.map((src, i) => ({ src, title: `Screen ${i + 1}`, caption: '' }))} />
         </section>
       )}
+      {/* Order follows the proven pattern: promise, how it works, who it's
+          for, the product, proof, price with risk removed, objections, and
+          one last ask. The comparison table, feature grid, ticker, quote and
+          partner panel were cut: they repeated what is above and pushed the
+          price and the final ask two screens further down. Partners stays in
+          the footer. */}
       <WxSteps />
-      <WxFinal ctaLabel={primaryCtaLabel} note={noCardTrial ? finalNote : (paidTrialDisclosure || finalNote)} />
-
-      {/* Feature grid — uniform equal-size cards. Deliberately NOT a
-          position-dependent bento layout (a wide "hero" first tile, a
-          full-width last tile) — that broke the moment an admin added,
-          removed, or reordered a feature in the landing-page editor, since
-          the hero/full-width slots and icon assignment were both keyed to
-          a fixed index that only matched one specific save order. A plain
-          uniform grid always looks right regardless of count or order. */}
-      <DataDivider />
-
-      <section className="relative overflow-hidden max-w-5xl mx-auto px-5 pt-16 pb-16">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-3"><SectionEyebrow>The system</SectionEyebrow></div>
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Everything you need. Nothing you don&apos;t.</h2>
-          <p className="text-text-secondary text-sm mt-2">One app for training, nutrition, accountability, and progress.</p>
-        </div>
-        {/* No first-child col-span here, and the comment above says why: a
-            wide opening tile made the first feature occupy two of the three
-            slots, so nine features filled ten and the ninth sat alone in a
-            row of its own with a hole beside it.
-
-            The only span that survives is computed from the count, not from
-            a fixed position: when the final row would hold exactly one card,
-            that card takes the full width, so it reads as a deliberate
-            closing panel instead of an orphan. Admins add and remove
-            features from the landing editor, so anything keyed to a
-            hard-coded index is a layout that breaks on the next save. */}
-        <div className="lx-swipe grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-          {landing.features.map((f, i) => {
-            const style = getFeatureStyle(f.title);
-            const lonelyLast = landing.features.length % 3 === 1 && i === landing.features.length - 1;
-            return (
-              <div key={`${f.title}-${i}`} className={`group relative p-5 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-sm hover:border-accent/35 hover:bg-surface transition-all duration-300 flex flex-col items-start overflow-hidden wf-rise ${lonelyLast ? 'lg:col-span-3' : ''}`} style={{ animationDelay: `${(i % 3) * 0.05}s` }}>
-                {/* Hairline along the top edge, lighting up on hover — the
-                    same cue the standards card uses, so a panel here and a
-                    panel there read as the same machine. */}
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 top-0 h-px opacity-40 group-hover:opacity-100 transition-opacity duration-300"
-                  style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.7), transparent)' }}
-                />
-                <CornerBrackets size="w-3.5 h-3.5" />
-                {/* A channel index. Small, monospaced, and the thing that
-                    turns nine cards into one instrument rather than nine. */}
-                <span aria-hidden className="absolute top-4 right-4 text-[10px] font-bold tabular-nums tracking-widest text-white/15 group-hover:text-accent/45 transition-colors duration-300">
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div className={`relative w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${style.bg} flex-shrink-0`}>
-                  <style.icon className={`w-5 h-5 ${style.color}`} />
-                </div>
-                <div className="flex items-start gap-2 flex-wrap">
-                  <h3 className="font-bold text-white text-sm">{f.title}</h3>
-                  {/* Only rendered when an admin has tagged the feature as
-                      higher-tier — see LandingFeature.tierNote. */}
-                  {f.tierNote?.trim() && (
-                    <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-md bg-accent-muted text-accent border border-accent/20 flex-shrink-0">
-                      {f.tierNote.trim()}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-text-secondary mt-1.5 leading-relaxed">{f.desc}</p>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* What it replaces — three columns: the feature, the separate app
-          people pay for it, and us. The earlier version listed only the
-          other apps and their prices, which read as if THOSE were the
-          subscriptions on offer here; a comparison needs the thing being
-          compared in it. On phones the feature name takes a full row and
-          the two price cells sit under it, so nothing truncates. Total and
-          "you keep" follow the same currency rules as before. */}
-      {(() => {
-        const sc = landing.stackComparison;
-        if (!sc || sc.enabled === false || !sc.rows?.length) return null;
-        const rows = sc.rows.filter((r) => r.name?.trim() && Number.isFinite(r.pricePerMonth) && r.pricePerMonth > 0);
-        if (rows.length === 0) return null;
-        const currencies = new Set(rows.map((r) => (r.currency || 'USD').toUpperCase()));
-        const oneCurrency = currencies.size === 1 ? [...currencies][0] : null;
-        const total = oneCurrency ? rows.reduce((s, r) => s + r.pricePerMonth, 0) : null;
-        // Our cheapest per-month figure: a monthly price if any plan has
-        // one, otherwise the longest term annualised. Discounts are not
-        // applied — a promo code is not the price.
-        const ours = membershipPlans
-          .map((p) => p.priceMonthly ?? (p.price12mo !== undefined ? p.price12mo / 12 : p.price6mo !== undefined ? p.price6mo / 6 : p.price3mo !== undefined ? p.price3mo / 3 : undefined))
-          .filter((n): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0);
-        const ourPrice = ours.length ? Math.min(...ours) : null;
-        const ourCurrency = (membershipPlans[0]?.currency || 'USD').toUpperCase();
-        const comparable = total !== null && ourPrice !== null && oneCurrency === ourCurrency && total > ourPrice;
-        const sym = (c: string) => ({ USD: '$', GBP: '£', EUR: '€', AUD: 'A$', CAD: 'C$' } as Record<string, string>)[c] ?? `${c} `;
-        const money = (n: number, c: string) => `${sym(c)}${n.toFixed(2)}`;
-        const cols = 'grid grid-cols-2 sm:grid-cols-[1.3fr_1fr_1fr]';
-        return (
-          <section className="relative overflow-hidden max-w-4xl mx-auto px-5 pb-16">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-black text-white">{sc.heading?.trim() || 'Four subscriptions. Or one.'}</h2>
-              {sc.subheading?.trim() && <p className="text-text-secondary text-sm mt-2 max-w-xl mx-auto">{sc.subheading}</p>}
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-surface overflow-hidden wf-rise">
-              {/* Two equal columns on a phone, three on desktop. The first
-                  cut gave the feature name its own full-width row above the
-                  two cells, which broke the column rhythm: the tinted brand
-                  column stopped and restarted on every row and "Included"
-                  sat under a dark gap. Now on a phone the feature name is
-                  the bold first line INSIDE the left cell, so both columns
-                  run continuously top to bottom and every row is exactly
-                  two equal cells. Desktop pulls the feature name back out
-                  into its own column. */}
-              <div className={`${cols} text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.15em] text-text-tertiary border-b border-white/8`}>
-                <span className="hidden sm:block px-5 py-3">Feature</span>
-                <span className="px-4 sm:px-5 py-3">Separate app</span>
-                <span className="px-4 sm:px-5 py-3 text-accent bg-accent/[0.06] border-l border-accent/20">{appName}</span>
-              </div>
-
-              {rows.map((r, i) => {
-                const feature = r.replaces?.trim() || r.name;
-                const cur = (r.currency || 'USD').toUpperCase();
-                return (
-                  <div key={`${r.name}-${i}`} className={`${cols} border-b border-white/5 items-stretch`}>
-                    <p className="hidden sm:flex items-center px-5 py-3.5 text-sm font-semibold text-white">{feature}</p>
-                    {/* min-w-0 + overflow-hidden + break-words: a grid cell
-                        defaults to min-width:auto and will widen to fit an
-                        unbreakable word, pushing the divider; this pins the
-                        cell to its column and wraps the text inside it. */}
-                    <div className="px-4 sm:px-5 py-3.5 min-w-0 overflow-hidden flex flex-col justify-center">
-                      <p className="sm:hidden text-sm font-semibold text-white leading-snug break-words">{feature}</p>
-                      <p className="text-xs text-text-tertiary mt-1 sm:mt-0 truncate">{r.name}</p>
-                      <p className="text-sm font-semibold text-text-secondary tabular-nums">{money(r.pricePerMonth, cur)}<span className="text-[11px] font-normal text-text-tertiary">/mo</span></p>
-                    </div>
-                    <div className="px-4 sm:px-5 py-3.5 bg-accent/[0.06] border-l border-accent/20 flex items-center gap-1.5">
-                      <Check className="w-4 h-4 text-accent flex-shrink-0" />
-                      <span className="text-sm font-bold text-white">Included</span>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Totals. Same two/three-cell shape as every row above, so
-                  the columns line up to the bottom edge: struck-through
-                  stack on the left, our price in the accent column. */}
-              <div className={`${cols} bg-white/[0.02] items-stretch`}>
-                <p className="hidden sm:flex items-center px-5 py-4 text-sm font-black text-white">Per month</p>
-                <div className="px-4 sm:px-5 py-4 flex flex-col justify-center">
-                  <p className="sm:hidden text-sm font-black text-white">Per month</p>
-                  {total !== null && oneCurrency ? (
-                    <>
-                      <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Stacked</p>
-                      <p className="text-base font-black text-text-secondary tabular-nums line-through decoration-danger/70 decoration-2">{money(total, oneCurrency)}</p>
-                    </>
-                  ) : (
-                    <p className="text-[11px] text-text-tertiary mt-1 sm:mt-0">Mixed currencies</p>
-                  )}
-                </div>
-                <div className="px-4 sm:px-5 py-4 bg-accent/[0.10] border-l border-accent/30 flex flex-col justify-center">
-                  {ourPrice !== null ? (
-                    <>
-                      <p className="text-[11px] text-text-tertiary">All of it</p>
-                      <p className="text-xl font-black text-accent tabular-nums leading-tight">
-                        <span className="text-xs font-semibold text-text-secondary mr-1">from</span>{money(ourPrice, ourCurrency)}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-sm font-bold text-white">One plan</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {comparable && (
-              <p className="text-sm text-center mt-4 text-white">
-                <span className="font-bold text-accent">You keep {money(total - ourPrice, ourCurrency)} a month</span>
-                <span className="text-text-secondary"> — {Math.round(((total - ourPrice) / total) * 100)}% less than paying for them separately.</span>
-              </p>
-            )}
-            {sc.asOf?.trim() && (
-              <p className="text-[11px] text-text-tertiary text-center mt-2 max-w-lg mx-auto">{sc.asOf}</p>
-            )}
-          </section>
-        );
-      })()}
-
-      <TacticalTicker />
-
+      <WxWhoFor />
+      <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
       {/* Programs — pulled from /api/public/programs (published Firestore
           programs + built-in seed programs), so this always reflects
           whatever's actually assignable, never hand-maintained copy that
@@ -790,213 +621,6 @@ export default function LandingPage({
         </section>
       )}
 
-      {/* The free thing, first under the hero and asking for nothing.
-          It is the only block on this page a stranger can act on without
-          handing over an email or a card, and it is the one thing here no
-          other fitness app offers — so it goes before the feature grid, not
-          after it. Everything below this point asks for something.
-
-          Dressed as an instrument rather than a marketing card: corner
-          brackets, a slow readout sweep, and the numbers in a labelled panel.
-          The point it makes visually is the point the product makes, which is
-          that these are measurements, not motivation. */}
-      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
-        <Link
-          href="/standards"
-          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
-        >
-          {/* Instrument grid, fading toward the readout on the right. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-50"
-            style={{
-              backgroundImage:
-                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
-              backgroundSize: '34px 34px',
-              maskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
-              WebkitMaskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
-            }}
-          />
-          {/* Ember wash from the corner the readout sits in. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-0"
-            style={{ background: 'radial-gradient(120% 130% at 100% 0%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 58%)' }}
-          />
-          {/* Hairline along the top edge — brightest in the middle. */}
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-px"
-            style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
-          />
-          {/* Corner brackets. */}
-          {[
-            'left-3 top-3 border-l-2 border-t-2',
-            'right-3 top-3 border-r-2 border-t-2',
-            'left-3 bottom-3 border-l-2 border-b-2',
-            'right-3 bottom-3 border-r-2 border-b-2',
-          ].map((pos) => (
-            <span
-              key={pos}
-              aria-hidden
-              className={`pointer-events-none absolute w-5 h-5 border-accent/40 group-hover:border-accent/80 transition-colors duration-300 ${pos}`}
-            />
-          ))}
-
-          <div className="relative flex items-start justify-between gap-6">
-            <div className="min-w-0">
-              <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
-                <span className="relative flex w-1.5 h-1.5">
-                  <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />
-                  <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />
-                </span>
-                Free · no account
-              </p>
-              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
-                Could you pass selection?
-              </h2>
-              <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
-                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
-                Put your numbers in and find out which ones you would clear today.
-              </p>
-              <span className="inline-flex items-center gap-2 mt-5 h-10 px-4 rounded-xl bg-accent text-black text-sm font-extrabold transition-transform group-hover:translate-x-0.5">
-                Test yourself <ArrowRight className="w-4 h-4" />
-              </span>
-            </div>
-
-            {/* A readout, not three pills. Every figure is pulled from the
-                same standards data the test scores against, so the landing
-                page can never quote a number the test disagrees with. */}
-            <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
-              <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
-                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
-                  {RECON_SAMPLE.label}
-                </span>
-                <span className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
-              </div>
-              <div className="divide-y divide-white/[0.06]">
-                {RECON_SAMPLE.rows.map((r) => (
-                  <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
-                    <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
-                    <span className="text-[15px] font-bold tabular-nums text-white">{r.value}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="px-3 py-2 border-t border-accent/15 text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
-                + {UNIT_STANDARDS.length - 1} more standards
-              </div>
-            </div>
-          </div>
-        </Link>
-      </section>
-
-      {/* Demo video modal — admin-uploaded product walkthrough, only shown
-          once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
-          autoplaying/looping like the small hero logo clip — this is a real
-          demo the visitor chose to watch, so normal video controls apply. */}
-      <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action">
-        {demoUrl && (
-          <video
-            key={demoUrl}
-            className="w-full rounded-xl bg-black"
-            src={demoUrl}
-            poster={landing.heroDemoVideoUrl ? (landing.heroDemoPosterUrl || undefined) : '/videos/demo-poster.jpg'}
-            controls
-            autoPlay
-            playsInline
-            crossOrigin="anonymous"
-          />
-        )}
-      </Modal>
-
-      {/* Exit-intent email capture — see the effect above for trigger logic. */}
-      <Modal open={exitIntentOpen} onClose={() => setExitIntentOpen(false)} title="Not ready yet?">
-        {exitSubmitted ? (
-          <div className="text-center py-2">
-            <CheckCircle2 className="w-10 h-10 text-accent mx-auto mb-3" />
-            <p className="text-sm text-text-secondary">You&apos;re all set — we&apos;ll send you a link to jump back in anytime.</p>
-          </div>
-        ) : (
-          <form onSubmit={handleExitEmailSubmit} className="space-y-4">
-            <p className="text-sm text-text-secondary leading-relaxed">
-              Leave your email and we&apos;ll send you a link to pick up your program right where you left off. No spam, ever.
-            </p>
-            <input
-              type="email"
-              value={exitEmail}
-              onChange={(e) => setExitEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoFocus
-              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-            />
-            <Button type="submit" fullWidth loading={exitSubmitting}>
-              Send Me The Link
-            </Button>
-          </form>
-        )}
-      </Modal>
-
-      {/* Program detail modal — opened from a card click, shows the full
-          description instead of the 2-line clamp, without leaving the page. */}
-      <Modal open={!!selectedProgram} onClose={() => setSelectedProgram(null)} title={selectedProgram?.name ?? ''}>
-        {selectedProgram && (
-          <div className="space-y-4">
-            <div className="flex items-start gap-4">
-              <div className="w-20 h-20 rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center">
-                {selectedProgram.imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedProgram.imageUrl} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Dumbbell className="w-7 h-7 text-accent/40" />
-                )}
-              </div>
-              <div className="min-w-0">
-                <p className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}</p>
-                <p className="text-[12px] text-text-tertiary mt-1">
-                  {selectedProgram.weeks} weeks · {selectedProgram.daysPerWeek} days a week · {selectedProgram.level.charAt(0).toUpperCase() + selectedProgram.level.slice(1)}
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                ['Duration', `${selectedProgram.weeks} weeks`],
-                ['Sessions', `${selectedProgram.daysPerWeek} a week`],
-                ['Total', `${selectedProgram.weeks * selectedProgram.daysPerWeek} workouts`],
-              ].map(([t, sub]) => (
-                <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3">
-                  <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
-                  <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
-                </div>
-              ))}
-            </div>
-            <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{selectedProgram.description}</p>
-            <Link href={`/onboarding?programId=${selectedProgram.id}`} className="block pt-2">
-              <Button fullWidth>Enroll Now <ArrowRight className="w-4 h-4" /></Button>
-            </Link>
-          </div>
-        )}
-      </Modal>
-
-      {/* Motivational quote — admin-editable, full-bleed accent treatment */}
-      {landing.quoteText && (
-        <section className="max-w-4xl mx-auto px-5 pb-16">
-          <div className="relative rounded-3xl border border-white/10 bg-surface p-8 sm:p-12 text-center overflow-hidden wf-rise">
-            {/* Fixed-size badge instead of a giant absolutely-positioned glyph
-                behind the text — the old version overlapped the quote on
-                narrow screens since it never adapted to width or copy length. */}
-            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-accent-muted text-accent text-lg font-black mb-4">
-              &ldquo;
-            </span>
-            <p className="text-xl sm:text-2xl font-bold text-white leading-snug max-w-2xl mx-auto text-balance">
-              {landing.quoteText}
-            </p>
-            {landing.quoteAuthor && (
-              <p className="relative text-sm text-accent font-medium mt-4">— {landing.quoteAuthor}</p>
-            )}
-          </div>
-        </section>
-      )}
-
       {/* Real member transformation photos — admin-editable only, never
           fabricated (see LandingPageConfig.transformationPhotos), hidden
           entirely until real ones are added in Admin -> Landing Page.
@@ -1040,12 +664,27 @@ export default function LandingPage({
         </section>
       )}
 
+      {/* Social proof strip */}
+      {landing.socialProof.length > 0 && (
+        <section className="max-w-3xl mx-auto px-5 pb-16">
+          <div className="rounded-2xl border border-white/8 bg-surface p-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-8 justify-center">
+            {landing.socialProof.map((line) => (
+              <div key={line} className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-accent flex-shrink-0" />
+                <span className="text-sm text-text-secondary">{line}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Pricing */}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && <DataDivider />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
         <section id="pricing" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
+            <WxGuarantee trialDays={trialDays} noCard={noCardTrial} />
             <p className="text-text-secondary text-sm mt-2">
               {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
                 : paidTrialEnabled ? `Try it for $${trialPrice} — ${trialDays} days, then your plan's price.`
@@ -1190,20 +829,6 @@ export default function LandingPage({
         </section>
       )}
 
-      {/* Social proof strip */}
-      {landing.socialProof.length > 0 && (
-        <section className="max-w-3xl mx-auto px-5 pb-16">
-          <div className="rounded-2xl border border-white/8 bg-surface p-6 flex flex-col sm:flex-row items-center gap-4 sm:gap-8 justify-center">
-            {landing.socialProof.map((line) => (
-              <div key={line} className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-accent flex-shrink-0" />
-                <span className="text-sm text-text-secondary">{line}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
       {/* FAQ — kills objections right before the final ask */}
       <section id="faq" className="max-w-2xl mx-auto px-5 pb-16">
         <div className="text-center mb-6">
@@ -1232,29 +857,194 @@ export default function LandingPage({
         </div>
       </section>
 
-      <DataDivider />
+      {/* The free thing, first under the hero and asking for nothing.
+          It is the only block on this page a stranger can act on without
+          handing over an email or a card, and it is the one thing here no
+          other fitness app offers — so it goes before the feature grid, not
+          after it. Everything below this point asks for something.
 
-      {/* Final CTA. Same button, same terms as the hero. */}
+          Dressed as an instrument rather than a marketing card: corner
+          brackets, a slow readout sweep, and the numbers in a labelled panel.
+          The point it makes visually is the point the product makes, which is
+          that these are measurements, not motivation. */}
+      <section className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
+        <Link
+          href="/standards"
+          className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
+        >
+          {/* Instrument grid, fading toward the readout on the right. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 opacity-50"
+            style={{
+              backgroundImage:
+                'linear-gradient(rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px), linear-gradient(90deg, rgb(var(--accent-rgb) / 0.07) 1px, transparent 1px)',
+              backgroundSize: '34px 34px',
+              maskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
+              WebkitMaskImage: 'radial-gradient(ellipse 75% 85% at 88% 50%, black, transparent 72%)',
+            }}
+          />
+          {/* Ember wash from the corner the readout sits in. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'radial-gradient(120% 130% at 100% 0%, rgb(var(--accent-rgb) / 0.16) 0%, transparent 58%)' }}
+          />
+          {/* Hairline along the top edge — brightest in the middle. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, rgb(var(--accent-rgb) / 0.65), transparent)' }}
+          />
+          {/* Corner brackets. */}
+          {[
+            'left-3 top-3 border-l-2 border-t-2',
+            'right-3 top-3 border-r-2 border-t-2',
+            'left-3 bottom-3 border-l-2 border-b-2',
+            'right-3 bottom-3 border-r-2 border-b-2',
+          ].map((pos) => (
+            <span
+              key={pos}
+              aria-hidden
+              className={`pointer-events-none absolute w-5 h-5 border-accent/40 group-hover:border-accent/80 transition-colors duration-300 ${pos}`}
+            />
+          ))}
 
-      {/* Partner program — one bracketed panel for coaches and creators,
-          above the footer so it never competes with the member CTA. */}
-      <section className="max-w-3xl mx-auto px-5 pt-16 pb-16">
-        <div className="group relative overflow-hidden rounded-2xl border border-accent/20 bg-surface/60 p-6 sm:p-8 backdrop-blur-sm">
-          <CornerBrackets size="w-3.5 h-3.5" />
-          <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
-          <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
-          <div className="relative flex flex-col sm:flex-row sm:items-center gap-5">
-            <div className="flex-1">
-              <SectionEyebrow>Partner program</SectionEyebrow>
-              <h2 className="mt-2 text-xl sm:text-2xl font-black text-white">Coach, gym owner or creator? Send people who want to train.</h2>
-              <p className="mt-1.5 text-sm text-text-secondary">Earn a recurring share of every payment from members who join through your link, for as long as they stay. Live dashboard, ready-made content, monthly payouts.</p>
+          <div className="relative flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <p className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.22em] text-accent">
+                <span className="relative flex w-1.5 h-1.5">
+                  <span className="absolute inline-flex w-full h-full rounded-full bg-accent opacity-60 animate-ping motion-reduce:hidden" />
+                  <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-accent" />
+                </span>
+                Free · no account
+              </p>
+              <h2 className="text-2xl sm:text-[34px] font-black text-white tracking-tight mt-3 leading-[1.08]">
+                Could you pass selection?
+              </h2>
+              <p className="text-sm text-text-secondary mt-3 max-w-md leading-relaxed">
+                The real published standards for Marine Recon, the SEALs, the Royal Marines, UKSF and more.
+                Put your numbers in and find out which ones you would clear today.
+              </p>
+              <span className="inline-flex items-center gap-2 mt-5 h-10 px-4 rounded-xl bg-accent text-black text-sm font-extrabold transition-transform group-hover:translate-x-0.5">
+                Test yourself <ArrowRight className="w-4 h-4" />
+              </span>
             </div>
-            <Link href="/partners" className="flex-shrink-0">
-              <Button variant="secondary">Become a partner <ArrowRight className="w-4 h-4" /></Button>
+
+            {/* A readout, not three pills. Every figure is pulled from the
+                same standards data the test scores against, so the landing
+                page can never quote a number the test disagrees with. */}
+            <div className="hidden sm:block flex-shrink-0 w-[13.5rem] rounded-xl border border-accent/20 bg-black/50 backdrop-blur-sm overflow-hidden">
+              <div className="flex items-center justify-between px-3 py-2 border-b border-accent/15 bg-accent/[0.06]">
+                <span className="text-[9px] font-bold uppercase tracking-[0.16em] text-accent">
+                  {RECON_SAMPLE.label}
+                </span>
+                <span className="text-[9px] uppercase tracking-[0.14em] text-text-tertiary">Entry</span>
+              </div>
+              <div className="divide-y divide-white/[0.06]">
+                {RECON_SAMPLE.rows.map((r) => (
+                  <div key={r.label} className="flex items-baseline justify-between px-3 py-2">
+                    <span className="text-[10px] uppercase tracking-[0.12em] text-text-tertiary">{r.label}</span>
+                    <span className="text-[15px] font-bold tabular-nums text-white">{r.value}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 py-2 border-t border-accent/15 text-[9px] uppercase tracking-[0.14em] text-text-tertiary">
+                + {UNIT_STANDARDS.length - 1} more standards
+              </div>
+            </div>
+          </div>
+        </Link>
+      </section>
+
+      <WxFinal ctaLabel={primaryCtaLabel} note={noCardTrial ? finalNote : (paidTrialDisclosure || finalNote)} />
+
+      {/* Demo video modal — admin-uploaded product walkthrough, only shown
+          once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
+          autoplaying/looping like the small hero logo clip — this is a real
+          demo the visitor chose to watch, so normal video controls apply. */}
+      <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action">
+        {demoUrl && (
+          <video
+            key={demoUrl}
+            className="w-full rounded-xl bg-black"
+            src={demoUrl}
+            poster={landing.heroDemoVideoUrl ? (landing.heroDemoPosterUrl || undefined) : '/videos/demo-poster.jpg'}
+            controls
+            autoPlay
+            playsInline
+            crossOrigin="anonymous"
+          />
+        )}
+      </Modal>
+
+      {/* Exit-intent email capture — see the effect above for trigger logic. */}
+      <Modal open={exitIntentOpen} onClose={() => setExitIntentOpen(false)} title="Not ready yet?">
+        {exitSubmitted ? (
+          <div className="text-center py-2">
+            <CheckCircle2 className="w-10 h-10 text-accent mx-auto mb-3" />
+            <p className="text-sm text-text-secondary">You&apos;re all set — we&apos;ll send you a link to jump back in anytime.</p>
+          </div>
+        ) : (
+          <form onSubmit={handleExitEmailSubmit} className="space-y-4">
+            <p className="text-sm text-text-secondary leading-relaxed">
+              Leave your email and we&apos;ll send you a link to pick up your program right where you left off. No spam, ever.
+            </p>
+            <input
+              type="email"
+              value={exitEmail}
+              onChange={(e) => setExitEmail(e.target.value)}
+              placeholder="you@example.com"
+              autoFocus
+              className="w-full bg-surface border border-white/10 rounded-xl px-4 py-3 text-white text-sm placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+            />
+            <Button type="submit" fullWidth loading={exitSubmitting}>
+              Send Me The Link
+            </Button>
+          </form>
+        )}
+      </Modal>
+
+      {/* Program detail modal — opened from a card click, shows the full
+          description instead of the 2-line clamp, without leaving the page. */}
+      <Modal open={!!selectedProgram} onClose={() => setSelectedProgram(null)} title={selectedProgram?.name ?? ''}>
+        {selectedProgram && (
+          <div className="space-y-4">
+            <div className="flex items-start gap-4">
+              <div className="w-20 h-20 rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center">
+                {selectedProgram.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedProgram.imageUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <Dumbbell className="w-7 h-7 text-accent/40" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[selectedProgram.goal] ?? selectedProgram.goal}</p>
+                <p className="text-[12px] text-text-tertiary mt-1">
+                  {selectedProgram.weeks} weeks · {selectedProgram.daysPerWeek} days a week · {selectedProgram.level.charAt(0).toUpperCase() + selectedProgram.level.slice(1)}
+                </p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['Duration', `${selectedProgram.weeks} weeks`],
+                ['Sessions', `${selectedProgram.daysPerWeek} a week`],
+                ['Total', `${selectedProgram.weeks * selectedProgram.daysPerWeek} workouts`],
+              ].map(([t, sub]) => (
+                <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3">
+                  <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
+                  <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">{selectedProgram.description}</p>
+            <Link href={`/onboarding?programId=${selectedProgram.id}`} className="block pt-2">
+              <Button fullWidth>Enroll Now <ArrowRight className="w-4 h-4" /></Button>
             </Link>
           </div>
-        </div>
-      </section>
+        )}
+      </Modal>
 
       <WxFooter appName={appName} playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
     </div>
