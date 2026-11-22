@@ -2081,7 +2081,7 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
    Pricing and the FAQ stay in the page for the header/footer links: they
    open when their link is followed (#pricing, #faq) and are otherwise out
    of the way. */
-.wx-plans, .wx-why, .wx-trial, #selection.wx-xtra { display: none !important; }
+.wx-plans, .wx-why, .wx-trial { display: none !important; }
 .wx-xtra { display: none; }
 .wx-xtra:target { display: block; }
 @media (max-width: 599px) {

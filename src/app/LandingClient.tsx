@@ -585,9 +585,10 @@ export default function LandingPage({
       {/* Pricing */}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && <DataDivider />}
       {(membershipPlans.length > 0 || coachingPlans.length > 0) && (
-        <section id="pricing" className="wx-xtra relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 pt-10">
+        <section id="pricing" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 pt-10">
           <div className="text-center mb-8">
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Choose Your Path</h2>
+            <p className="text-accent text-xs font-bold tracking-[0.3em] uppercase mb-2">Pricing</p>
+            <h2 className="text-3xl sm:text-5xl font-black italic uppercase text-white leading-none">Choose your <span className="text-accent">path</span></h2>
             <WxGuarantee trialDays={trialDays} noCard={noCardTrial} />
             <p className="text-text-secondary text-sm mt-2">
               {trialDays <= 0 ? 'Simple pricing. Cancel anytime.'
@@ -598,7 +599,7 @@ export default function LandingPage({
           </div>
           <div className={`lx-swipe lx-swipe-plans grid gap-4 items-stretch ${
             (membershipPlans.length + coachingPlans.length) >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3'
-            : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl mx-auto'
+            : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl lg:max-w-4xl mx-auto'
             : 'max-w-sm mx-auto'
           }`}>
             {membershipPlans.map((plan, i) => {
@@ -747,9 +748,11 @@ export default function LandingPage({
       <WxTrial trialDays={trialDays} ctaLabel={primaryCtaLabel} note={noCardTrial ? 'No credit card required. Cancel anytime.' : (paidTrialDisclosure || 'Cancel anytime.')} />
 
       {/* FAQ — kills objections right before the final ask */}
-      <section id="faq" className="wx-xtra max-w-2xl mx-auto px-5 pb-16 pt-10">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl sm:text-3xl font-black text-white">Questions? Answered.</h2>
+      <section id="faq" className="max-w-2xl lg:max-w-6xl mx-auto px-5 pb-16 pt-10 lg:grid lg:grid-cols-[1fr_1.6fr] lg:gap-14 lg:items-start">
+        <div className="text-center lg:text-left mb-6">
+          <p className="text-accent text-xs font-bold tracking-[0.3em] uppercase mb-2">Questions</p>
+          <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black italic uppercase text-white leading-none">Questions? <span className="lg:block text-accent">Answered.</span></h2>
+          <p className="hidden lg:block text-text-secondary mt-4 leading-relaxed">Everything people ask before they start. Still unsure? The trial is free, so just try it.</p>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
           {FAQ_ITEMS.map((item, i) => ({
@@ -784,7 +787,7 @@ export default function LandingPage({
           brackets, a slow readout sweep, and the numbers in a labelled panel.
           The point it makes visually is the point the product makes, which is
           that these are measurements, not motivation. */}
-      <section id="selection" className="wx-xtra relative max-w-5xl mx-auto px-5 pt-14 pb-14">
+      <section id="selection" className="relative max-w-5xl mx-auto px-5 pt-14 pb-14">
         <Link
           href="/standards"
           className="group relative block overflow-hidden rounded-2xl border border-accent/25 bg-[#0B0B0C] p-6 sm:p-8 transition-all duration-300 hover:border-accent/60 hover:shadow-[0_0_60px_-18px_rgba(245,166,35,0.55)]"
