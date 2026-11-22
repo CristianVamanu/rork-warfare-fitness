@@ -61,3 +61,16 @@ describe('ripz', () => {
     expect([20, 39, 40, 60, 80, 100, 105, 200].map(tierFor)).toEqual(['rookie', 'rookie', 'soldier', 'veteran', 'elite', 'elite', 'legend', 'legend']);
   });
 });
+
+import { scaleCount, levelRange } from './ripz';
+describe('ripz levels', () => {
+  it('beginners get a small, beatable range; advanced keeps 20 to 200', () => {
+    expect(levelRange('beginner')).toEqual([5, 50]);
+    expect(levelRange('advanced')).toEqual([20, 200]);
+    for (let i = 0; i < 300; i++) {
+      const c = rollChallenge(null, Math.random, 'push-ups', 'beginner');
+      expect(c.count).toBeGreaterThanOrEqual(5); expect(c.count).toBeLessThanOrEqual(50); expect(c.count % 5).toBe(0);
+    }
+  });
+  it('never deals under 5', () => { expect(scaleCount(20, 'beginner')).toBe(5); });
+});

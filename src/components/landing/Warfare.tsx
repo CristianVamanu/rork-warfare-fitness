@@ -22,6 +22,7 @@ import { PhoneFrame, Reveal } from '@/components/landing/Redesign';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { OperatorLine } from '@/components/ui/OperatorLine';
 import { PLAY_TRADEMARK_LINE } from '@/lib/storeLinks';
+import { RIPZ_PACKS } from '@/lib/ripz';
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -434,3 +435,28 @@ export function WxFooter({ appName, playUrl, iosUrl }: { appName: string; playUr
   );
 }
 
+
+/** Ripz on the landing page: the free game, one tap from the hero. */
+export function WxRipz() {
+  const packs = RIPZ_PACKS.slice(0, 5);
+  return (
+    <section className="wx-ripz" aria-labelledby="wx-ripz-h">
+      <div className="wx-ripz-in">
+        <div className="wx-ripz-copy">
+          <p className="wx-eyebrow">Free · no account</p>
+          <h2 id="wx-ripz-h" className="wx-h3">Rip a pack.<br /><span className="wx-o">Do the reps.</span></h2>
+          <p className="wx-ripz-sub">Pick your level, spin the wheel and tear open a pack. It deals your challenge: push-ups, squats, sit-ups, lunges or mountain climbers. Beginners start from 5 reps.</p>
+          <ul className="wx-ripz-lv"><li>Beginner</li><li>Intermediate</li><li>Advanced</li></ul>
+          <Link href="/ripz" className="wx-cta wx-ripz-btn">Rip a free pack <ArrowRight aria-hidden /></Link>
+        </div>
+        <div className="wx-ripz-fan" aria-hidden>
+          {packs.map((p, i) => (
+            <span key={p.id} style={{ ['--i' as string]: i - 2, background: `linear-gradient(160deg, ${p.colors[0]}, ${p.colors[1]} 45%, ${p.colors[2]})` }}>
+              <b>RIPZ</b><small>{p.label}</small>
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

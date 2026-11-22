@@ -3,7 +3,7 @@ import { Suspense } from 'react';
 import Link from 'next/link';
 import { PublicHeader } from '@/components/landing/PublicHeader';
 import { getSystemConfig } from '@/lib/firestore';
-import { RIPZ_MOVES, RIPZ_MIN, RIPZ_MAX } from '@/lib/ripz';
+import { RIPZ_MOVES, RIPZ_MAX } from '@/lib/ripz';
 import { RipzPublic } from './RipzPublic';
 
 type Search = Promise<{ n?: string; m?: string }>;
@@ -12,9 +12,9 @@ type Search = Promise<{ n?: string; m?: string }>;
 export async function generateMetadata({ searchParams }: { searchParams: Search }): Promise<Metadata> {
   const sp = await searchParams;
   const n = Number(sp.n); const move = RIPZ_MOVES.find((m) => m.id === sp.m);
-  const shared = move && Number.isInteger(n) && n >= RIPZ_MIN && n <= RIPZ_MAX;
+  const shared = move && Number.isInteger(n) && n >= 5 && n <= RIPZ_MAX;
   const title = shared ? `I pulled ${n} ${move.name.toLowerCase()} on Ripz. What do you get?` : 'Ripz: rip a pack, get your challenge';
-  const description = `Pick a pack, swipe to rip it open and do what it deals: ${RIPZ_MIN} to ${RIPZ_MAX} reps of push-ups, squats, sit-ups, lunges or mountain climbers. Free, no account.`;
+  const description = `Pick a pack, swipe to rip it open and pick your level and do what it deals: from 5 reps for beginners up to ${RIPZ_MAX} of push-ups, squats, sit-ups, lunges or mountain climbers. Free, no account.`;
   return { title, description, alternates: { canonical: '/ripz' }, openGraph: { title, description, type: 'website' } };
 }
 

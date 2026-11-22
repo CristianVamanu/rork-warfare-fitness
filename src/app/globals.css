@@ -2092,3 +2092,29 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 @media (max-width: 599px) {
   .wx-mid .wx-strip, .wx-mid .wx-facts { display: block !important; }
 }
+
+/* ── Ripz on the landing ── */
+.wx-ripz { padding: 28px 12px 6px; }
+.wx-ripz-in { position: relative; overflow: hidden; border-radius: 22px; border: 1px solid rgba(255,165,30,.4); background: radial-gradient(120% 90% at 85% 50%, rgba(255,140,0,.18), transparent 60%), linear-gradient(180deg, #14110d, #0a0908); box-shadow: 0 0 30px -12px rgba(255,140,0,.6); padding: 24px 18px; display: grid; gap: 22px; }
+.wx-ripz .wx-eyebrow { font-size: 11px; letter-spacing: .3em; }
+.wx-ripz .wx-h3 { font-size: 34px; line-height: .98; color: #fff; margin-top: 8px; }
+.wx-ripz-sub { color: #d0d0d0; font-size: 14.5px; line-height: 1.5; margin-top: 12px; max-width: 520px; }
+.wx-ripz-lv { display: flex; gap: 8px; margin-top: 14px; list-style: none; padding: 0; flex-wrap: wrap; }
+.wx-ripz-lv li { padding: 6px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.14); color: #ddd; font-size: 12.5px; font-weight: 600; }
+.wx-ripz-lv li:first-child { border-color: var(--wx-o1, #ff9d1c); color: #fff; }
+.wx-ripz-btn { display: inline-flex; margin-top: 18px; height: 50px; padding: 0 26px; font-size: 15px; }
+.wx-ripz-fan { position: relative; height: 190px; }
+.wx-ripz-fan span { position: absolute; left: 50%; bottom: 0; width: 92px; height: 150px; margin-left: -46px; border-radius: 12px; border: 1px solid rgba(255,255,255,.35);
+  transform-origin: 50% 120%; transform: rotate(calc(var(--i) * 13deg)) translateY(calc(var(--i) * var(--i) * 3px)); box-shadow: 0 12px 24px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.5);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; color: #111; }
+.wx-ripz-fan b { font-family: 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 900; font-size: 26px; letter-spacing: .02em; }
+.wx-ripz-fan small { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; opacity: .75; }
+@media (min-width: 1024px) {
+  .wx-ripz { max-width: 1240px; margin: 0 auto; padding: 40px 32px 10px; }
+  .wx-ripz-in { grid-template-columns: 1.1fr 1fr; align-items: center; padding: 44px 52px; }
+  .wx-ripz .wx-h3 { font-size: 56px; }
+  .wx-ripz-sub { font-size: 16px; }
+  .wx-ripz-fan { height: 260px; }
+  .wx-ripz-fan span { width: 128px; height: 206px; margin-left: -64px; }
+  .wx-ripz-fan b { font-size: 34px; }
+}

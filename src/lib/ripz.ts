@@ -66,14 +66,35 @@ export const RIPZ_COUNTS: number[] = Array.from({ length: (RIPZ_MAX - RIPZ_MIN) 
  * the same move with the same number is never dealt straight after it.
  * `moveId` fixes the move (a coloured pack); leave it out for the wild card.
  */
-export function rollChallenge(prev: RipzChallenge | null, rng: () => number = Math.random, moveId?: string | null): RipzChallenge {
+export type RipzLevel = 'beginner' | 'intermediate' | 'advanced';
+export const RIPZ_LEVELS: { id: RipzLevel; label: string }[] = [
+  { id: 'beginner', label: 'Beginner' },
+  { id: 'intermediate', label: 'Intermediate' },
+  { id: 'advanced', label: 'Advanced' },
+];
+/** How much of the full pull each level is asked for. Advanced is the
+ *  original 20 to 200; a beginner gets roughly a quarter, so a first pack is
+ *  something like 5 to 25 and still beatable. The tier (Rookie … Legend)
+ *  is the pack's rarity and stays the same at every level. */
+export const RIPZ_LEVEL_SCALE: Record<RipzLevel, number> = { beginner: 0.25, intermediate: 0.55, advanced: 1 };
+/** The smallest and biggest number a level can deal. */
+export function levelRange(level: RipzLevel): [number, number] {
+  return [scaleCount(RIPZ_MIN, level), scaleCount(RIPZ_MAX, level)];
+}
+/** A full-scale count brought down to the level, in fives, never under 5. */
+export function scaleCount(count: number, level: RipzLevel): number {
+  return Math.max(5, Math.round((count * RIPZ_LEVEL_SCALE[level]) / STEP) * STEP);
+}
+export function isRipzLevel(x: unknown): x is RipzLevel { return x === 'beginner' || x === 'intermediate' || x === 'advanced'; }
+
+export function rollChallenge(prev: RipzChallenge | null, rng: () => number = Math.random, moveId?: string | null, level: RipzLevel = 'advanced'): RipzChallenge {
   const pick = <T,>(xs: T[]): T => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))];
   const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES);
   // Tier first, by its odds; then any number inside that tier.
   let roll = rng(); let tier: RipzTier = 'rookie';
   for (const t of Object.keys(RIPZ_TIERS) as RipzTier[]) { tier = t; roll -= RIPZ_TIERS[t].chance; if (roll < 0) break; }
   const inTier = RIPZ_COUNTS.filter((c) => tierFor(c) === tier);
-  const pool = prev && prev.move.id === move.id ? inTier.filter((c) => c !== prev.count) : inTier;
-  const count = pick(pool);
-  return { move, count, tier: tierFor(count) };
+  const pool = prev && prev.move.id === move.id ? inTier.filter((c) => scaleCount(c, level) !== prev.count) : inTier;
+  const raw = pick(pool.length ? pool : inTier);
+  return { move, count: scaleCount(raw, level), tier: tierFor(raw) };
 }

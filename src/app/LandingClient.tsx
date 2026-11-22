@@ -11,7 +11,7 @@ import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
 import { LandingNav } from '@/components/landing/Redesign';
-import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter, WxGuarantee, WxPlans, WxWhy, WxTrial } from '@/components/landing/Warfare';
+import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxRipz, WxSteps, WxFinal, WxFooter, WxGuarantee, WxPlans, WxWhy, WxTrial } from '@/components/landing/Warfare';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -509,6 +509,7 @@ export default function LandingPage({
         <WxFacts facts={facts} />
         <WxCards />
       </div>
+      <WxRipz />
       {/* An admin who has uploaded their own screenshots still gets them shown. */}
       {landing.screenshotUrls && landing.screenshotUrls.length >= 3 && (
         <section className="relative max-w-5xl mx-auto px-5 pb-14">

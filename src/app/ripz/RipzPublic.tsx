@@ -16,9 +16,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/Button';
 import { funnelHit } from '@/lib/funnel';
 import { isValidReferralCode } from '@/lib/referral';
-import { rollChallenge, RIPZ_MOVES, RIPZ_MIN, RIPZ_MAX, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { rollChallenge, RIPZ_MOVES, RIPZ_MAX, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
+import { RipzLevelPicker, useRipzLevel } from '@/components/ripz/RipzLevelPicker';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
 import { RipzOdds } from '@/components/ripz/RipzOdds';
 import { RipzShare } from '@/components/ripz/RipzShare';
@@ -35,6 +36,7 @@ export function RipzPublic() {
   const router = useRouter();
   const params = useSearchParams();
   const audio = useMemo(() => new RipzAudio(), []);
+  const [level, setLevel] = useRipzLevel();
   const [muted, setMuted] = useState(false);
   const [pack, setPack] = useState<RipzPackDef | null>(null);
   const [challenge, setChallenge] = useState<RipzChallenge | null>(null);
@@ -48,7 +50,7 @@ export function RipzPublic() {
   // The pull a friend shared, if this visit came from their link.
   const friend = useMemo(() => {
     const n = Number(params.get('n')); const move = RIPZ_MOVES.find((m) => m.id === params.get('m'));
-    return move && Number.isInteger(n) && n >= RIPZ_MIN && n <= RIPZ_MAX ? { n, move } : null;
+    return move && Number.isInteger(n) && n >= 5 && n <= RIPZ_MAX ? { n, move } : null;
   }, [params]);
   const ref = params.get('ref');
   const joinHref = `/onboarding?next=${encodeURIComponent('/ripz/play')}${isValidReferralCode(ref) ? `&ref=${ref}` : ''}`;
@@ -76,7 +78,7 @@ export function RipzPublic() {
     try { localStorage.setItem(MUTE_KEY, m ? '1' : '0'); } catch { /* private mode */ }
   }
   function pick(p: RipzPackDef) {
-    const next = rollChallenge(last.current, Math.random, p.moveId); last.current = next;
+    const next = rollChallenge(last.current, Math.random, p.moveId, level); last.current = next;
     setPack(p); setChallenge(next); setRevealed(false); setPackKey((k) => k + 1);
   }
   function again() { setPack(null); setChallenge(null); setRevealed(false); }
@@ -97,7 +99,10 @@ export function RipzPublic() {
           Your friend pulled {friend.n} {friend.move.name.toLowerCase()}. <span className="text-accent">What do you get?</span>
         </p>
       ) : !pack && !capped && (
-        <p className="text-sm text-text-secondary mt-2">Pick a pack. Rip it open. Do what it deals: {RIPZ_MIN} to {RIPZ_MAX} reps.</p>
+        <>
+          <p className="text-sm text-text-secondary mt-2">Pick your level, then a pack. Rip it open. Do what it deals.</p>
+          <RipzLevelPicker level={level} onChange={setLevel} />
+        </>
       )}
 
       <div className={`mt-5 ${pack ? (revealed ? 'mb-16' : 'mb-28') + ' min-h-[380px]' : 'mb-4'}`}>
@@ -134,7 +139,7 @@ export function RipzPublic() {
 
       {!pack && (
         <div className="space-y-3 mt-5">
-          <RipzOdds />
+          <RipzOdds level={level} />
           <Link href={joinHref} onClick={() => funnelHit('ripz_join')} className="flex items-center gap-3 rounded-2xl border border-white/8 bg-surface p-3">
             <span className="flex-1">
               <span className="block text-sm font-black text-white">Ripz is one part of Warfare Fitness</span>

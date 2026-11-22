@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Ripz: tear a pack, get a bodyweight challenge of 20 to 200 reps. Do it and
+ * Ripz: tear a pack, get a bodyweight challenge sized to your level. Do it and
  * log it, or rip again for a different number, which may be higher or lower.
  * The rules live in lib/ripz; this page is the stage around the pack.
  */
@@ -21,6 +21,7 @@ import { challengeView, CHALLENGE_DAYS, type ChallengeRecord } from '@/lib/ripzC
 import { RipzShare } from '@/components/ripz/RipzShare';
 import { getIdToken } from 'firebase/auth';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
+import { RipzLevelPicker, useRipzLevel } from '@/components/ripz/RipzLevelPicker';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
 
@@ -29,6 +30,7 @@ const MUTE_KEY = 'wf.ripz.muted';
 export default function RipzPage() {
   const { user, profile, refreshProfile } = useAuth();
   const audio = useMemo(() => new RipzAudio(), []);
+  const [level, setLevel] = useRipzLevel();
   const [muted, setMuted] = useState(false);
   const [packKey, setPackKey] = useState(0);
   const [challenge, setChallenge] = useState<RipzChallenge | null>(null);
@@ -54,7 +56,7 @@ export default function RipzPage() {
 
   // Picked off the wheel: the colour fixes the move, the pack deals the number.
   function pick(p: RipzPackDef) {
-    const next = rollChallenge(last.current, Math.random, p.moveId); last.current = next;
+    const next = rollChallenge(last.current, Math.random, p.moveId, level); last.current = next;
     setPack(p); setChallenge(next); setRevealed(false); setLogged(false); setPackKey((k) => k + 1);
   }
 
@@ -117,6 +119,7 @@ export default function RipzPage() {
             {muted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
           </button>
         </div>
+        {!pack && <RipzLevelPicker level={level} onChange={setLevel} />}
 
         <div className={`mt-5 ${pack ? (revealed ? 'mb-16' : 'mb-28') + ' min-h-[380px]' : 'mb-4'}`}>
           {pack && challenge
@@ -169,7 +172,7 @@ export default function RipzPage() {
               </span>
               <ChevronRight className="w-4 h-4 text-accent" />
             </Link>
-            <RipzOdds />
+            <RipzOdds level={level} />
           </div>
         )}
       </div>
