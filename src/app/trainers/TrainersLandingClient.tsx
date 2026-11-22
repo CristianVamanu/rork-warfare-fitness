@@ -56,14 +56,8 @@ export default function TrainersLandingPage({
       <header className="relative z-20 border-b border-white/8">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/trainers" className="flex items-center gap-2">
-            {logoUrl ? (
-              <Image src={logoUrl} alt={appName} width={32} height={32} className="rounded-lg" />
-            ) : (
-              <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center">
-                <Crown className="w-4 h-4 text-black" />
-              </div>
-            )}
-            <span className="font-black text-white text-lg">{appName}</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/brand/logo-wf.webp" alt={appName} width={920} height={155} className="w-auto" style={{ height: 26 }} />
             <span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wide text-accent bg-accent-muted px-2 py-0.5 rounded-full ml-1">For Trainers</span>
           </Link>
 

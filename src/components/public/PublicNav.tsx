@@ -64,15 +64,8 @@ export function PublicNav({ programs, logoUrl, appName = 'Warfare Fitness' }: Pr
             than the homepage, so an unbranded header is the worst place to
             save a few bytes. */}
         <Link href="/" className="flex items-center gap-2.5 shrink-0">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center overflow-hidden shrink-0 ${logoUrl ? '' : 'bg-accent'}`}>
-            {logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoUrl} alt={appName} className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-lg font-black text-black">{appName[0]}</span>
-            )}
-          </div>
-          <span className="text-base font-black text-white tracking-tight">{appName}</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/brand/logo-wf.webp" alt={appName} width={920} height={155} className="w-auto" style={{ height: 26 }} />
         </Link>
 
         <div className="hidden sm:flex items-center gap-6">
