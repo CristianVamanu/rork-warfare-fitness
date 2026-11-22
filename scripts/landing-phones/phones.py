@@ -59,7 +59,7 @@ def phone(img, loc, rot):
     body.location = loc; body.rotation_euler = [math.radians(a) for a in rot]
     return body
 
-phone('screen_crest.png', (0.52, -0.02, -0.75), (0, -26, -7))
+phone('screen_ripz.jpg', (0.52, -0.02, -0.75), (0, -26, -7))
 phone('screen_home_p.jpg', (-0.20, 0.0, 0.2), (0, -26, -7))
 
 cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); bpy.context.collection.objects.link(cam)
