@@ -521,8 +521,8 @@ export default function LandingPage({
           partner panel were cut: they repeated what is above and pushed the
           price and the final ask two screens further down. Partners stays in
           the footer. */}
-      <WxSteps />
       <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
+      <WxSteps />
       <WxPlans programs={programs} onOpen={(id) => { const p = programs.find((x) => x.id === id); if (p) setSelectedProgram(p); }} />
       <WxWhy ctaLabel={primaryCtaLabel} />
       {/* Real member transformation photos — admin-editable only, never
