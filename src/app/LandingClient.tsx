@@ -246,6 +246,8 @@ export default function LandingPage({
   // swapped labels ("Get Matched Free" -> "Start N-Day Free Trial") the
   // moment the client-side getMembershipConfig() call resolved.
   const [appName, setAppName] = useState(initialAppName);
+  // Phones show one plan at a time, chosen with the selector above it.
+  const [pickedPlan, setPickedPlan] = useState<number | null>(null);
   // Store listings, shown in the footer once the admin enters them (Settings).
   // Shown to every visitor, iPhone included: it is proof the app is real as
   // much as a download link. Hidden only inside the app itself, which is
@@ -598,7 +600,21 @@ export default function LandingPage({
                 : `Start free — ${trialDays} days on us, no card required.`}
             </p>
           </div>
-          <div className={`lx-swipe lx-swipe-plans grid gap-4 items-stretch ${
+          {(() => {
+            const all = [...membershipPlans.map((p) => p.name), ...coachingPlans.map((p) => p.name)];
+            if (all.length < 2) return null;
+            const featured = Math.max(0, anyPlanMarkedPopular ? membershipPlans.findIndex((p) => p.mostPopular) : 0);
+            const on = pickedPlan ?? featured;
+            return (
+              <div role="tablist" aria-label="Choose a plan" className="wx-psel sm:hidden" style={{ ['--n' as string]: all.length, ['--i' as string]: on }}>
+                <span className="wx-psel-thumb" aria-hidden />
+                {all.map((name, i) => (
+                  <button key={name + i} type="button" role="tab" aria-selected={on === i} onClick={() => setPickedPlan(i)}>{name}</button>
+                ))}
+              </div>
+            );
+          })()}
+          <div data-picked={pickedPlan ?? Math.max(0, anyPlanMarkedPopular ? membershipPlans.findIndex((p) => p.mostPopular) : 0)} className={`wx-pgrid grid gap-4 items-stretch ${
             (membershipPlans.length + coachingPlans.length) >= 3 ? 'sm:grid-cols-2 lg:grid-cols-3'
             : (membershipPlans.length + coachingPlans.length) === 2 ? 'sm:grid-cols-2 max-w-2xl lg:max-w-4xl mx-auto'
             : 'max-w-sm mx-auto'
@@ -622,6 +638,7 @@ export default function LandingPage({
               // plan lists.
               <div
                 key={plan.id}
+                data-on={i === (pickedPlan ?? Math.max(0, anyPlanMarkedPopular ? membershipPlans.findIndex((p) => p.mostPopular) : 0))}
                 className={`relative rounded-2xl p-5 h-full flex flex-col bg-surface wf-rise ${
                   isFeatured ? 'border-2 border-accent' : 'border border-white/10'
                 }`}
@@ -702,8 +719,8 @@ export default function LandingPage({
               </div>
               );
             })}
-            {coachingPlans.map((plan) => (
-              <div key={plan.id} className="relative rounded-2xl border border-white/10 bg-surface p-5 h-full flex flex-col wf-rise" style={{ animationDelay: `${0.05}s` }}>
+            {coachingPlans.map((plan, ci) => (
+              <div key={plan.id} data-on={membershipPlans.length + ci === (pickedPlan ?? Math.max(0, anyPlanMarkedPopular ? membershipPlans.findIndex((p) => p.mostPopular) : 0))} className="relative rounded-2xl border border-white/10 bg-surface p-5 h-full flex flex-col wf-rise" style={{ animationDelay: `${0.05}s` }}>
                 {discountPercent > 0 && (
                   <div className="absolute -top-3 right-4 px-2.5 py-0.5 bg-danger rounded-full">
                     <span className="text-[10px] font-bold text-white">{discountPercent}% OFF 1ST</span>
