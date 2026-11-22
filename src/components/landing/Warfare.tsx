@@ -51,7 +51,7 @@ function GoalGrid() {
 /** The two phones, rendered in 3D (Blender) with the real dashboard on the
  *  front one. The source scene is scripts/landing-phones/phones.py. */
 function HeroPhones() {
-  return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={903} height={1011} fetchPriority="high" />;
+  return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={1855} height={2022} fetchPriority="high" />;
 }
 
 export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {

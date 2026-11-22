@@ -1946,3 +1946,4 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-hero-mob .wx-hero-sub { max-width: calc(var(--u) * 178); font-size: calc(var(--u) * 10); }
   .wx-phones3d { left: calc(var(--u) * 210); top: calc(var(--u) * 150); width: calc(var(--u) * 172); }
 }
+.wx-phones3d { filter: drop-shadow(0 0 26px rgba(255,130,0,.38)) drop-shadow(0 18px 24px rgba(0,0,0,.6)); }

@@ -3,9 +3,9 @@ D = os.path.dirname(os.path.abspath(__file__))
 out = sys.argv[sys.argv.index('--') + 1]
 for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)
 sc = bpy.context.scene
-sc.render.engine = 'CYCLES'; sc.cycles.samples = 96; sc.cycles.use_denoising = True
+sc.render.engine = 'CYCLES'; sc.cycles.samples = 160; sc.cycles.use_denoising = False
 sc.render.film_transparent = True
-sc.render.resolution_x, sc.render.resolution_y = 1300, 1400
+sc.render.resolution_x, sc.render.resolution_y = 2600, 2800
 sc.view_settings.view_transform = 'Standard'
 W, H, T = 0.74, 1.54, 0.08
 
@@ -14,7 +14,7 @@ def pbr(name, color, metallic, rough):
     b = m.node_tree.nodes['Principled BSDF']
     b.inputs['Base Color'].default_value = (*color, 1); b.inputs['Metallic'].default_value = metallic; b.inputs['Roughness'].default_value = rough
     return m
-GOLD = pbr('gold', (0.16, 0.10, 0.05), 1.0, 0.3)
+GOLD = pbr('graphite', (0.10, 0.10, 0.11), 1.0, 0.32)
 BLACK = pbr('black', (0.008, 0.008, 0.01), 0.0, 0.06)
 def mat_screen(img):
     m = bpy.data.materials.new('scr'); m.use_nodes = True
@@ -59,8 +59,8 @@ def phone(img, loc, rot):
     body.location = loc; body.rotation_euler = [math.radians(a) for a in rot]
     return body
 
-phone('screen_crest.png', (0.42, -0.06, -0.75), (0, 12, -8))
-phone('screen_home_p.jpg', (-0.22, 0.0, 0.2), (0, 12, -8))
+phone('screen_crest.png', (0.46, -0.06, -0.75), (0, 5, -8))
+phone('screen_home_p.jpg', (-0.22, 0.0, 0.2), (0, 5, -8))
 
 cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); bpy.context.collection.objects.link(cam)
 cam.location = (0.08, 0.0, 5.45); cam.data.lens = 85; sc.camera = cam
@@ -68,11 +68,11 @@ def area(loc, rot, energy, color, size):
     l = bpy.data.objects.new('l', bpy.data.lights.new('l', 'AREA')); bpy.context.collection.objects.link(l)
     l.location = loc; l.rotation_euler = [math.radians(a) for a in rot]
     l.data.energy = energy; l.data.color = color; l.data.size = size
-area((-2.5, 1.0, 3.0), (0, -35, 0), 120, (1.0, 0.82, 0.6), 3)      # soft front key
-area((-3.0, 0.0, -0.4), (0, -95, 0), 300, (1.0, 0.55, 0.12), 2.5)  # orange light on the left edges
-area((3.0, 0.5, -0.6), (0, 95, 0), 450, (1.0, 0.45, 0.08), 2.5)    # orange rim from the right
-area((0, -3, 0.5), (80, 0, 0), 250, (1.0, 0.5, 0.1), 2.5)          # glow from below
+area((-2.5, 1.0, 3.0), (0, -35, 0), 120, (1.0, 0.97, 0.94), 3)      # soft front key
+area((-3.0, 0.0, -0.4), (0, -95, 0), 300, (0.95, 0.95, 1.0), 2.5)  # orange light on the left edges
+area((3.0, 0.5, -0.6), (0, 95, 0), 450, (1.0, 0.96, 0.92), 2.5)    # orange rim from the right
+area((0, -3, 0.5), (80, 0, 0), 250, (1.0, 0.8, 0.6), 2.5)          # glow from below
 w = bpy.data.worlds.new('w'); sc.world = w; w.use_nodes = True
-bg = w.node_tree.nodes['Background']; bg.inputs['Color'].default_value = (0.5, 0.24, 0.06, 1); bg.inputs['Strength'].default_value = 0.45
+bg = w.node_tree.nodes['Background']; bg.inputs['Color'].default_value = (0.22, 0.22, 0.24, 1); bg.inputs['Strength'].default_value = 0.45
 sc.render.filepath = out
 bpy.ops.render.render(write_still=True)
