@@ -712,7 +712,7 @@ export default function LandingPage({
                   ))}
                 </ul>
                 <Link href={`/onboarding?planId=${plan.id}`} className="block pt-5 mt-auto">
-                  <Button fullWidth size="md" variant={isFeatured ? 'primary' : 'secondary'}>
+                  <Button fullWidth size="md" variant={isFeatured || pickedPlan === i ? 'primary' : 'secondary'}>
                     {trialDays <= 0 ? 'Join Now' : paidTrialEnabled ? `Start for $${trialPrice}` : `Start ${trialDays}-Day Free Trial`} <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
@@ -753,7 +753,7 @@ export default function LandingPage({
                   ))}
                 </ul>
                 <Link href={`/onboarding?coachingPlanId=${plan.id}`} className="block pt-5 mt-auto">
-                  <Button fullWidth size="md" variant="secondary">
+                  <Button fullWidth size="md" variant={pickedPlan === membershipPlans.length + ci ? 'primary' : 'secondary'}>
                     Apply Now <ArrowRight className="w-4 h-4" />
                   </Button>
                 </Link>
