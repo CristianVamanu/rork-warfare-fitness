@@ -15,7 +15,7 @@
 
 import Link from 'next/link';
 import {
-  ArrowRight, Dices, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck, Flame, Users,
+  ArrowRight, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck, Flame, Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { PhoneFrame, Reveal } from '@/components/landing/Redesign';
@@ -448,11 +448,15 @@ export function WxRipz() {
         </div>
         <img src="/landing/ripz-cards.webp" alt="" aria-hidden className="wx-ripz-art" width={1224} height={1520} loading="lazy" />
       </div>
-      <ul className="wx-ripz-feat">
-        <li><Dices aria-hidden /><b>Random challenges</b><span>Spin &amp; discover</span></li>
-        <li><BarChart3 aria-hidden /><b>Track your progress</b><span>See your improvements</span></li>
-        <li><Trophy aria-hidden /><b>Build strength</b><span>One pack at a time</span></li>
-        <li><Zap aria-hidden /><b>Stay motivated</b><span>Push harder</span></li>
+      {/* Four card artworks from the owner's reference; the words are in
+          the art, and repeated here for screen readers and search. */}
+      <ul className="wx-ripz-feat2">
+        {[['challenges', 'Random challenges', 'Spin & discover'], ['progress', 'Track your progress', 'See your improvements'], ['strength', 'Build strength', 'One pack at a time'], ['motivated', 'Stay motivated', 'Push harder']].map(([img, t, d]) => (
+          <li key={img}>
+            <img src={`/landing/feat-${img}.webp`} alt="" width={1088} height={594} loading="lazy" />
+            <span className="sr-only"><b>{t}</b> {d}</span>
+          </li>
+        ))}
       </ul>
     </section>
   );
