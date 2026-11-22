@@ -1850,7 +1850,8 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
    composition scaled. ════ */
 @media (max-width: 599px) {
   [data-landing-body] { --u: calc(100vw / 390); }
-  .lx-nav .lx-wrap { height: calc(var(--u) * 64); padding-inline: calc(var(--u) * 22); }
+  .lx-nav > .lx-wrap { height: calc(var(--u) * 64); padding-inline: calc(var(--u) * 22); }
+  .lx-menu { background: rgba(8,8,8,.96); }
   .lx-nav-logo { height: calc(var(--u) * 24) !important; }
   .lx-nav .lx-icon-btn { color: var(--wx-o1); }
   .lx-nav .lx-icon-btn svg { width: calc(var(--u) * 26); height: calc(var(--u) * 26); }
