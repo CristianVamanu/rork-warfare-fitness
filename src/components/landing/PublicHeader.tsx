@@ -61,7 +61,7 @@ export function PublicHeader({
           {/* The same wordmark as the landing nav. The admin's uploaded square
               logo was the old mark, so it is no longer used here. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/brand/logo-wf.webp" alt={appName} width={920} height={155} className="h-8 sm:h-9 w-auto" />
+          <img src="/brand/logo-wf.webp" alt={appName} width={920} height={155} className="w-auto" style={{ height: 26 }} />
         </Link>
 
         <nav className="hidden md:flex items-center gap-6">
@@ -78,7 +78,7 @@ export function PublicHeader({
           </Link>
           <Link
             href={ctaHref}
-            className="text-[13px] font-bold px-4 py-2 rounded-xl bg-accent text-black hover:brightness-110 transition"
+            className="whitespace-nowrap text-xs sm:text-[13px] font-bold px-3 sm:px-4 py-2 rounded-xl bg-accent text-black hover:brightness-110 transition"
           >
             {ctaLabel}
           </Link>

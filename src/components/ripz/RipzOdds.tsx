@@ -13,7 +13,7 @@ export function RipzOdds({ level = 'advanced' }: { level?: RipzLevel }) {
           return (
             <div key={t} className="flex items-center gap-2 text-xs">
               <span className="w-16 font-bold" style={{ color: tier.color }}>{tier.label}</span>
-              <span className="w-24 whitespace-nowrap text-text-secondary tabular-nums">{scaleCount(tier.min, level)}–{scaleCount(max, level)} reps</span>
+              <span className="w-24 whitespace-nowrap text-text-secondary tabular-nums">{(() => { const lo = scaleCount(tier.min, level); const hi = next ? Math.max(lo, scaleCount(RIPZ_TIERS[next].min, level) - 5) : scaleCount(max, level); return lo === hi ? `${lo}` : `${lo}–${hi}`; })()} reps</span>
               <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${(tier.chance / top) * 100}%`, background: tier.color }} /></span>
               <span className="w-9 text-right text-text-tertiary tabular-nums">{Math.round(tier.chance * 100)}%</span>
             </div>

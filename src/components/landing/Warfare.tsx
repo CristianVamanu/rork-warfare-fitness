@@ -444,7 +444,6 @@ export function WxRipz() {
           <p className="wx-eyebrow">Free · no account</p>
           <h2 id="wx-ripz-h" className="wx-h3">Rip a pack.<br /><span className="wx-o">Do the reps.</span></h2>
           <p className="wx-ripz-sub">Pick your level, spin the wheel and tear open a pack. It deals your challenge: push-ups, squats, sit-ups, lunges or mountain climbers. Beginners start from 5 reps.</p>
-          <ul className="wx-ripz-lv">{[["beginner", "Beginner"], ["intermediate", "Intermediate"], ["advanced", "Advanced"]].map(([v, l]) => <li key={v}><Link href={`/ripz?level=${v}`}>{l}</Link></li>)}</ul>
           <Link href="/ripz" className="wx-cta wx-ripz-btn">Rip a free pack <ArrowRight aria-hidden /></Link>
         </div>
         <img src="/landing/ripz-cards.webp" alt="" aria-hidden className="wx-ripz-art" width={1224} height={1520} loading="lazy" />

@@ -99,12 +99,10 @@ export function RipzPublic() {
           Your friend pulled {friend.n} {friend.move.name.toLowerCase()}. <span className="text-accent">What do you get?</span>
         </p>
       ) : !pack && !capped && (
-        <>
-          <p className="text-sm text-text-secondary mt-2">Pick your level, then a pack. Rip it open. Do what it deals.</p>
-          <RipzLevelPicker level={level} onChange={setLevel} />
-        </>
+        <p className="text-sm text-text-secondary mt-2">Pick your level, then a pack. Rip it open. Do what it deals.</p>
       )}
 
+      {!pack && <RipzLevelPicker level={level} onChange={setLevel} />}
       <div className={`mt-5 ${pack ? (revealed ? 'mb-16' : 'mb-28') + ' min-h-[380px]' : 'mb-4'}`}>
         {pack && challenge
           ? <RipzPack pack={pack} challenge={challenge} audio={audio} packKey={packKey} onRevealed={() => setRevealed(true)} onBack={again} />
