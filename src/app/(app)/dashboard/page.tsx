@@ -749,6 +749,8 @@ export default function DashboardPage() {
                 </div>
               </Link>
             </motion.div>
+          ))}
+        </motion.div>
 
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
           {/* Level — personal progression, not a ranking. */}
