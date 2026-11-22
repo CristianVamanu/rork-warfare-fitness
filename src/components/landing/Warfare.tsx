@@ -15,14 +15,13 @@
 
 import Link from 'next/link';
 import {
-  ArrowRight, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck, Flame, Users,
+  ArrowRight, Dices, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck, Flame, Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { PhoneFrame, Reveal } from '@/components/landing/Redesign';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { OperatorLine } from '@/components/ui/OperatorLine';
 import { PLAY_TRADEMARK_LINE } from '@/lib/storeLinks';
-import { RIPZ_PACKS } from '@/lib/ripz';
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -438,7 +437,6 @@ export function WxFooter({ appName, playUrl, iosUrl }: { appName: string; playUr
 
 /** Ripz on the landing page: the free game, one tap from the hero. */
 export function WxRipz() {
-  const packs = RIPZ_PACKS.slice(0, 5);
   return (
     <section className="wx-ripz" aria-labelledby="wx-ripz-h">
       <div className="wx-ripz-in">
@@ -449,14 +447,14 @@ export function WxRipz() {
           <ul className="wx-ripz-lv"><li>Beginner</li><li>Intermediate</li><li>Advanced</li></ul>
           <Link href="/ripz" className="wx-cta wx-ripz-btn">Rip a free pack <ArrowRight aria-hidden /></Link>
         </div>
-        <div className="wx-ripz-fan" aria-hidden>
-          {packs.map((p, i) => (
-            <span key={p.id} style={{ ['--i' as string]: i - 2, background: `linear-gradient(160deg, ${p.colors[0]}, ${p.colors[1]} 45%, ${p.colors[2]})` }}>
-              <b>RIPZ</b><small>{p.label}</small>
-            </span>
-          ))}
-        </div>
+        <img src="/landing/ripz-cards.webp" alt="" aria-hidden className="wx-ripz-art" width={1224} height={1520} loading="lazy" />
       </div>
+      <ul className="wx-ripz-feat">
+        <li><Dices aria-hidden /><b>Random challenges</b><span>Spin &amp; discover</span></li>
+        <li><BarChart3 aria-hidden /><b>Track your progress</b><span>See your improvements</span></li>
+        <li><Trophy aria-hidden /><b>Build strength</b><span>One pack at a time</span></li>
+        <li><Zap aria-hidden /><b>Stay motivated</b><span>Push harder</span></li>
+      </ul>
     </section>
   );
 }

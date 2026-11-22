@@ -2118,3 +2118,28 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-ripz-fan span { width: 128px; height: 206px; margin-left: -64px; }
   .wx-ripz-fan b { font-size: 34px; }
 }
+/* Ripz v2, owner's reference: card art on the right, four-point strip below. */
+.wx-ripz-fan { display: none; }
+.wx-ripz-in { border-color: rgba(255,165,30,.25); background: radial-gradient(70% 90% at 85% 45%, rgba(255,110,0,.22), transparent 65%), #0b0a09; }
+.wx-ripz-art { display: block; width: 78%; max-width: 420px; height: auto; margin: -6px auto -14px; }
+.wx-ripz-lv li { padding: 8px 16px; font-family: 'Barlow Condensed', 'DM Sans', sans-serif; font-size: 15px; }
+.wx-ripz-lv li:first-child { border-width: 1.5px; box-shadow: 0 0 14px -4px rgba(255,140,0,.7); }
+.wx-ripz-btn { height: 56px; padding: 0 34px; font-size: 17px; border-radius: 999px; }
+.wx-ripz-feat { display: grid; grid-template-columns: 1fr 1fr; margin-top: 14px; list-style: none; padding: 0; border-radius: 18px; border: 1px solid rgba(255,165,30,.55); background: rgba(10,9,8,.85); box-shadow: 0 0 24px -10px rgba(255,140,0,.8); overflow: hidden; }
+.wx-ripz-feat li { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 16px 8px; border-left: 1px solid rgba(255,255,255,.1); border-top: 1px solid rgba(255,255,255,.1); }
+.wx-ripz-feat li:nth-child(odd) { border-left: 0; }
+.wx-ripz-feat li:nth-child(-n+2) { border-top: 0; }
+.wx-ripz-feat svg { width: 30px; height: 30px; color: var(--wx-o1, #ff9d1c); margin-bottom: 8px; }
+.wx-ripz-feat b { color: #fff; font-size: 13px; font-weight: 800; text-transform: uppercase; }
+.wx-ripz-feat span { color: rgba(255,255,255,.75); font-size: 12.5px; margin-top: 2px; }
+@media (min-width: 1024px) {
+  .wx-ripz-in { padding: 30px 52px; }
+  .wx-ripz-art { width: 100%; max-width: 520px; margin: -20px 0 -40px auto; }
+  .wx-ripz .wx-h3 { font-size: 64px; }
+  .wx-ripz-feat { grid-template-columns: repeat(4, 1fr); margin: 18px 0 0; }
+  .wx-ripz-feat li { border-top: 0 !important; border-left: 1px solid rgba(255,255,255,.1) !important; padding: 22px 10px; }
+  .wx-ripz-feat li:first-child { border-left: 0 !important; }
+  .wx-ripz-feat b { font-size: 15px; }
+}
+.wx-ripz-art { -webkit-mask-image: radial-gradient(ellipse 50% 50% at 55% 48%, #000 62%, transparent 100%); mask-image: radial-gradient(ellipse 50% 50% at 55% 48%, #000 62%, transparent 100%); }
+@media (min-width: 1024px) { .wx-ripz-art { max-width: 440px; margin: -30px 20px -50px auto; } }
