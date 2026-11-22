@@ -2198,3 +2198,59 @@ html.light .pf-card .text-white, html.light .pf-card p.text-white, html.light .p
 html.light .pf-card .text-text-secondary { color: #c4c4c4 !important; }
 html.light .pf-card .text-text-tertiary { color: #9a9a9a !important; }
 html.light .pf-card { color: #fff; }
+
+/* ── Admin overview board ── */
+.ov { display: grid; gap: 14px; grid-template-columns: 1fr; }
+@media (min-width: 900px) { .ov { grid-template-columns: repeat(12, 1fr); } .ov-rev { grid-column: span 5; } .ov-cal { grid-column: span 3; } .ov-bars { grid-column: span 4; } .ov-prog { grid-column: span 3; } .ov-age { grid-column: span 3; } .ov-fun { grid-column: span 6; } }
+.ov-card { position: relative; border-radius: 22px; padding: 18px; background: linear-gradient(180deg, #151413, #0d0c0b); border: 1px solid rgba(255,255,255,.07); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); color: #fff; min-width: 0; }
+.ov-card header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.ov-card h3 { font-size: 15px; font-weight: 600; color: #fff; }
+.ov-seg { display: inline-flex; padding: 3px; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); background: #0a0a0a; }
+.ov-seg button { padding: 5px 12px; border-radius: 999px; font-size: 12px; color: #9a9a9a; }
+.ov-seg button.is-on { background: #fff; color: #111; font-weight: 600; }
+.ov-kpis { display: flex; gap: 28px; flex-wrap: wrap; align-items: flex-start; }
+.ov-kpis > div > b { font-size: 30px; font-weight: 500; letter-spacing: -.02em; line-height: 1; }
+.ov-kpis small, .ov-total small, .ov-big small { display: block; color: #8c8c8c; font-size: 12px; margin-top: 6px; }
+.ov-chg { display: inline-flex; align-items: center; gap: 2px; margin-left: 8px; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 600; vertical-align: 6px; }
+.ov-chg svg { width: 12px; height: 12px; }
+.ov-chg.up { background: rgba(245,166,35,.18); color: #FFC45A; } .ov-chg.down { background: rgba(255,255,255,.08); color: #bbb; }
+.ov-chart { width: 100%; height: 190px; margin-top: 14px; display: block; }
+.ov-empty { color: #8c8c8c; font-size: 13px; margin-top: 10px; } .ov-empty a { color: #F5A623; }
+.ov-month { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 6px; border-radius: 999px; border: 1px solid rgba(255,255,255,.1); font-size: 13px; }
+.ov-month button { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: #aaa; } .ov-month svg { width: 15px; height: 15px; }
+.ov-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.ov-grid span { position: relative; aspect-ratio: 1; display: grid; place-items: center; border-radius: 9px; background: #1a1918; border: 1px solid rgba(255,255,255,.05); font-size: 11.5px; color: #bdbdbd; }
+.ov-grid span.blank { background: none; border: 0; }
+.ov-grid span.has { background: rgba(245,166,35,.22); color: #fff; border-color: rgba(245,166,35,.35); }
+.ov-grid span.hot { background: linear-gradient(180deg, #FFC45A, #F5A623); color: #1a0d00; font-weight: 700; }
+.ov-grid span.today { outline: 1.5px solid #fff; }
+.ov-grid i { position: absolute; bottom: 3px; width: 3px; height: 3px; border-radius: 50%; background: #F5A623; }
+.ov-grid span.hot i { background: #1a0d00; }
+.ov-total { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: #1a1918; border: 1px solid rgba(255,255,255,.06); }
+.ov-total b, .ov-big b { font-size: 28px; font-weight: 500; letter-spacing: -.02em; }
+.ov-pills { display: flex; gap: 8px; margin-left: auto; }
+.ov-pills span { padding: 8px 12px; border-radius: 14px; background: linear-gradient(135deg, #2a2118, #15120f); border: 1px solid rgba(245,166,35,.25); }
+.ov-pills small { margin: 0; font-size: 10.5px; } .ov-pills b { font-size: 18px; font-weight: 600; }
+.ov-barwrap { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; height: 170px; margin-top: 16px; }
+.ov-bar { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.ov-col { flex: 1; width: 100%; display: flex; align-items: flex-end; border-radius: 12px; background: repeating-linear-gradient(135deg, rgba(255,255,255,.05) 0 2px, transparent 2px 7px); }
+.ov-col span { position: relative; width: 100%; border-radius: 12px; background: #2a2826; border-top: 2px solid rgba(255,255,255,.15); }
+.ov-col span.top { background: linear-gradient(180deg, #FFC45A, #F5A623); border: 0; }
+.ov-col em { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); padding: 1px 6px; border-radius: 999px; background: #fff; color: #111; font-size: 10.5px; font-style: normal; font-weight: 600; }
+.ov-bar small { font-size: 11px; color: #8c8c8c; }
+.ov-prog ul, .ov-fun ul { display: grid; gap: 8px; }
+.ov-prog li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; background: #1a1918; border: 1px solid rgba(255,255,255,.05); }
+.ov-rank { width: 26px; height: 26px; flex: none; display: grid; place-items: center; border-radius: 8px; background: rgba(245,166,35,.15); color: #FFC45A; font-size: 12px; font-weight: 700; }
+.ov-pn { flex: 1; min-width: 0; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ov-prog li b { padding: 4px 10px; border-radius: 10px; background: #0d0c0b; border: 1px solid rgba(255,255,255,.08); font-size: 14px; font-weight: 500; }
+.ov-bubbles { position: relative; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; min-height: 180px; }
+.ov-bubbles span { width: var(--s); height: var(--s); border-radius: 50%; display: grid; place-content: center; text-align: center; }
+.ov-bubbles b { font-size: 20px; font-weight: 500; line-height: 1; } .ov-bubbles small { font-size: 10px; opacity: .8; }
+.ov-bubbles .b0 { background: linear-gradient(180deg, #FFC45A, #F5A623); color: #1a0d00; }
+.ov-bubbles .b1 { background: #3a332b; color: #fff; margin-left: -14px; }
+.ov-bubbles .b2 { background: #fff; color: #111; margin-left: -14px; }
+.ov-go { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; border: 1px solid rgba(255,255,255,.12); color: #ddd; } .ov-go svg { width: 16px; height: 16px; }
+.ov-big { margin-bottom: 12px; }
+.ov-fun li { display: grid; grid-template-columns: 110px 1fr 70px; align-items: center; gap: 10px; font-size: 13px; color: #cfcfcf; }
+.ov-fun li b { text-align: right; font-weight: 500; color: #fff; }
+.ov-meter { height: 10px; border-radius: 999px; background: #1a1918; overflow: hidden; } .ov-meter i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #F5A623, #FFC45A); }

@@ -1,4 +1,5 @@
 'use client';
+import { OverviewDash } from '@/components/admin/OverviewDash';
 export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
@@ -2912,6 +2913,7 @@ function AdminPageInner() {
       {/* ── Overview ─────────────────────────────────────────────────────────── */}
       {tab === 'overview' && (
         <div className="space-y-4">
+          <OverviewDash />
           <AiBalancePanel onSetup={() => setTab('integrations')} />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
             {/* The real total from the count aggregation when we have it —
