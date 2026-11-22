@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { ShieldOff, RotateCcw, Trash2, Flame, Quote } from 'lucide-react';
+import { ShieldOff, RotateCcw, Trash2, Flame, Quote, ChevronRight } from 'lucide-react';
 import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -83,7 +83,8 @@ export function DaysWithoutWidget() {
 
   return (
     <>
-      <Card glass className="wf-art p-4 space-y-3 cursor-pointer active:scale-[.99] transition-transform" onClick={() => setAddModal(true)} style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
+      <Card glass className="relative wf-art p-4 space-y-3 cursor-pointer active:scale-[.99] transition-transform" onClick={() => setAddModal(true)} style={{ '--art': "url('/home/cards/without.webp')" } as React.CSSProperties}>
+        <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             <div>

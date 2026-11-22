@@ -8,7 +8,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus, Beef } from 'lucide-react';
+import { Sparkles, Play, ChevronRight, Flame, Droplet, Dumbbell, Trophy, Utensils, Flower2, Plus, Minus, Beef, Footprints, CalendarCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useHealthHistory } from '@/lib/useHealthHistory';
 import { readiness } from '@/lib/healthTrends';
@@ -54,7 +54,7 @@ function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { h
         <Icon className="w-[15px] h-[15px]" style={{ color: iconColor }} strokeWidth={1.9} />
       </span>
       <p className="absolute left-[10px] top-[56px] text-[11px] font-bold text-white leading-none">{title}</p>
-      <p className="absolute left-[10px] top-[71px] text-[8px] text-white/65 leading-none truncate max-w-[70px]">{sub}</p>
+      <p className="absolute left-[10px] right-[32px] top-[69px] text-[8px] text-white/65 leading-[1.15]">{sub}</p>
       <span className="absolute right-[8px] bottom-[8px] w-[21px] h-[21px] rounded-full flex items-center justify-center" style={ROUND_BTN}>
         <ChevronRight className="w-[11px] h-[11px] text-white" strokeWidth={2.5} />
       </span>
@@ -62,14 +62,18 @@ function PhotoCard({ href, img, icon: Icon, iconColor = AMBER, title, sub }: { h
   );
 }
 
-export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy }: {
+export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterMl, waterGoalMl, workouts, streak, startHref, sessionsThisWeek, daysPerWeek, onAddWater, onRemoveWater, waterBusy, onAddProtein, proteinBusy }: {
   name: string; kcal: number; kcalGoal: number; protein: number; proteinGoal: number; waterMl: number; waterGoalMl: number; workouts: number; streak: number;
   startHref: string; sessionsThisWeek: number; daysPerWeek: number;
   onAddWater: () => void; onRemoveWater: () => void; waterBusy: boolean;
+  /** +10 g protein, logged as a quick food entry. */ onAddProtein?: () => void; proteinBusy?: boolean;
 }) {
   const { user } = useAuth();
   const { days, loaded } = useHealthHistory(user?.uid, 15);
   const ready = readiness(days);
+  const todayKey = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
+  const todaySteps = (days.get(todayKey) as { steps?: number } | undefined)?.steps;
+  const steps = typeof todaySteps === 'number' && todaySteps > 0 ? todaySteps : null;
   const challenge = useHomeChallenge();
   // The watch data arrives a moment after Home opens. Until it does, use the
   // last known readiness from this device, so the card doesn't open on the
@@ -103,6 +107,8 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/home/hero.webp" alt="" fetchPriority="high" className="home-hero-img absolute top-0 h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px' }} />
         <div aria-hidden className="home-hero-shade absolute inset-0" style={{ background: 'linear-gradient(90deg, #0A0A0A 18%, rgba(10,10,10,0) 55%)' }} />
+        {/* Darkens the corner under the bell / chat / settings buttons so they read over the art. */}
+        <div aria-hidden className="absolute right-0 top-0 w-[70%] h-[120px] pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 70% at 80% 25%, rgba(0,0,0,0.65), transparent 75%)' }} />
         <div aria-hidden className="home-hero-shade absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0), #0A0A0A)' }} />
         <div className="absolute left-[24px] top-[80px]">
           <h1 className="text-[22px] font-bold text-white tracking-[-0.01em] leading-none">Hello {name}<span aria-hidden className="ml-3 text-[17px] align-[2px]">👑</span></h1>
@@ -149,9 +155,11 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
       <div className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'var(--hc-strip-bg)', boxShadow: 'var(--hc-strip-shadow)' }}>
         {[
           { icon: Flame, color: AMBER, label: 'Calories', value: kcal.toLocaleString(), unit: `/${kcalGoal}` },
-          { icon: Droplet, color: '#3B9BFF', label: 'Water', value: litres, unit: `/${(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 1 : 0)}L` },
+          steps != null
+            ? { icon: Footprints, color: '#D4D4D4', label: 'Steps', value: steps.toLocaleString(), unit: '/10k' }
+            : { icon: CalendarCheck, color: '#D4D4D4', label: 'This week', value: `${sessionsThisWeek}/${daysPerWeek || '–'}`, unit: 'sessions' },
           { icon: Dumbbell, color: '#D4D4D4', label: 'Workouts', value: String(workouts), unit: 'Total' },
-          { icon: Trophy, color: AMBER, label: 'Streak', value: String(streak), unit: streak === 1 ? 'day' : 'days' },
+          { icon: Beef, color: '#F87171', label: 'Protein', value: String(protein), unit: proteinGoal ? `/${proteinGoal}g` : 'g' },
         ].map((x, i) => (
           <div key={x.label} className="flex flex-col items-center text-center h-[60px] justify-between" style={i ? { borderLeft: '1px solid var(--hc-divider)' } : undefined}>
             <x.icon className="w-[17px] h-[17px]" style={{ color: x.color }} strokeWidth={1.9} />
@@ -181,18 +189,21 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         </Link>
         <div className="flex flex-col gap-[8px] h-[119px]">
           {/* Protein today */}
-          <Link href="/nutrition" className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
-            <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Beef className="w-[13px] h-[13px] text-[#F87171]" strokeWidth={2} /> Protein</span>
+          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
+            <div className="flex items-center justify-between">
+              <Link href="/nutrition" className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Beef className="w-[13px] h-[13px] text-[#F87171]" strokeWidth={2} /> Protein</Link>
+              {onAddProtein && <button type="button" onClick={onAddProtein} disabled={proteinBusy} aria-label="Add 10 g protein" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35 active:scale-90 transition-transform" style={{ background: 'rgba(248,113,113,0.18)', border: '1px solid rgba(248,113,113,0.55)' }}><Plus className="w-[10px] h-[10px] text-[#FCA5A5]" strokeWidth={2.6} /></button>}
+            </div>
             <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{protein}</span><span className="text-[9px] text-white/55"> {proteinGoal ? `/${proteinGoal} g` : 'g'}</span></p>
             <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${proteinGoal ? Math.min(100, (protein / proteinGoal) * 100) : 0}%`, background: '#F87171', boxShadow: '0 0 6px rgba(248,113,113,0.8)' }} /></span>
-          </Link>
+          </div>
           {/* Water today, with − / + */}
           <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Droplet className="w-[13px] h-[13px] text-[#3B9BFF]" strokeWidth={2} /> Water</span>
               <span className="flex gap-[5px]">
                 <button type="button" onClick={onRemoveWater} disabled={waterBusy || !waterMl} aria-label="Remove water" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35" style={ROUND_BTN}><Minus className="w-[10px] h-[10px] text-white" strokeWidth={2.6} /></button>
-                <button type="button" onClick={onAddWater} disabled={waterBusy} aria-label="Add water" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35" style={{ background: 'rgba(59,155,255,0.18)', border: '1px solid rgba(59,155,255,0.55)' }}><Plus className="w-[10px] h-[10px] text-[#7DBBFF]" strokeWidth={2.6} /></button>
+                <button type="button" onClick={onAddWater} disabled={waterBusy} aria-label="Add water" className="w-[20px] h-[20px] rounded-full flex items-center justify-center disabled:opacity-35 active:scale-90 transition-transform" style={{ background: 'rgba(59,155,255,0.18)', border: '1px solid rgba(59,155,255,0.55)' }}><Plus className="w-[10px] h-[10px] text-[#7DBBFF]" strokeWidth={2.6} /></button>
               </span>
             </div>
             <p className="leading-none"><span className="text-[17px] font-black italic text-white tabular-nums">{litres}</span><span className="text-[9px] text-white/55"> /{(waterGoalMl / 1000).toFixed(waterGoalMl % 1000 ? 1 : 0)}L</span></p>

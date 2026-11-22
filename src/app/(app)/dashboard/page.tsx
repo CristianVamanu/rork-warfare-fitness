@@ -11,7 +11,7 @@ import { getUserWorkouts, skipRestDay, getClientGoals, subscribeTodayCalories, s
 import type { Program } from '@/types';
 import { SubscribeSuccess } from '@/components/ui/SubscribeSuccess';
 import { sessionsIntoWeek } from '@/lib/programWeek';
-import { logWaterAction } from '@/lib/actions';
+import { logWaterAction, logMealAction } from '@/lib/actions';
 import { getMockProgram, stripWeekdayPrefix, getNextSession, getProgramDayProgress, getLastTrainingSlotIndex } from '@/lib/programs';
 import { useRouter } from 'next/navigation';
 import { getGreeting } from '@/lib/utils';
@@ -183,6 +183,20 @@ export default function DashboardPage() {
       toast.error('Failed to log water');
     } finally {
       setAdjustingWater(false);
+    }
+  };
+
+  // Protein quick-add: +10 g as a small snack entry (40 kcal), same feel as water.
+  const [addingProtein, setAddingProtein] = useState(false);
+  const handleAddProtein = async () => {
+    if (!user || addingProtein) return;
+    setAddingProtein(true);
+    try {
+      await logMealAction(user.uid, { name: 'Protein (quick add)', calories: 40, protein: 10, carbs: 0, fat: 0, mealType: 'snack' });
+    } catch {
+      toast.error('Failed to log protein');
+    } finally {
+      setAddingProtein(false);
     }
   };
 
@@ -424,25 +438,14 @@ export default function DashboardPage() {
             onAddWater={handleAddWater}
             onRemoveWater={handleRemoveWater}
             waterBusy={adjustingWater}
+            onAddProtein={handleAddProtein}
+            proteinBusy={addingProtein}
             startHref={activeProgram?.programId && !isRestToday ? `/training/session?programId=${activeProgram.programId}&dow=${nextAbsIdx}` : '/training'}
           />
         </motion.div>
 
         {/* Browser-only: disappears once opened from the home screen. */}
         <InstallAppStrip />
-        {/* Streak Urgency Banner */}
-        {streakAtRisk && (
-          <div className="flex items-center gap-3 p-3 bg-amber-400/10 border border-amber-400/30 rounded-2xl wf-rise">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-sm font-bold text-white">🔥 {streak}-day streak at risk!</p>
-              <p className="text-xs text-amber-400/80">Train today to keep your streak alive.</p>
-            </div>
-            <Link href="/training">
-              <Button size="sm" variant="ghost" className="text-amber-400 border-amber-400/30">Train</Button>
-            </Link>
-          </div>
-        )}
 
 
         {/* Watch data, in the same card style as the tiles above. Native apps
@@ -568,7 +571,7 @@ export default function DashboardPage() {
                             is in the strip above, and printing it twice on
                             a rest day made the card look like it had lost
                             track of the session. */}
-                        <p className="text-sm font-bold text-white leading-snug truncate">
+                        <p className="text-sm font-bold text-white leading-snug line-clamp-2">
                           {isRestToday
                             ? 'Rest day'
                             : todayDay
@@ -705,36 +708,16 @@ export default function DashboardPage() {
         {/* Below the fold the screen is three labelled groups, in the order
             a day actually goes: the tools you use, the things you are
             building, and how you recover. The icons sit in tinted badges so
-            each tile reads as a button rather than a glyph on glass. */}
-        {/* Quick actions — the eight small tiles, as they were. */}
-        <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-4 gap-2.5">
-          {[
-            { icon: Dumbbell, label: 'Workout', href: '/training', tone: '' },
-            { icon: Apple, label: 'Log food', href: '/nutrition', tone: '' },
-            { icon: Camera, label: 'Scan & Go', href: '/training/scan-go', tone: '' },
-            { icon: CheckSquare, label: 'Habits', href: '/habits', tone: '' },
-            { icon: Sparkles, label: 'Meal ideas', href: '/nutrition/meal-planner', tone: '' },
-            { icon: TrendingUp, label: 'Progress', href: '/progress', tone: '' },
-            { icon: Trophy, label: 'Achievements', href: '/achievements', tone: '' },
-            { icon: Swords, label: 'Quests', href: '/quests', tone: '' },
-          ].map((action) => (
-            <motion.div key={action.label} variants={stagger.item}>
-              <Link href={action.href} className="block">
-                {/* Glass tool tile with the amber edge glow; white line icon, amber for the reward tools. */}
-                <div className="wf-glow rounded-[18px] h-[84px] flex flex-col items-center justify-center gap-2 card-float">
-                  <action.icon className={`w-6 h-6 ${action.tone || 'text-foreground'}`} strokeWidth={1.6} style={{ filter: 'drop-shadow(0 0 6px rgba(245,166,35,0.35))' }} />
-                  <span className="text-[10px] font-semibold text-foreground/85 text-center leading-tight px-1">{action.label}</span>
-                </div>
-              </Link>
-            </motion.div>
-          ))}
-        </motion.div>
+            each tile reads as a button rather than a glyph on glass. The
+            eight quick actions now live in the sheet behind the centre nav
+            button (QuickActionsSheet). */}
 
         <motion.div variants={stagger.container} initial="initial" animate="animate" className="grid grid-cols-2 gap-2.5">
           {/* Level — personal progression, not a ranking. */}
           <motion.div variants={stagger.item}>
             <Link href="/achievements" className="block h-full">
-              <div className="wf-glow wf-art rounded-2xl p-4 h-full flex items-center gap-2 card-float" style={{ '--art': "url('/home/cards/level.webp')" } as React.CSSProperties}>
+              <div className="relative wf-glow wf-art rounded-2xl p-4 h-full flex items-center gap-2 card-float" style={{ '--art': "url('/home/cards/level.webp')" } as React.CSSProperties}>
+                <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
                   <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Level</span>
                   <p className="text-2xl font-black text-white leading-tight tabular-nums">{powerLevel}</p>
@@ -745,7 +728,8 @@ export default function DashboardPage() {
           </motion.div>
           <motion.div variants={stagger.item}>
             <Link href="/community/prs" className="block h-full">
-              <div className="wf-glow wf-art rounded-2xl p-4 h-full flex flex-col gap-1 card-float" style={{ '--art': "url('/home/cards/prwall.webp')" } as React.CSSProperties}>
+              <div className="relative wf-glow wf-art rounded-2xl p-4 h-full flex flex-col gap-1 card-float" style={{ '--art': "url('/home/cards/prwall.webp')" } as React.CSSProperties}>
+                <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
                 <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">PR wall</span>
                 <p className="text-[15px] font-extrabold text-white leading-tight">Post a lift</p>
                 <p className="text-[11px] text-text-tertiary">Verified by admin</p>

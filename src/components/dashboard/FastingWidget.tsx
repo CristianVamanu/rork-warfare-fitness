@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Timer, Hourglass, Flame, X, Quote, Lock } from 'lucide-react';
+import { Timer, Hourglass, Flame, X, Quote, Lock, ChevronRight } from 'lucide-react';
 import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -106,7 +106,8 @@ export function FastingWidget() {
     return (
       <>
         <button onClick={() => setStartModal(true)} className="w-full text-left">
-          <Card glass className="wf-art p-4 flex items-center gap-3.5 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
+          <Card glass className="relative wf-art p-4 flex items-center gap-3.5 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
+            <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
             <div className="flex-1 min-w-0">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wide">Fasting</span>
               <p className="text-[15px] font-extrabold text-white leading-tight">Start a fast</p>
@@ -166,7 +167,8 @@ export function FastingWidget() {
   return (
     <>
       <button onClick={() => setDetailModal(true)} className="w-full text-left">
-        <Card glass className="wf-art p-4 flex items-center gap-4 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
+        <Card glass className="relative wf-art p-4 flex items-center gap-4 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
+            <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
           <CircularProgress pct={pct} size={72} strokeWidth={7} color="var(--accent)">
             <Timer className="w-6 h-6 text-accent" />
           </CircularProgress>

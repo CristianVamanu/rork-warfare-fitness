@@ -7,7 +7,7 @@
  */
 import { useEffect, useState } from 'react';
 import { getIdToken } from 'firebase/auth';
-import { ChevronDown, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, BicepsFlexed, Moon, Footprints, HeartPulse, Zap, type LucideIcon } from 'lucide-react';
+import { ChevronDown, Check, Target, Dumbbell, Layers, Timer, Weight, Flame, Beef, Wheat, Droplet, Utensils, Scale, BicepsFlexed, Moon, Footprints, HeartPulse, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { dayKey } from '@/lib/healthTrends';
@@ -67,12 +67,11 @@ export function WeeklyReportCard() {
     s.avgProtein != null ? { label: 'Protein / day', value: `${s.avgProtein} g`, sub: goal(s.avgProtein, s.proteinGoal, 'g'), icon: Beef, color: '#F87171', pct: pct(s.avgProtein, s.proteinGoal) } : null,
     s.avgCarbs != null ? { label: 'Carbs / day', value: `${s.avgCarbs} g`, sub: null, icon: Wheat, color: '#FACC15' } : null,
     s.avgFat != null ? { label: 'Fat / day', value: `${s.avgFat} g`, sub: null, icon: Droplet, color: '#A78BFA' } : null,
-    s.mealDays ? { label: 'Food logged', value: `${s.mealDays} of 7`, sub: 'days', icon: Utensils, color: '#4ADE80', pct: Math.round((s.mealDays / 7) * 100) } : null,
+    s.mealDays ? { label: 'Logged', value: `${s.mealDays} of 7`, sub: 'days', icon: Utensils, color: '#4ADE80', pct: Math.round((s.mealDays / 7) * 100) } : null,
     s.weightStartKg != null && s.weightEndKg != null ? { label: 'Weight change', value: (() => { const d = (s.weightEndKg! - s.weightStartKg!) * (lbs ? 2.20462 : 1); return `${d > 0 ? '+' : ''}${d.toFixed(1)} ${unit}`; })(), sub: null, icon: Scale, color: '#38BDF8' } : null,
     s.avgSleepMin != null ? { label: 'Sleep / night', value: hm(s.avgSleepMin), sub: null, icon: Moon, color: '#A5B4FC' } : null,
     s.avgSteps != null ? { label: 'Steps / day', value: s.avgSteps.toLocaleString(), sub: null, icon: Footprints, color: '#4ADE80', pct: pct(s.avgSteps, 10000) } : null,
     s.avgRestingHr != null ? { label: 'Resting HR', value: `${s.avgRestingHr} bpm`, sub: null, icon: HeartPulse, color: '#F87171' } : null,
-    s.streak ? { label: 'Streak', value: `${s.streak} ${s.streak === 1 ? 'day' : 'days'}`, sub: null, icon: Zap, color: '#F5A623' } : null,
   ] as (Tile | null)[]).filter((t): t is Tile => !!t);
   // Four tiles by default (an even bento), everything when expanded.
   // Calories and macros live in the nutrition ring above, not as tiles.
@@ -127,7 +126,7 @@ export function WeeklyReportCard() {
                   <Icon className="w-3.5 h-3.5 flex-shrink-0 text-text-secondary" strokeWidth={2.2} />
                   <p className={`text-[14px] font-black text-white tabular-nums leading-none truncate`}>{t.value}</p>
                 </div>
-                <p className="text-[8.5px] font-bold text-text-tertiary uppercase tracking-wide mt-1 truncate">{t.label}</p>
+                <p className="text-[8.5px] font-bold text-text-tertiary uppercase tracking-normal mt-1 whitespace-nowrap">{t.label}</p>
               </div>); })}
           </div>
         )}
