@@ -79,17 +79,42 @@ export function TacticalBackdrop({ className = '' }: { className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    const canvas = ref.current;
+    // A decorative background must never take the page down: any failure
+    // in the graphics setup just leaves the CSS gradient showing.
+    try { return setupBackdrop(ref.current); } catch { return undefined; }
+  }, []);
+
+  return (
+    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
+      {/* The fallback: visible on its own if WebGL never initialises. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.07] via-transparent to-transparent" />
+      <canvas ref={ref} className="absolute inset-0 w-full h-full" />
+      {/* Fades the effect out before it reaches the content below it. */}
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
+    </div>
+  );
+}
+
+function setupBackdrop(canvasEl: HTMLCanvasElement | null): (() => void) | undefined {
+  {
+    const canvas = canvasEl;
     if (!canvas) return;
 
-    const gl = (canvas.getContext('webgl', { antialias: false, alpha: true, powerPreference: 'low-power' })
-      || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    let gl: WebGLRenderingContext | null = null;
+    try {
+      gl = (canvas.getContext('webgl', { antialias: false, alpha: true, powerPreference: 'low-power' })
+        || canvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+    } catch { gl = null; }
+    // Privacy and anti-fingerprinting extensions can hand back a fake context
+    // that is missing methods; calling one crashed the whole Programs page.
+    if (gl && (typeof gl.getShaderParameter !== 'function' || typeof gl.createShader !== 'function')) gl = null;
     // No context (old device, blocked, software-rendering disabled) — leave the
     // canvas transparent and let the CSS gradient behind it do the work.
     if (!gl) return;
 
-    const vs = compile(gl, gl.VERTEX_SHADER, VERT);
-    const fs = compile(gl, gl.FRAGMENT_SHADER, FRAG);
+    let vs: WebGLShader | null = null, fs0: WebGLShader | null = null;
+    try { vs = compile(gl, gl.VERTEX_SHADER, VERT); fs0 = compile(gl, gl.FRAGMENT_SHADER, FRAG); } catch { return; }
+    const fs = fs0;
     if (!vs || !fs) return;
     const prog = gl.createProgram();
     if (!prog) return;
@@ -126,8 +151,7 @@ export function TacticalBackdrop({ className = '' }: { className?: string }) {
     const start = performance.now();
 
     const draw = (t: number) => {
-      gl.uniform1f(uTime, (t - start) / 1000);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      try { gl.uniform1f(uTime, (t - start) / 1000); gl.drawArrays(gl.TRIANGLES, 0, 3); } catch { return; }
       if (!reduced && !document.hidden) raf = requestAnimationFrame(draw);
     };
 
@@ -145,17 +169,7 @@ export function TacticalBackdrop({ className = '' }: { className?: string }) {
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
+      try { gl.getExtension('WEBGL_lose_context')?.loseContext(); } catch { /* already gone */ }
     };
-  }, []);
-
-  return (
-    <div aria-hidden className={`pointer-events-none absolute inset-0 overflow-hidden ${className}`}>
-      {/* The fallback: visible on its own if WebGL never initialises. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-accent/[0.07] via-transparent to-transparent" />
-      <canvas ref={ref} className="absolute inset-0 w-full h-full" />
-      {/* Fades the effect out before it reaches the content below it. */}
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-background to-transparent" />
-    </div>
-  );
+  }
 }
