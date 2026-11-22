@@ -1933,3 +1933,9 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-final::before { background: radial-gradient(70% 90% at 55% 100%, rgba(255,120,0,.55), transparent 70%), linear-gradient(180deg, rgba(8,8,8,.55) 0%, rgba(8,8,8,.2) 50%, rgba(8,8,8,.45) 100%); }
   .wx-final-bg { object-position: 30% 60%; filter: brightness(1.3) saturate(1.2); }
 }
+
+/* The 3D-rendered hero phones */
+.wx-phones3d { position: absolute; z-index: 1; pointer-events: none; height: auto; max-width: none; filter: drop-shadow(0 0 22px rgba(255,130,0,.45)) drop-shadow(0 18px 24px rgba(0,0,0,.6)); left: calc(var(--u, 1px) * 200); top: calc(var(--u, 1px) * 138); width: calc(var(--u, 1px) * 186); }
+@media (min-width: 600px) and (max-width: 1023px) { .wx-phones3d { left: auto; right: 12px; top: 300px; width: 380px; } }
+@media (min-width: 1024px) { .wx-phones3d { left: 63vw; top: calc(80px + 1.6vw); width: 33vw; } }
+@media (max-width: 599px) { .wx-phones3d { left: calc(var(--u) * 190); top: calc(var(--u) * 134); width: calc(var(--u) * 208); } }

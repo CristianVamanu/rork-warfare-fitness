@@ -48,21 +48,10 @@ function GoalGrid() {
   );
 }
 
-/** The two phones: the real dashboard in front, the brand screen behind. */
-function HeroPhones({ ctaLabel }: { ctaLabel: string }) {
-  return (
-    <div className="wx-phones" aria-hidden>
-      <PhoneFrame className="wx-phone-back">
-        <div className="lx-crest-screen">
-          <img src="/landing/crest.webp" alt="" className="lx-crest" />
-          <p className="lx-crest-title"><span>Build your</span><span>perfect body</span></p>
-          <p className="lx-crest-sub">Military-inspired training for people who refuse to be average.</p>
-          <span className="lx-crest-btn">{ctaLabel} <ArrowRight aria-hidden /></span>
-        </div>
-      </PhoneFrame>
-      <PhoneFrame src="/landing/app-home.webp" alt="" className="wx-phone-front" priority />
-    </div>
-  );
+/** The two phones, rendered in 3D (Blender) with the real dashboard on the
+ *  front one. The source scene is scripts/landing-phones/phones.py. */
+function HeroPhones() {
+  return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={903} height={1011} fetchPriority="high" />;
 }
 
 export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
@@ -114,7 +103,7 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
         <p className="wx-note"><ShieldCheck aria-hidden /> {disclosure || ctaNote}</p>
       </div>
 
-      <HeroPhones ctaLabel={ctaLabel} />
+      <HeroPhones />
     </section>
   );
 }
