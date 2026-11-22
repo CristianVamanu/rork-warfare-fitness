@@ -14,7 +14,7 @@ def pbr(name, color, metallic, rough):
     b = m.node_tree.nodes['Principled BSDF']
     b.inputs['Base Color'].default_value = (*color, 1); b.inputs['Metallic'].default_value = metallic; b.inputs['Roughness'].default_value = rough
     return m
-GOLD = pbr('graphite', (0.10, 0.10, 0.11), 1.0, 0.32)
+GOLD = pbr('black', (0.025, 0.025, 0.028), 1.0, 0.38)
 BLACK = pbr('black', (0.008, 0.008, 0.01), 0.0, 0.06)
 def mat_screen(img):
     m = bpy.data.materials.new('scr'); m.use_nodes = True
@@ -59,8 +59,8 @@ def phone(img, loc, rot):
     body.location = loc; body.rotation_euler = [math.radians(a) for a in rot]
     return body
 
-phone('screen_crest.png', (0.52, -0.02, -0.75), (0, 26, -7))
-phone('screen_home_p.jpg', (-0.20, 0.0, 0.2), (0, 26, -7))
+phone('screen_crest.png', (0.52, -0.02, -0.75), (0, -26, -7))
+phone('screen_home_p.jpg', (-0.20, 0.0, 0.2), (0, -26, -7))
 
 cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); bpy.context.collection.objects.link(cam)
 cam.location = (0.08, 0.0, 5.45); cam.data.lens = 85; sc.camera = cam
