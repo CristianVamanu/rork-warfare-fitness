@@ -476,7 +476,9 @@ export default function LandingPage({
   // count is the exercise library, and member numbers appear only once
   // there are enough of them to be worth stating.
   const facts = [
-    ...(programs.length > 0 ? [{ value: String(programs.length), label: 'Training programs' }] : []),
+    // Shown straight away (last known library size) so the card never
+    // renders half-empty while the live count loads, then corrected.
+    { value: String(programs.length > 0 ? programs.length : 14), label: 'Training programs' },
     { value: '600+', label: 'Exercise demo videos' },
     ...(stats && stats.totalUsers >= 15
       ? [{ value: `${stats.totalWorkouts.toLocaleString()}+`, label: 'Workouts logged' }]
