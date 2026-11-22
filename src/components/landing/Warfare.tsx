@@ -103,8 +103,8 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo, facts
       {/* Phone: the headline and two buttons, the app beside them. */}
       <div className="wx-hero-mob wx-enter">
         <p className="wx-eyebrow">Train • Progress • Dominate</p>
-        <h1 className="wx-h1" aria-hidden><span>Build your</span><span className="wx-o">Perfect body</span></h1>
-        <p className="wx-hero-sub">Military-inspired training for real people. No experience needed. Home or gym, matched to you in 2 minutes.</p>
+        <h1 className="wx-h1" aria-hidden><span>Train like</span><span className="wx-o">a soldier</span></h1>
+        <p className="wx-hero-sub">Most apps hand you random workouts. Warfare gives you a mission: a plan built for you, a standard to hit, and a test to pass. No experience needed.</p>
         <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
         {demo}
         <p className="wx-note"><ShieldCheck aria-hidden /> {disclosure || priceLine || ctaNote}</p>
@@ -123,13 +123,13 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo, facts
       <div className="wx-m2">
         <img src="/landing/hero-mobile2.webp" alt="" className="wx-m2-art" fetchPriority="high" />
         <div className="wx-m2-in">
-          <h1 className="wx-h1 wx-m2-h1" aria-hidden><span>Build your</span><span className="wx-o">Perfect body</span></h1>
+          <h1 className="wx-h1 wx-m2-h1" aria-hidden><span>Train like</span><span className="wx-o">a soldier</span></h1>
           <p className="wx-m2-tag">Train <i>•</i> Progress <i>•</i> Dominate</p>
-          <p className="wx-m2-sub">Military-inspired training for real people. No experience needed. Home or gym, matched to you in 2 minutes.</p>
+          <p className="wx-m2-sub">Most apps hand you random workouts. Warfare gives you a mission: a plan built for you, a standard to hit, and a test to pass. No experience needed.</p>
           <ul className="wx-m2-icons">
-            <li><Dumbbell aria-hidden /><span>Custom<br />programs</span></li>
-            <li><TrendingUp aria-hidden /><span>Track<br />progress</span></li>
-            <li><Trophy aria-hidden /><span>Reach<br />your goals</span></li>
+            <li><Dumbbell aria-hidden /><span>A plan built<br />for you</span></li>
+            <li><TrendingUp aria-hidden /><span>See yourself<br />get stronger</span></li>
+            <li><Trophy aria-hidden /><span>Pass the<br />standard</span></li>
           </ul>
           {facts.length > 0 && (
             <dl className="wx-m2-facts">

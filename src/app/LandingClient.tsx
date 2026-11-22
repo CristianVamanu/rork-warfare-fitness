@@ -652,6 +652,17 @@ export default function LandingPage({
                   )}
                   <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
                 </div>
+                {displayPeriod.months > 1 && (() => {
+                  const perMonth = displayPeriod.price / displayPeriod.months;
+                  const monthly = membershipPlans.map((p) => p.priceMonthly).filter((n): n is number => typeof n === 'number' && n > 0).sort((a, b) => a - b)[0];
+                  const saved = monthly ? monthly * displayPeriod.months - displayPeriod.price : 0;
+                  return (
+                    <p className="text-sm text-white mt-1 font-semibold">
+                      That&apos;s ${perMonth.toFixed(2)}/month
+                      {saved > 0 && <span className="ml-2 px-2 py-0.5 rounded-full bg-accent text-black text-[11px] font-bold">Save ${Math.round(saved)}</span>}
+                    </p>
+                  );
+                })()}
                 {/* Discount coupon is duration:'once' (see
                     plan-checkout/route.ts) — this is the first payment, not
                     the ongoing rate. Advertising it as the recurring price
