@@ -1983,3 +1983,4 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-mgoals .wx-goal b { font-size: calc(var(--u) * 12.5); }
   .wx-note { justify-content: flex-start; width: calc(var(--u) * 190); }
 }
+@media (max-width: 599px) { .wx-hero-bg img { object-position: 100% 0%; } }
