@@ -15,8 +15,9 @@
 
 import Link from 'next/link';
 import {
-  ArrowRight, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck,
+  ArrowRight, ChevronRight, ChevronDown, Check, Play, ShieldCheck, Dumbbell, BarChart3, Target, Zap, Trophy, Apple, TrendingUp, PlayCircle, CalendarCheck, Flame, Users,
 } from 'lucide-react';
+import { useState } from 'react';
 import { PhoneFrame, Reveal } from '@/components/landing/Redesign';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { OperatorLine } from '@/components/ui/OperatorLine';
@@ -293,6 +294,94 @@ export function WxGuarantee({ trialDays, noCard }: { trialDays: number; noCard: 
       <li><Check aria-hidden /> Cancel anytime in your account</li>
       <li><Check aria-hidden /> Switch programs whenever you like</li>
     </ul>
+  );
+}
+
+export interface WxProgram { id: string; name: string; description: string; level: string; weeks: number; daysPerWeek: number; imageUrl: string | null }
+
+/** The first full sentence, or a clean cut near 120 characters. */
+const shortDesc = (d: string) => { const s = d.match(/^.{20,140}?[.!?](\s|$)/)?.[0]?.trim(); return s ?? (d.length > 120 ? d.slice(0, d.lastIndexOf(' ', 120)) + '…' : d); };
+
+const LEVELS = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const;
+
+/** "Choose your training plan": level tabs, one featured real program per level. */
+export function WxPlans({ programs, onOpen }: { programs: WxProgram[]; onOpen: (id: string) => void }) {
+  const [level, setLevel] = useState<string>('beginner');
+  if (!programs.length) return null;
+  const inLevel = programs.filter((p) => p.level === level);
+  const p = inLevel[0] ?? programs[0];
+  return (
+    <section id="programs" className="wx-plans" aria-labelledby="wx-plans-h">
+      <h2 id="wx-plans-h" className="wx-h3">Choose your<br />training plan</h2>
+      <p className="wx-sub2">Flexible plans. Real results.</p>
+      <div className="wx-tabs" role="tablist">
+        {LEVELS.map(([v, label]) => (
+          <button key={v} role="tab" aria-selected={level === v} className={level === v ? 'is-on' : ''} onClick={() => setLevel(v)}>{label}</button>
+        ))}
+      </div>
+      <article className="wx-plan">
+        <div className="wx-plan-art">
+          <img src={p.imageUrl || '/landing/card-training.webp'} alt="" loading="lazy" />
+          <span className="wx-plan-pop"><Flame aria-hidden /> {inLevel.length ? 'Most popular' : 'Featured'}</span>
+          <h3>{p.name}</h3>
+        </div>
+        <p className="wx-plan-desc">{shortDesc(p.description)}</p>
+        <ul>
+          <li><CalendarCheck aria-hidden /> {p.daysPerWeek} workouts a week · {p.weeks} weeks</li>
+          <li><TrendingUp aria-hidden /> Weights go up when you&apos;re ready</li>
+          <li><Trophy aria-hidden /> Nutrition targets included</li>
+        </ul>
+        <Link href={`/onboarding?programId=${p.id}`} className="wx-cta wx-plan-btn">Start plan <ArrowRight aria-hidden /></Link>
+      </article>
+      <button type="button" className="wx-plan-all" onClick={() => onOpen(p.id)}>Plan details <ChevronRight aria-hidden /></button>
+      <Link href="/programs" className="wx-plan-all">View all {programs.length} programs <ChevronRight aria-hidden /></Link>
+    </section>
+  );
+}
+
+const WHY = [
+  { Icon: Zap, title: 'Military-grade training plans', sub: 'Every session written out, with the weight to beat.', href: '/programs' },
+  { Icon: BarChart3, title: 'Track every rep', sub: 'Workouts, food, water and progress in one place.', href: '#screens' },
+  { Icon: Users, title: 'Join a powerful community', sub: 'Challenges, streaks and a PR wall.', href: '/challenges' },
+  { Icon: ShieldCheck, title: 'Built for real people', sub: 'No experience needed. Home or gym.', href: '/onboarding' },
+];
+
+/** "Why choose Warfare Fitness?" */
+export function WxWhy({ ctaLabel }: { ctaLabel: string }) {
+  return (
+    <section className="wx-why" aria-labelledby="wx-why-h">
+      <h2 id="wx-why-h" className="wx-h3">Why choose<br /><span className="wx-o">Warfare Fitness?</span></h2>
+      <ul>
+        {WHY.map(({ Icon, title, sub, href }) => (
+          <li key={title}><Link href={href}><Icon aria-hidden /><span><b>{title}</b><small>{sub}</small></span><ChevronRight aria-hidden className="wx-why-go" /></Link></li>
+        ))}
+      </ul>
+      <div className="wx-why-art"><img src="/landing/why-art.webp" alt="" loading="lazy" /></div>
+      <Link href="/onboarding" className="wx-cta wx-why-btn">{ctaLabel} <ArrowRight aria-hidden /></Link>
+    </section>
+  );
+}
+
+/** "Start your 7-day free trial": what you get, the button, the trust row. */
+export function WxTrial({ trialDays, ctaLabel, note }: { trialDays: number; ctaLabel: string; note: string }) {
+  return (
+    <section className="wx-trial" aria-labelledby="wx-trial-h">
+      <h2 id="wx-trial-h" className="wx-h3">{trialDays > 0 ? <>Start your<br /><span className="wx-o">{trialDays}-day free trial</span></> : <>Start <span className="wx-o">today</span></>}</h2>
+      <p className="wx-sub2">Unlock your full potential.{trialDays > 0 ? ` Free for ${trialDays} days.` : ''}</p>
+      <ul className="wx-trial-list">
+        <li><Check aria-hidden /> Access all training plans</li>
+        <li><Check aria-hidden /> Track your progress</li>
+        <li><Check aria-hidden /> Join the community</li>
+        <li><Check aria-hidden /> Cancel anytime</li>
+      </ul>
+      <Link href="/onboarding" className="wx-cta wx-trial-btn">{ctaLabel} <ArrowRight aria-hidden /></Link>
+      <p className="wx-trial-note">{note}</p>
+      <ul className="wx-trust3">
+        <li><ShieldCheck aria-hidden /><span>Secure checkout</span></li>
+        <li><Check aria-hidden /><span>{trialDays > 0 ? 'No card for the trial' : 'No lock-in'}</span></li>
+        <li><CalendarCheck aria-hidden /><span>Cancel anytime</span></li>
+      </ul>
+    </section>
   );
 }
 

@@ -11,7 +11,7 @@ import { UNIT_STANDARDS, standardFor, formatMinutes } from '@/lib/ptStandards';
 import { DataDivider, SectionEyebrow, CornerBrackets } from '@/components/landing/chrome';
 import { AppShowcase } from '@/components/landing/AppShowcase';
 import { LandingNav } from '@/components/landing/Redesign';
-import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter, WxWhoFor, WxGuarantee } from '@/components/landing/Warfare';
+import { WxHero, WxStrip, WxFacts, WxCards, WxCentre, WxSteps, WxFinal, WxFooter, WxGuarantee, WxPlans, WxWhy, WxTrial } from '@/components/landing/Warfare';
 
 import {
   Dumbbell, Apple, ScanLine, Users, MessageCircle, Timer, Ban, Trophy, Camera, Sparkles,
@@ -520,108 +520,9 @@ export default function LandingPage({
           price and the final ask two screens further down. Partners stays in
           the footer. */}
       <WxSteps />
-      <WxWhoFor />
       <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
-      {/* Programs — pulled from /api/public/programs (published Firestore
-          programs + built-in seed programs), so this always reflects
-          whatever's actually assignable, never hand-maintained copy that
-          could drift out of sync with the real program library. */}
-      {programs.length > 0 && (
-        <section id="programs" className="relative overflow-hidden max-w-5xl mx-auto px-5 pb-16 scroll-mt-6">
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-3"><SectionEyebrow live>Program library</SectionEyebrow></div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white">Train Like an Elite Soldier</h2>
-            <p className="text-text-secondary text-sm mt-2">The quiz matches you to one. It&apos;s a starting point, not a lock-in — switch to any program here, any time, and your progress is kept.</p>
-          </div>
-          <div className="lx-swipe grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {programs.map((p, i) => {
-              const badge = PROGRAM_BADGE[p.id];
-              return (
-              // The onClick here was dropped when this stopped being a
-              // motion.div, which left the card wearing `cursor-pointer`
-              // while doing nothing at all: the detail modal below could
-              // only ever be closed, never opened, so the whole program
-              // preview was unreachable from the landing page.
-              //
-              // Stays a div rather than becoming a <button>: the card
-              // contains its own "Enroll Now" Link, and an <a> inside a
-              // <button> is invalid HTML. role/tabIndex/onKeyDown give it
-              // the keyboard access it never had as a bare clickable div.
-              <div
-                key={p.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedProgram(p)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedProgram(p); }
-                }}
-                className="relative overflow-hidden rounded-2xl border border-white/10 bg-surface hover:border-accent/40 hover:shadow-glow-accent transition-all flex flex-col cursor-pointer text-left p-5 wf-rise focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
-                style={{ animationDelay: `${(i % 6) * 0.05}s` }}
-              >
-                {/* Same surface as the free-plan card: ember wash, dot grid,
-                    eyebrow, square image in the corner, then three equal
-                    stat boxes. The old full-bleed image slot made every
-                    card as tall as its picture; this keeps the picture a
-                    fixed thumbnail so rows line up whatever the image. */}
-                <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
-                <div aria-hidden className="wf-dots pointer-events-none absolute inset-0" />
-                <div className="relative flex flex-col flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="wf-readout text-[10px] font-bold text-accent">{GOAL_LABEL[p.goal] ?? p.goal}</p>
-                    {/* Stylized program badge — not a real unit insignia, see
-                        PROGRAM_BADGE comment above. */}
-                    {badge && (
-                      <span className="w-7 h-7 rounded-lg bg-black/40 border border-white/10 flex items-center justify-center flex-shrink-0">
-                        <badge.icon className={`w-3.5 h-3.5 ${badge.color}`} />
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-start gap-4 mt-2">
-                    <div className="w-16 h-16 rounded-xl border border-white/10 bg-surface-elevated overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      {p.imageUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={p.imageUrl} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <Dumbbell className="w-6 h-6 text-accent/40" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-lg font-black text-white leading-tight">{p.name}</h3>
-                      <p className="text-[12px] text-text-tertiary mt-1">
-                        {p.weeks} weeks · {p.daysPerWeek} days a week · {p.level.charAt(0).toUpperCase() + p.level.slice(1)}
-                      </p>
-                    </div>
-                  </div>
-                  <p className="text-[13px] text-text-secondary leading-relaxed mt-3 line-clamp-4">{p.description}</p>
-                  <div className="grid grid-cols-3 gap-2 mt-4">
-                    {[
-                      ['Duration', `${p.weeks} weeks, ${p.weeks >= 8 ? 'phased' : 'one block'}`],
-                      ['Sessions', `${p.daysPerWeek} a week, rest days kept`],
-                      ['Level', `${p.level.charAt(0).toUpperCase() + p.level.slice(1)}, ${p.targetGender === 'anyone' || !p.targetGender ? 'anyone' : p.targetGender}`],
-                    ].map(([t, sub]) => (
-                      <div key={t} className="rounded-xl border border-white/10 bg-black/25 p-3 flex flex-col">
-                        <p className="text-[12px] font-bold text-white leading-tight">{t}</p>
-                        <p className="text-[11px] text-text-tertiary leading-snug mt-1">{sub}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {/* Straight to onboarding with the chosen program attached
-                      (see onboarding/page.tsx's `programId` handling) — this
-                      used to go to /login with no memory of which program
-                      was clicked, so a visitor who picked, say, SEAL
-                      Selection would sign up and get handed whatever the AI
-                      matcher picked instead, silently ignoring their choice. */}
-                  <Link href={`/onboarding?programId=${p.id}`} onClick={(e) => e.stopPropagation()} className="block pt-4 mt-auto">
-                    <Button fullWidth size="sm">Enroll Now <ArrowRight className="w-3.5 h-3.5" /></Button>
-                  </Link>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
-
+      <WxPlans programs={programs} onOpen={(id) => { const p = programs.find((x) => x.id === id); if (p) setSelectedProgram(p); }} />
+      <WxWhy ctaLabel={primaryCtaLabel} />
       {/* Real member transformation photos — admin-editable only, never
           fabricated (see LandingPageConfig.transformationPhotos), hidden
           entirely until real ones are added in Admin -> Landing Page.
@@ -829,6 +730,8 @@ export default function LandingPage({
           </div>
         </section>
       )}
+
+      <WxTrial trialDays={trialDays} ctaLabel={primaryCtaLabel} note={noCardTrial ? 'No credit card required. Cancel anytime.' : (paidTrialDisclosure || 'Cancel anytime.')} />
 
       {/* FAQ — kills objections right before the final ask */}
       <section id="faq" className="max-w-2xl mx-auto px-5 pb-16">
