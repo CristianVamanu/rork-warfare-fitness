@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone } from 'lucide-react';
+import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone, Swords, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -798,12 +798,13 @@ export default function ProfilePage() {
         {/* Quests */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.175 }}>
           <Link href="/quests">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="p-2 bg-purple-400/10 rounded-lg">
-                <span className="text-base">🏛️</span>
+            <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <PfArt name="quests" />
+              <div className="pf-ic">
+                <Swords className="w-6 h-6 text-accent" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Quests</p>
+                <p className="text-base font-bold text-white">Quests</p>
                 <p className="text-xs text-text-secondary">{(profile?.questsCompleted?.length ?? 0)} missions completed</p>
               </div>
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
@@ -817,10 +818,11 @@ export default function ProfilePage() {
         {hasConversation && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
             <Link href="/messages">
-              <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                <PfArt name="support" />
                 <div className="relative">
-                  <div className="p-2 bg-accent-muted rounded-lg">
-                    <MessageSquare className="w-4 h-4 text-accent" />
+                  <div className="pf-ic">
+                    <MessageSquare className="w-6 h-6 text-accent" />
                   </div>
                   {unreadMessages > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-danger rounded-full flex items-center justify-center text-[10px] font-bold text-white">
@@ -829,7 +831,7 @@ export default function ProfilePage() {
                   )}
                 </div>
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-white">Messages</p>
+                  <p className="text-base font-bold text-white">Messages</p>
                   <p className="text-xs text-text-secondary">{unreadMessages > 0 ? `${unreadMessages} unread` : 'View your conversations'}</p>
                 </div>
               </Card>
@@ -842,12 +844,13 @@ export default function ProfilePage() {
             this, so gating it on having already used it would defeat it. */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.185 }}>
           <Link href="/support">
-            <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
-              <div className="p-2 bg-blue-400/10 rounded-lg">
-                <LifeBuoy className="w-4 h-4 text-blue-400" />
+            <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <PfArt name="support" />
+              <div className="pf-ic">
+                <LifeBuoy className="w-6 h-6 text-accent" />
               </div>
               <div className="flex-1">
-                <p className="text-sm font-medium text-white">Message Support</p>
+                <p className="text-base font-bold text-white">Message Support</p>
                 <p className="text-xs text-text-secondary">Question, billing issue, or a bug? Tell us.</p>
               </div>
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
@@ -861,12 +864,13 @@ export default function ProfilePage() {
         {!isStandalone && (
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1875 }}>
             <Link href="/download">
-              <Card className="p-4 flex items-center gap-3 hover:bg-white/5 transition-colors border-accent/25">
-                <div className="p-2 bg-accent/10 rounded-lg">
-                  <Smartphone className="w-4 h-4 text-accent" />
+              <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+                <PfArt name="install" />
+                <div className="pf-ic">
+                  <Smartphone className="w-6 h-6 text-accent" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white">Install the app</p>
+                  <p className="text-base font-bold text-white">Install the app</p>
                   <p className="text-xs text-text-secondary">Add it to your home screen for the best experience — full screen, faster, and reminders that reach you.</p>
                 </div>
                 <ChevronRight className="w-4 h-4 text-text-tertiary flex-shrink-0" />
@@ -878,13 +882,14 @@ export default function ProfilePage() {
         {/* Appearance */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.19 }}>
           <h2 className="text-xs font-medium text-text-tertiary uppercase tracking-wider mb-2 px-1">Appearance</h2>
-          <Card className="p-4 flex items-center justify-between">
+          <Card className="pf-card p-4 flex items-center justify-between">
+            <PfArt name="appearance" />
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-surface-elevated rounded-lg">
-                {theme === 'dark' ? <Moon className="w-4 h-4 text-accent" /> : <Sun className="w-4 h-4 text-accent" />}
+              <div className="pf-ic">
+                {theme === 'dark' ? <Moon className="w-6 h-6 text-accent" /> : <Sun className="w-6 h-6 text-accent" />}
               </div>
               <div>
-                <p className="text-sm font-medium text-white">{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</p>
+                <p className="text-base font-bold text-white">{theme === 'dark' ? 'Dark Mode' : 'Light Mode'}</p>
                 <p className="text-xs text-text-secondary">Tap to switch theme</p>
               </div>
             </div>
@@ -919,16 +924,22 @@ export default function ProfilePage() {
 
         {/* Member Since */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="p-4 flex items-center justify-between">
+          <Card className="pf-card p-4 flex items-center justify-between gap-3">
+            <PfArt name="member" />
+            <div className="flex items-center gap-3">
+            <div className="pf-ic">
+              <CalendarCheck className="w-6 h-6 text-accent" />
+            </div>
             <div>
               <p className="text-xs text-text-secondary mb-0.5">Member since</p>
-              <p className="text-sm font-medium text-white">
+              <p className="text-base font-bold text-white">
                 {profile?.createdAt
                   ? new Date(
                       (profile.createdAt as { toDate?: () => Date }).toDate?.()?.getTime() || Date.now()
                     ).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
                   : 'Today'}
               </p>
+            </div>
             </div>
             {isActive && !nativeBillingBlocked() && !playMember && (
               <button
