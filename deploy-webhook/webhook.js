@@ -57,13 +57,20 @@ function runDeploy() {
     if (err) {
       console.error('Deploy failed:', err.message);
       console.error(stderr);
+      // deploy.sh prints its steps ("==> Building…") and the build's own
+      // errors to STDOUT. Logging only stderr left a failed deploy with git's
+      // fetch lines and library warnings, and no way to tell which step died.
+      const out = String(stdout || '');
+      const step = (out.match(/^==> .*$/gm) || []).pop() || 'before the first step';
+      console.error('Failed during:', step);
+      console.error('--- last output ---\n' + out.slice(-6000));
       // A console line in a pm2 log nobody tails is not a record. Leave a
       // durable marker /api/health can report, so a failed deploy — which
       // silently keeps serving the previous build — is visible from outside.
       try {
         require('fs').writeFileSync(
           path.join(REPO_DIR, '.deploy-status.json'),
-          JSON.stringify({ ok: false, at: new Date().toISOString(), error: String(err.message).slice(0, 500), stderr: String(stderr).slice(-2000) }),
+          JSON.stringify({ ok: false, at: new Date().toISOString(), error: `Failed during: ${step}. ` + String(err.message).slice(0, 300), stderr: String(stderr).slice(-2000), stdoutTail: out.slice(-3000) }),
         );
       } catch (e) {
         console.error('Could not write .deploy-status.json:', e && e.message);
