@@ -1820,3 +1820,27 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 .wx-mgoals .wx-goal i { position: absolute; z-index: 1; right: 8px; bottom: 8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #1a0d00; background: linear-gradient(180deg, #FFC45A, #FFA51E); }
 .wx-mgoals .wx-goal i svg { width: 14px; height: 14px; }
 @media (max-width: 1023px) { .wx-hero { height: auto !important; padding-bottom: 18px !important; } }
+
+/* ── Phone hero, third pass against the mobile reference ── */
+@media (max-width: 599px) {
+  /* Brighter, warmer sky; the warrior's back lit on the right. */
+  .wx-hero-bg img { object-position: 70% 0%; filter: brightness(1.25) saturate(1.15); }
+  .wx-hero-bg::after { background:
+    radial-gradient(80% 40% at 75% 42%, rgba(255,120,0,.38), transparent 70%),
+    linear-gradient(90deg, rgba(8,8,8,.78) 0%, rgba(8,8,8,.35) 48%, rgba(8,8,8,0) 70%),
+    linear-gradient(180deg, rgba(8,8,8,.2) 0%, rgba(8,8,8,0) 20%, rgba(8,8,8,.15) 55%, rgba(8,8,8,.85) 80%, #080808 100%); }
+  .wx-hero-mob .wx-h1 { font-size: 37px; }
+  .wx-hero-mob .wx-hero-sub { font-size: 14px; max-width: 54%; }
+  .wx-hero-mob .wx-cta { width: auto; min-width: 0; align-self: flex-start; display: inline-flex; padding: 0 18px; height: 44px; font-size: 13px; }
+  .wx-hero-mob .wx-cta svg { display: inline; }
+  .wx-note { max-width: 56%; font-size: 12px; }
+  /* Phones beside the copy, clear of the goal cards, with gold bezels. */
+  .wx-phones { top: 196px; right: 2px; width: 176px; height: 230px; }
+  .wx-phone-front { width: 114px; top: 8px; }
+  .wx-phone-back { left: 86px; width: 92px; top: 0; }
+  .wx-phones .lx-phone { box-shadow: 0 0 0 1.5px #c98a2c, 0 0 0 3px #2a1a08, 0 0 0 4px #e3a347, 0 18px 40px -12px rgba(0,0,0,.9), 0 0 40px -6px rgba(255,140,0,.75); }
+  .wx-mgoals { margin-top: 42px; }
+  /* Strip labels upright like the reference. */
+  .wx-strip b { font-style: normal; font-family: 'DM Sans', system-ui, sans-serif; font-weight: 800; }
+}
+@media (max-width: 599px) { .wx-hero-mob .wx-hero-sub { font-size: 13px; max-width: 49%; } .wx-hero-mob .wx-h1 { font-size: 39px; } }
