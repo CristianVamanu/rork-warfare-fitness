@@ -112,10 +112,6 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, onDemo }: {
         <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
         {demo}
         <p className="wx-note"><ShieldCheck aria-hidden /> {disclosure || ctaNote}</p>
-        <div className="wx-mgoals">
-          <p className="wx-q">What&apos;s your goal?</p>
-          <GoalGrid />
-        </div>
       </div>
 
       <HeroPhones ctaLabel={ctaLabel} />

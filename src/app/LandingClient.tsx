@@ -446,6 +446,8 @@ export default function LandingPage({
   // takes a card still converts into a real charge, and saying so is what
   // stops the charge being a surprise.
   const paidTrialDisclosure = trialTerms.disclosure;
+  // The admin's own demo video when set, otherwise the built-in app walkthrough.
+  const demoUrl = landing.heroDemoVideoUrl || '/videos/demo.mp4';
 
   // The anchors in the bar. Pricing is only offered when there are plans.
   const hasPricing = membershipPlans.length > 0 || coachingPlans.length > 0;
@@ -486,11 +488,13 @@ export default function LandingPage({
         ctaLabel={primaryCtaLabel}
         ctaNote={ctaNote}
         disclosure={noCardTrial ? null : paidTrialDisclosure}
-        onDemo={landing.heroDemoVideoUrl ? () => setDemoOpen(true) : undefined}
+        onDemo={() => setDemoOpen(true)}
       />
-      <WxStrip />
-      <WxFacts facts={facts} />
-      <WxCards />
+      <div className="wx-mid">
+        <WxStrip />
+        <WxFacts facts={facts} />
+        <WxCards />
+      </div>
       <WxCentre playUrl={storeUrls.android} iosUrl={storeUrls.ios || undefined} />
       {/* An admin who has uploaded their own screenshots still gets them shown. */}
       {landing.screenshotUrls && landing.screenshotUrls.length >= 3 && (
@@ -499,6 +503,7 @@ export default function LandingPage({
         </section>
       )}
       <WxSteps />
+      <WxFinal ctaLabel={primaryCtaLabel} note={noCardTrial ? finalNote : (paidTrialDisclosure || finalNote)} />
 
       {/* Feature grid — uniform equal-size cards. Deliberately NOT a
           position-dependent bento layout (a wide "hero" first tile, a
@@ -890,12 +895,12 @@ export default function LandingPage({
           autoplaying/looping like the small hero logo clip — this is a real
           demo the visitor chose to watch, so normal video controls apply. */}
       <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action">
-        {landing.heroDemoVideoUrl && (
+        {demoUrl && (
           <video
-            key={landing.heroDemoVideoUrl}
+            key={demoUrl}
             className="w-full rounded-xl bg-black"
-            src={landing.heroDemoVideoUrl}
-            poster={landing.heroDemoPosterUrl || undefined}
+            src={demoUrl}
+            poster={landing.heroDemoVideoUrl ? (landing.heroDemoPosterUrl || undefined) : '/videos/demo-poster.jpg'}
             controls
             autoPlay
             playsInline
@@ -1230,7 +1235,6 @@ export default function LandingPage({
       <DataDivider />
 
       {/* Final CTA. Same button, same terms as the hero. */}
-      <WxFinal ctaLabel={primaryCtaLabel} note={noCardTrial ? finalNote : (paidTrialDisclosure || finalNote)} />
 
       {/* Partner program — one bracketed panel for coaches and creators,
           above the footer so it never competes with the member CTA. */}
