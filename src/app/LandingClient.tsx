@@ -456,7 +456,7 @@ export default function LandingPage({
   // everything to find it; most of them leave first. Only real plan prices.
   const cheapestPlan = getCheapestEntryPrice(membershipPlans);
   const priceLine = (trialDays > 0 && !paidTrialEnabled && !cardUpFrontTrial) && cheapestPlan
-    ? `${trialDays} days free, then ${membershipPlans.length > 1 ? 'from ' : ''}${formatBillingPeriod(cheapestPlan)}. Cancel anytime.`
+    ? `No card needed. ${trialDays} days free, then ${membershipPlans.length > 1 ? "from " : ""}${formatBillingPeriod(cheapestPlan)}. Cancel anytime.`
     : null;
 
   // The anchors in the bar. Pricing is only offered when there are plans.
