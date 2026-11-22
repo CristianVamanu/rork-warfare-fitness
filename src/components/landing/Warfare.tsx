@@ -169,7 +169,7 @@ export function WxCentre({ playUrl, iosUrl }: { playUrl: string; iosUrl?: string
   return (
     <section id="screens" className="wx-centre">
       <div className="wx-centre-bg" aria-hidden />
-      <Reveal className="wx-centre-copy">
+      <div className="wx-centre-copy">
         <h2 className="wx-h2"><span>Your training.</span><span>Your progress.</span><span className="wx-o">Your command centre.</span></h2>
         <p className="wx-centre-sub">A complete fitness platform in your pocket.</p>
         <ul className="wx-checks">{CHECKS.map((c) => <li key={c}><Check aria-hidden /> {c}</li>)}</ul>
@@ -178,7 +178,7 @@ export function WxCentre({ playUrl, iosUrl }: { playUrl: string; iosUrl?: string
           <GooglePlayBadge href={playUrl} height={58} className="wx-play" />
           <Link href="/download" className="wx-ghost wx-dl"><Zap aria-hidden /> Download app</Link>
         </div>
-      </Reveal>
+      </div>
       <div className="wx-fan" aria-hidden>
         <PhoneFrame src="/landing/app-training.webp" className="wx-fan-1" />
         <PhoneFrame src="/landing/app-home.webp" className="wx-fan-2" />

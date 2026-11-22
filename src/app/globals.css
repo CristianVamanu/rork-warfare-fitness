@@ -1947,3 +1947,8 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   .wx-phones3d { left: calc(var(--u) * 210); top: calc(var(--u) * 150); width: calc(var(--u) * 172); }
 }
 .wx-phones3d { filter: drop-shadow(0 0 26px rgba(255,130,0,.38)) drop-shadow(0 18px 24px rgba(0,0,0,.6)); }
+@media (max-width: 599px) {
+  .wx-hero-bg img { object-position: 50% 0%; }
+  .wx-hero-bg::after { background: linear-gradient(90deg, rgba(8,8,8,.62) 0%, rgba(8,8,8,.3) 45%, rgba(8,8,8,0) 66%), linear-gradient(180deg, rgba(8,8,8,.3) 0%, rgba(8,8,8,0) 20%, rgba(8,8,8,0) 84%, #080808 100%); }
+  .wx-hero-mob .wx-hero-sub { max-width: calc(var(--u) * 172); }
+}
