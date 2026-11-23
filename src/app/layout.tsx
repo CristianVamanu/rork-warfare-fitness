@@ -33,7 +33,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const name = (cfg?.appName as string) || 'Warfare Fitness';
   const logoUrl = cfg?.logoUrl as string | undefined;
   const faviconUrl = cfg?.faviconUrl as string | undefined;
-  const description = 'Premium fitness tracking and AI-powered coaching';
+  const description = 'Military-inspired training app: 14 structured programs, workouts that progress with you, nutrition targets and real military fitness tests. Home or gym. 7 days free.';
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://warfarefitness.com';
   // Falls back to the app icon for social previews when no dedicated
   // share image has been set — better than no image at all, which is what

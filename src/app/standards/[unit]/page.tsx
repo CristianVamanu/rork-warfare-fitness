@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ unit: str
   const s = standardBySlug(unit);
   if (!s) return { title: 'Standard not found' };
 
-  const title = `${s.resultTitle} — Fitness Requirements`;
+  const title = `${s.label} Fitness Test Requirements: Free Pass Calculator`;
   const description = `${s.resultTitle} fitness standard: ${summarise(s)}. Enter your own numbers and see if you would pass.`;
   return {
     title,
@@ -58,8 +58,18 @@ export default async function UnitStandardPage({ params }: { params: Promise<{ u
   const standard = standardBySlug(unit);
   if (!standard) notFound();
 
+  const desc = `${standard.resultTitle} fitness standard: ${summarise(standard)}.`;
+  const jsonLd = [
+    { '@context': 'https://schema.org', '@type': 'Article', headline: `${standard.label} fitness test requirements`, description: desc,
+      url: `https://warfarefitness.com/standards/${slugFor(standard.id)}`, publisher: { '@type': 'Organization', name: 'Warfare Fitness' } },
+    { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity: [
+      { '@type': 'Question', name: `What are the ${standard.label} fitness requirements?`, acceptedAnswer: { '@type': 'Answer', text: desc } },
+    ] },
+  ];
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Link href="/standards" className="inline-flex items-center gap-1.5 text-[13px] text-text-tertiary hover:text-white mb-6">
         <ArrowLeft className="w-3.5 h-3.5" /> All standards
       </Link>
