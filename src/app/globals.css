@@ -2254,3 +2254,22 @@ html.light .pf-card { color: #fff; }
 .ov-fun li { display: grid; grid-template-columns: 110px 1fr 70px; align-items: center; gap: 10px; font-size: 13px; color: #cfcfcf; }
 .ov-fun li b { text-align: right; font-weight: 500; color: #fff; }
 .ov-meter { height: 10px; border-radius: 999px; background: #1a1918; overflow: hidden; } .ov-meter i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #F5A623, #FFC45A); }
+
+/* ── Calmer glow (owner: "too glowing"). Same design, same colours: the
+   amber edge and glow are kept, just softer. Overrides the rules above. ── */
+html:not(.light) .wf-card,
+html:not(.light) .wf-glow {
+  background:
+    linear-gradient(180deg, #141210 0%, #0d0b0a 100%) padding-box,
+    linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(245,166,35,0.16) 55%, rgba(255,170,60,0.55) 100%) border-box !important;
+  box-shadow: 0 10px 18px -16px rgba(245,140,20,0.55), inset 0 -10px 18px -16px rgba(255,150,40,0.3) !important;
+}
+:root, html:not(.light) {
+  --hc-card-bg: linear-gradient(180deg, #161310, #0d0b0a) padding-box, linear-gradient(180deg, rgba(255,255,255,0.07) 0%, rgba(245,166,35,0.15) 55%, rgba(255,150,40,0.5) 100%) border-box;
+  --hc-card-shadow: 0 8px 14px -14px rgba(245,140,20,0.45);
+}
+.pf-card { border-color: rgba(245,166,35,0.38) !important; box-shadow: 0 0 12px -8px rgba(245,166,35,0.4), inset 0 0 18px -14px rgba(245,166,35,0.3) !important; }
+.wx-ripz-in, .wx-centre { box-shadow: 0 0 16px -10px rgba(245,166,35,0.45) !important; }
+.wx-centre { border-color: rgba(245,166,35,0.45) !important; }
+.wx-ripz-feat, .wx-ripz-feat2 li { box-shadow: none; }
+html.light { --hc-card-shadow: 0 8px 16px -14px rgba(200,110,10,0.35); }
