@@ -91,8 +91,9 @@ export function scaleCount(count: number, level: RipzLevel): number {
 export function isRipzLevel(x: unknown): x is RipzLevel { return x === 'beginner' || x === 'intermediate' || x === 'advanced'; }
 
 /** Seconds a plank pack asks for. The same rarity as a rep pack, on a time
- *  scale: beginner 15–60 s, intermediate 30–120 s, advanced 45–180 s. */
-export const PLANK_RANGE: Record<RipzLevel, [number, number]> = { beginner: [15, 60], intermediate: [30, 120], advanced: [45, 180] };
+ *  scale: beginner 15–60 s, intermediate 30–120 s, advanced 45 s up to a
+ *  5-minute Legend pull. */
+export const PLANK_RANGE: Record<RipzLevel, [number, number]> = { beginner: [15, 60], intermediate: [30, 120], advanced: [45, 300] };
 export function plankSeconds(rawCount: number, level: RipzLevel): number {
   const [lo, hi] = PLANK_RANGE[level];
   const k = (Math.min(RIPZ_MAX, Math.max(RIPZ_MIN, rawCount)) - RIPZ_MIN) / (RIPZ_MAX - RIPZ_MIN);

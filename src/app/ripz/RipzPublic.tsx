@@ -51,7 +51,7 @@ export function RipzPublic() {
   // The pull a friend shared, if this visit came from their link.
   const friend = useMemo(() => {
     const n = Number(params.get('n')); const move = RIPZ_MOVES.find((m) => m.id === params.get('m'));
-    return move && Number.isInteger(n) && n >= 5 && n <= RIPZ_MAX ? { n, move } : null;
+    return move && Number.isInteger(n) && n >= 5 && n <= (move.id === 'plank' ? 300 : RIPZ_MAX) ? { n, move } : null;
   }, [params]);
   const ref = params.get('ref');
   const joinHref = `/onboarding?next=${encodeURIComponent('/ripz/play')}${isValidReferralCode(ref) ? `&ref=${ref}` : ''}`;
@@ -97,7 +97,7 @@ export function RipzPublic() {
       </div>
       {friend && !pack && !capped ? (
         <p className="mt-3 rounded-xl border border-accent/30 bg-accent/[0.07] px-3 py-2 text-sm font-bold text-white">
-          Your friend pulled {friend.n} {friend.move.name.toLowerCase()}. <span className="text-accent">What do you get?</span>
+          Your friend pulled {friend.move.id === 'plank' ? `a ${friend.n >= 60 ? `${Math.floor(friend.n / 60)}:${String(friend.n % 60).padStart(2, '0')}` : `${friend.n}-second`} plank` : `${friend.n} ${friend.move.name.toLowerCase()}`}. <span className="text-accent">What do you get?</span>
         </p>
       ) : !pack && !capped && (
         <p className="text-sm text-text-secondary mt-2">Pick your level, then a pack. Rip it open. Do what it deals.</p>

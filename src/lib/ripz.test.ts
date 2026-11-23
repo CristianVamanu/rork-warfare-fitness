@@ -87,7 +87,7 @@ describe('plank pack (seconds, not reps)', () => {
         expect(c.count).toBeGreaterThanOrEqual(lo); expect(c.count).toBeLessThanOrEqual(hi); expect(c.count % 5).toBe(0);
       }
     }
-    expect(plankSeconds(20, 'beginner')).toBe(15); expect(plankSeconds(200, 'advanced')).toBe(180);
+    expect(plankSeconds(20, 'beginner')).toBe(15); expect(plankSeconds(200, 'advanced')).toBe(300);
   });
   it('a retry never deals the same seconds twice in a row', () => {
     let prev = rollChallenge(null, Math.random, 'plank', 'beginner');
