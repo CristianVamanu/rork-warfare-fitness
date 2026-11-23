@@ -18,7 +18,7 @@ export function RipzHomeCard() {
   const rec = (profile as unknown as { ripzChallenge?: ChallengeRecord } | null)?.ripzChallenge ?? null;
   const v = challengeView(rec, today);
   const active = v.state === 'active';
-  return (
+  const card = (
     <Link href={active ? '/ripz/challenge' : '/ripz/play'} className="flex items-center gap-3 p-3 rounded-2xl border border-accent/30 bg-accent/[0.07] wf-rise">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/ripz/gold_sm.webp" alt="" className="w-9 h-auto -rotate-6 drop-shadow-[0_4px_10px_rgba(245,166,35,0.45)]" />
@@ -39,5 +39,13 @@ export function RipzHomeCard() {
       </span>
       {active && v.doneToday ? <Check className="w-4 h-4 text-accent" /> : <ChevronRight className="w-4 h-4 text-accent" />}
     </Link>
+  );
+  // In a challenge the card opens the challenge; normal Ripz stays one tap away.
+  if (!active) return card;
+  return (
+    <div className="space-y-1.5">
+      {card}
+      <Link href="/ripz/play" className="block text-center text-xs font-semibold text-accent py-1">Or spin the wheel in free play ›</Link>
+    </div>
   );
 }

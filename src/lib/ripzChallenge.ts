@@ -11,28 +11,38 @@
  *     forgiven ("rest passes"); a fourth ends the challenge;
  *   - a day counts once, however often the page is opened.
  */
-import { RIPZ_MOVES, tierFor, type RipzChallenge } from './ripz';
+import { RIPZ_MOVES, tierFor, scaleCount, isRipzLevel, type RipzChallenge, type RipzLevel } from './ripz';
 
 export const CHALLENGE_DAYS = 30;
 export const REST_PASSES = 3;
 export const RIPS_PER_DAY = 2;
 
 /** Rep range for a challenge day (1-based), in fives. */
-export function rangeForDay(day: number): { min: number; max: number } {
-  if (day >= CHALLENGE_DAYS) return { min: 200, max: 250 };
-  if (day <= 7) return { min: 30, max: 80 };
-  if (day <= 14) return { min: 50, max: 120 };
-  if (day <= 21) return { min: 80, max: 180 };
-  return { min: 100, max: 250 };
+export function rangeForDay(day: number, level: RipzLevel = 'advanced'): { min: number; max: number } {
+  const full = day >= CHALLENGE_DAYS ? { min: 200, max: 250 }
+    : day <= 7 ? { min: 30, max: 80 }
+    : day <= 14 ? { min: 50, max: 120 }
+    : day <= 21 ? { min: 80, max: 180 }
+    : { min: 100, max: 250 };
+  // Same ramp at every level, scaled down for beginners and intermediates
+  // (advanced is the original). A beginner's day 1 is 10–20, day 30 is 50–60.
+  if (level === 'advanced') return full;
+  const min = scaleCount(full.min, level); const max = Math.max(min, scaleCount(full.max, level));
+  return { min, max };
+}
+
+/** The level a record was started at. Records from before levels were advanced. */
+export function recordLevel(rec: { level?: unknown } | null | undefined): RipzLevel {
+  return isRipzLevel(rec?.level) ? rec!.level as RipzLevel : 'advanced';
 }
 
 /** One pack for a challenge day. `prevCount` is the first rip when this is the retry. */
-export function rollChallengeDay(day: number, moveId: string | null, prevCount: number | null, rng: () => number = Math.random): RipzChallenge {
+export function rollChallengeDay(day: number, moveId: string | null, prevCount: number | null, rng: () => number = Math.random, level: RipzLevel = 'advanced'): RipzChallenge {
   const pick = <T,>(xs: T[]): T => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))];
   const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES);
-  const { min, max } = rangeForDay(day);
+  const { min, max } = rangeForDay(day, level);
   const all = Array.from({ length: (max - min) / 5 + 1 }, (_, i) => min + i * 5);
-  const pool = prevCount == null ? all : all.filter((c) => c !== prevCount);
+  const pool = prevCount == null || all.length < 2 ? all : all.filter((c) => c !== prevCount);
   const count = pick(pool);
   return { move, count, tier: tierFor(count) };
 }
@@ -45,6 +55,8 @@ export interface ChallengeRecord {
   days?: Record<string, { count: number; move: string; date: string }>;
   /** Today's pack once ripped, so a reload cannot deal a new one. */
   pending?: { day: number; packId: string; moveId: string; move: string; count: number; rips: number } | null;
+  /** Fitness level chosen when the challenge started; sets the rep ranges. */
+  level?: RipzLevel;
   /** How many challenges this member has finished before this one. */
   completed?: number;
 }
@@ -90,7 +102,7 @@ export function challengeView(rec: ChallengeRecord | null | undefined, today: st
   const doneToday = !past && isDone(day);
   // Finished: day 30 is done, or the calendar ran out, with the misses forgiven.
   const state: ChallengeState = missed > REST_PASSES ? 'failed' : (isDone(CHALLENGE_DAYS) || past) ? 'complete' : 'active';
-  return { state, day, doneToday, doneCount, missed, passesLeft: Math.max(0, REST_PASSES - missed), totalReps, grid, range: rangeForDay(day) };
+  return { state, day, doneToday, doneCount, missed, passesLeft: Math.max(0, REST_PASSES - missed), totalReps, grid, range: rangeForDay(day, recordLevel(rec)) };
 }
 
 /** Badge ids this record has earned (see ACHIEVEMENT_DEFS: ripz_7, ripz_30). */

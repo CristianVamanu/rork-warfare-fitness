@@ -68,3 +68,23 @@ describe('30-day ripz challenge', () => {
     expect(ripzReminder({ rec: { startedAt: '2026-11-01', days: done(Array.from({ length: 29 }, (_, i) => i + 1)) }, today: '2026-11-30', localHour: 18 })?.title).toBe('Day 30. The last pack.');
   });
 });
+
+describe('challenge levels', () => {
+  it('beginner days are small and still ramp; advanced is unchanged', () => {
+    expect(rangeForDay(1, 'beginner')).toEqual({ min: 10, max: 20 });
+    expect(rangeForDay(30, 'beginner')).toEqual({ min: 50, max: 65 });
+    expect(rangeForDay(1, 'advanced')).toEqual({ min: 30, max: 80 });
+    for (let d = 1; d <= CHALLENGE_DAYS; d++) for (let i = 0; i < 40; i++) {
+      const c = rollChallengeDay(d, 'push-ups', null, Math.random, 'beginner');
+      const r = rangeForDay(d, 'beginner');
+      expect(c.count).toBeGreaterThanOrEqual(r.min); expect(c.count).toBeLessThanOrEqual(r.max);
+    }
+  });
+  it('a record uses the level it started at; old records stay advanced', () => {
+    expect(challengeView({ startedAt: '2026-11-01', level: 'beginner' }, '2026-11-01').range).toEqual({ min: 10, max: 20 });
+    expect(challengeView({ startedAt: '2026-11-01' }, '2026-11-01').range).toEqual({ min: 30, max: 80 });
+  });
+  it('a record with no start date is not in a challenge (after leaving)', () => {
+    expect(challengeView({ completed: 1 } as unknown as ChallengeRecord, '2026-11-01').state).toBe('none');
+  });
+});

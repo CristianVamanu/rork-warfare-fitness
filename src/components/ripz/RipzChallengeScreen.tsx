@@ -13,11 +13,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Volume2, VolumeX, Check, RotateCcw, Flame, Trophy, ChevronRight } from 'lucide-react';
+import { Volume2, VolumeX, Check, RotateCcw, Flame, Trophy, ChevronRight, LogOut, Dices } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Button } from '@/components/ui/Button';
 import { RIPZ_MOVES, RIPZ_TIERS, tierFor, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
-import { challengeView, rollChallengeDay, rangeForDay, CHALLENGE_DAYS, REST_PASSES, RIPS_PER_DAY, type ChallengeRecord } from '@/lib/ripzChallenge';
+import { challengeView, rollChallengeDay, rangeForDay, recordLevel, CHALLENGE_DAYS, REST_PASSES, RIPS_PER_DAY, type ChallengeRecord } from '@/lib/ripzChallenge';
+import { RipzLevelPicker, useRipzLevel } from '@/components/ripz/RipzLevelPicker';
+import type { RipzLevel } from '@/lib/ripz';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
@@ -54,7 +56,9 @@ function useUntilMidnight(): string {
 
 export interface ChallengeStore {
   /** Begin (or begin again) today, carrying how many were finished before. */
-  start: (completed: number) => Promise<void>;
+  start: (completed: number, level: RipzLevel) => Promise<void>;
+  /** Leave the challenge. Finished-before count is kept; the run is dropped. */
+  quit: (completed: number) => Promise<void>;
   /** A pack was opened: that rip is spent and its number is on record. */
   savePending: (p: NonNullable<ChallengeRecord['pending']>) => Promise<void>;
   /** The day's reps are done. */
@@ -75,6 +79,10 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
   const [retrying, setRetrying] = useState(false);
   const actions = useRef<HTMLDivElement>(null);
   const untilMidnight = useUntilMidnight();
+  // Level for a NEW run (picked before starting). A running challenge keeps the level it started at.
+  const [newLevel, setNewLevel] = useRipzLevel();
+  const level = recordLevel(rec);
+  const [confirm, setConfirm] = useState<null | 'quit' | 'restart'>(null);
 
   const view = challengeView(rec, today);
   // Today's pack, once ripped. Survives a reload, so the number cannot be re-dealt.
@@ -96,15 +104,27 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
     if (busy) return;
     setBusy(true);
     try {
-      await store.start((rec?.completed ?? 0) + (view.state === 'complete' ? 1 : 0));
+      await store.start((rec?.completed ?? 0) + (view.state === 'complete' ? 1 : 0), newLevel);
+      setConfirm(null);
       setPack(null); setLive(null); setRevealed(false); setRetrying(false);
     } catch (err) { console.error(err); toast.error('Could not start. Try again.'); }
     finally { setBusy(false); }
   }
 
+  async function quit() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await store.quit(rec?.completed ?? 0);
+      setPack(null); setLive(null); setRevealed(false); setRetrying(false); setConfirm(null);
+      toast.success('You left the challenge. Start again whenever you like.');
+    } catch (err) { console.error(err); toast.error('Could not leave. Try again.'); }
+    finally { setBusy(false); }
+  }
+
   function pick(p: RipzPackDef) {
     if (ripsUsed >= RIPS_PER_DAY) return;
-    const next = rollChallengeDay(view.day, p.moveId, pending?.count ?? null);
+    const next = rollChallengeDay(view.day, p.moveId, pending?.count ?? null, Math.random, level);
     setPack(p); setLive(next); setRevealed(false); setPackKey((k) => k + 1);
   }
 
@@ -135,7 +155,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
   // Showing the pack being torn (this visit), or the stored result (after a reload).
   const showingPack = !!pack && !!live;
   const staticPending = !!pending && !showingPack && !retrying;
-  const tomorrow = view.day < CHALLENGE_DAYS ? rangeForDay(view.day + 1) : null;
+  const tomorrow = view.day < CHALLENGE_DAYS ? rangeForDay(view.day + 1, level) : null;
 
   return (
       <div className="px-4 pt-2 max-w-md mx-auto">
@@ -164,15 +184,19 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
             <div className="rounded-2xl border border-white/8 bg-surface p-3">
               <p className="wf-readout text-[10px] font-bold text-text-tertiary mb-2">It gets harder</p>
               {[['Days 1–7', 1], ['Days 8–14', 8], ['Days 15–21', 15], ['Days 22–29', 22], ['Day 30', 30]].map(([label, d]) => {
-                const r = rangeForDay(d as number);
+                const r = rangeForDay(d as number, newLevel);
                 return (
                   <div key={label} className="flex items-center gap-2 text-xs py-0.5">
                     <span className="w-24 font-bold text-white">{label}</span>
-                    <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden"><span className="block h-full rounded-full bg-accent" style={{ width: `${(r.max / 250) * 100}%` }} /></span>
+                    <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden"><span className="block h-full rounded-full bg-accent" style={{ width: `${(r.max / rangeForDay(30, newLevel).max) * 100}%` }} /></span>
                     <span className="w-24 text-right text-text-secondary tabular-nums">{r.min}–{r.max} reps</span>
                   </div>
                 );
               })}
+            </div>
+            <div className="rounded-2xl border border-white/8 bg-surface px-3 pb-3">
+              <RipzLevelPicker level={newLevel} onChange={setNewLevel} />
+              <p className="text-[11px] text-text-tertiary mt-1">The whole challenge uses this level. You can restart at another level any time.</p>
             </div>
             <Button fullWidth onClick={start} disabled={busy}><Flame className="w-4 h-4" /> Start day 1 today</Button>
             {!!rec?.completed && <p className="text-center text-xs text-text-secondary">Finished {rec.completed} time{rec.completed === 1 ? '' : 's'} before.</p>}
@@ -188,6 +212,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
               <p className="text-sm text-text-secondary mt-2">You got {view.doneCount} {view.doneCount === 1 ? 'day' : 'days'} in and {view.totalReps.toLocaleString()} reps done. That work still counts. Day 1 is waiting when you are.</p>
             </div>
             <Grid grid={view.grid} />
+            <div className="rounded-2xl border border-white/8 bg-surface px-3 pb-3"><RipzLevelPicker level={newLevel} onChange={setNewLevel} /></div>
             <Button fullWidth onClick={start} disabled={busy}><RotateCcw className="w-4 h-4" /> Start again from day 1</Button>
           </div>
         )}
@@ -204,6 +229,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
             </div>
             <Grid grid={view.grid} />
             <RipzShare challenge={shareOf(100, 'Push-ups')} getRef={referralCode} label="Share that I finished" text={`I finished the 30-day Ripz challenge: ${view.totalReps.toLocaleString()} reps. Your turn.`} />
+            <div className="rounded-2xl border border-white/8 bg-surface px-3 pb-3"><RipzLevelPicker level={newLevel} onChange={setNewLevel} /></div>
             <Button fullWidth variant="ghost" onClick={start} disabled={busy}><RotateCcw className="w-4 h-4" /> Go again from day 1</Button>
           </div>
         )}
@@ -215,6 +241,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
               <div>
                 <p className="text-4xl font-black text-white leading-none">Day {view.day}<span className="text-lg text-text-tertiary font-bold"> of {CHALLENGE_DAYS}</span></p>
                 <p className="text-xs text-text-secondary mt-1">Today: {view.range.min}–{view.range.max} reps · {view.totalReps.toLocaleString()} done so far</p>
+                <p className="text-[11px] text-text-tertiary mt-0.5 capitalize">{level} level</p>
               </div>
               <p className="text-xs text-text-tertiary text-right">{view.passesLeft} rest {view.passesLeft === 1 ? 'pass' : 'passes'} left</p>
             </div>
@@ -236,10 +263,6 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                   )}
                 </div>
                 <RipzShare challenge={shareOf(todayDone.count, todayDone.move)} getRef={referralCode} label={`Share day ${view.day}`} text={`Day ${view.day} of the 30-day Ripz challenge: ${todayDone.count} ${todayDone.move.toLowerCase()} done.`} />
-                <Link href="/ripz/play" className="flex items-center gap-3 rounded-2xl border border-white/8 bg-surface p-3">
-                  <span className="flex-1"><span className="block text-sm font-black text-white">Still want more?</span><span className="block text-xs text-text-secondary">Free-play Ripz has no limit. It does not count toward the challenge.</span></span>
-                  <ChevronRight className="w-4 h-4 text-accent" />
-                </Link>
               </div>
             ) : (
               <>
@@ -272,6 +295,33 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                 )}
               </>
             )}
+
+            {/* Always available while a challenge runs: normal Ripz, and a way out. */}
+            <div className="mt-6 space-y-2">
+              <Link href="/ripz/play" className="flex items-center gap-3 rounded-2xl border border-white/8 bg-surface p-3">
+                <Dices className="w-5 h-5 text-accent flex-shrink-0" />
+                <span className="flex-1"><span className="block text-sm font-black text-white">Free play</span><span className="block text-xs text-text-secondary">Spin the wheel as normal. It does not count toward the challenge.</span></span>
+                <ChevronRight className="w-4 h-4 text-accent" />
+              </Link>
+              {confirm ? (
+                <div className="rounded-2xl border border-red-500/30 bg-red-500/[0.06] p-4">
+                  <p className="text-sm font-black text-white">{confirm === 'quit' ? 'Leave the challenge?' : 'Restart from day 1?'}</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {confirm === 'quit' ? 'Your 30-day run ends here.' : 'Your current run is wiped and day 1 starts today.'} The {view.totalReps.toLocaleString()} reps you logged stay in your Ripz totals.
+                  </p>
+                  {confirm === 'restart' && <div className="mt-1"><RipzLevelPicker level={newLevel} onChange={setNewLevel} /></div>}
+                  <div className="grid grid-cols-2 gap-2 mt-3">
+                    <Button variant="ghost" onClick={() => setConfirm(null)} disabled={busy}>Keep going</Button>
+                    <Button onClick={confirm === 'quit' ? quit : start} disabled={busy}>{confirm === 'quit' ? 'Leave' : 'Restart'}</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => { setNewLevel(level); setConfirm('restart'); }} className="flex items-center justify-center gap-1.5 h-10 rounded-xl border border-white/10 text-xs font-bold text-text-secondary hover:text-white"><RotateCcw className="w-3.5 h-3.5" /> Restart / change level</button>
+                  <button type="button" onClick={() => setConfirm('quit')} className="flex items-center justify-center gap-1.5 h-10 rounded-xl border border-white/10 text-xs font-bold text-text-secondary hover:text-white"><LogOut className="w-3.5 h-3.5" /> Leave challenge</button>
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>

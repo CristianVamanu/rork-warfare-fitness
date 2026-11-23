@@ -36,7 +36,9 @@ export default function RipzChallengePage() {
     };
     return {
       // updateDoc replaces the whole field, so an old run's days cannot leak into the new one.
-      start: (completed) => save(updateDoc(ref(), { ripzChallenge: { startedAt: today, days: {}, pending: null, completed } })),
+      start: (completed, level) => save(updateDoc(ref(), { ripzChallenge: { startedAt: today, days: {}, pending: null, completed, level } })),
+      // No startedAt = not in a challenge. The finished count is kept for the badge.
+      quit: (completed) => save(updateDoc(ref(), { ripzChallenge: { completed } })),
       savePending: (p) => save(setDoc(ref(), { ripzChallenge: { pending: p } }, { merge: true })),
       logDay: (day, p) => save(setDoc(ref(), {
         ripzChallenge: { days: { [String(day)]: { count: p.count, move: p.move, date: today } }, pending: deleteField() },
