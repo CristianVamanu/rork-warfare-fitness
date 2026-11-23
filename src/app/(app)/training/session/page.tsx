@@ -1209,6 +1209,29 @@ function SetRow({
  * that video is the poster, so the frame is there from the first paint, and
  * the clip plays over it when it is ready.
  */
+/**
+ * A muted demo clip that really loops on iPhone. React does not write the
+ * `muted` attribute into the element, and iOS Safari only autoplays video it
+ * can see is muted — so the thumbnail sat on its first frame. Mute it on the
+ * element itself, call play(), and if the browser still refuses (Low Power
+ * Mode blocks autoplay) try again on the first touch anywhere on the page.
+ */
+function LoopClip({ src, poster, className }: { src: string; poster?: string; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    v.muted = true; v.defaultMuted = true; v.setAttribute('muted', ''); v.setAttribute('playsinline', '');
+    const go = () => { v.play().catch(() => {}); };
+    go();
+    const retry = () => { if (v.paused) go(); };
+    v.addEventListener('canplay', retry);
+    document.addEventListener('touchstart', retry, { passive: true });
+    document.addEventListener('visibilitychange', retry);
+    return () => { v.removeEventListener('canplay', retry); document.removeEventListener('touchstart', retry); document.removeEventListener('visibilitychange', retry); };
+  }, [src]);
+  return <video ref={ref} src={src} muted loop autoPlay playsInline preload="auto" poster={poster} className={className} />;
+}
+
 function ExerciseInfoButton({ videoUrl, poster, tip, name }: { videoUrl?: string; poster?: string; tip?: string; name: string }) {
   const [expanded, setExpanded] = useState(false);
   // Exercises without a demo video always show the "i" button — even with
@@ -1231,17 +1254,7 @@ function ExerciseInfoButton({ videoUrl, poster, tip, name }: { videoUrl?: string
           // both the corner thumb and the expanded view play simultaneously
           // doubled the decode/network load and caused stutter.
           !expanded && (
-            <video
-              key={videoUrl}
-              src={videoUrl}
-              muted
-              loop
-              autoPlay
-              playsInline
-              preload="auto"
-              poster={poster}
-              className="w-full h-full object-cover"
-            />
+            <LoopClip key={videoUrl} src={videoUrl} poster={poster} className="w-full h-full object-cover" />
           )
         ) : (
           <Info className="w-4 h-4" />
