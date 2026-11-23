@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { HeroBadge, isHeroMember } from '@/components/ui/HeroBadge';
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -140,6 +141,7 @@ function ReplyRow({ reply, nested = false, onReply, canEdit, canDelete, onEdit, 
           <div className="flex items-center gap-1.5 flex-wrap">
             <p className="text-xs font-bold text-white">{reply.userDisplayName}</p>
             {reply.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+            {reply.userIsHero && <HeroBadge />}
             <span className="text-xs text-text-tertiary" title={fullTimestamp(reply.createdAt)}>{timeAgo(reply.createdAt)}</span>
             {!!reply.editedAt && <span className="text-[10px] text-text-tertiary">edited</span>}
           </div>
@@ -337,6 +339,7 @@ function PostCard({
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-bold text-white">{post.userDisplayName}</p>
             {post.userIsAdmin && <Badge variant="danger">Admin</Badge>}
+            {post.userIsHero && <HeroBadge />}
             {ideas && <IdeaStatusBadge status={post.status} />}
           </div>
           <p className="text-xs text-text-tertiary" title={fullTimestamp(post.createdAt)}>{timeAgo(post.createdAt)}</p>
@@ -809,6 +812,7 @@ export default function ChannelPage() {
         // only recognizes role 'admin' as isAdmin(), so a trainer sending
         // userIsAdmin:true here would just get the whole write rejected.
         ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
+        ...(isHeroMember(profile as never) ? { userIsHero: true } : {}),
         content: text.trim(),
         // imageURL/mediaType/posterURL stay as a copy of the first item so
         // the pinned preview, older clients and every post written before
@@ -933,6 +937,7 @@ export default function ChannelPage() {
         userDisplayName: profile.displayName || 'Athlete',
         ...(profile.photoURL ? { userPhotoURL: profile.photoURL } : {}),
         ...(profile.role === 'admin' ? { userIsAdmin: true } : {}),
+        ...(isHeroMember(profile as never) ? { userIsHero: true } : {}),
         content: replyText.trim(),
         ...(replyTarget.parent ? { parentReplyId: replyTarget.parent.id } : {}),
       });

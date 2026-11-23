@@ -832,6 +832,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Hero badge on a post must match the author's real plan: an active
+    // membership whose plan name contains "Hero". Stops anyone writing
+    // userIsHero:true on their own post.
+    function heroOk(d) {
+      return !d.get('userIsHero', false)
+        || (get(/databases/$(database)/documents/users/$(uid())).data.get('membership', {}).get('status', '') == 'active'
+            && get(/databases/$(database)/documents/users/$(uid())).data.get('membership', {}).get('planName', '').lower().matches('.*hero.*'));
+    }
+
     // ── Channels (Discord-style community) ────────────────────────────────
     match /channels/{channelId} {
       allow read: if isAuthed() && notTfaPending();
@@ -848,6 +857,7 @@ service cloud.firestore {
         allow create: if isAuthed() && notTfaPending()
           && request.resource.data.userId == uid()
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
+          && heroOk(request.resource.data)
           && postBodySane(request.resource.data)
           && !channelMuteActive()
           // On an ideas board the status is the admin's verdict. A member
@@ -921,6 +931,7 @@ service cloud.firestore {
           allow read: if isAuthed() && notTfaPending();
           allow create: if isAuthed() && notTfaPending() && request.resource.data.userId == uid()
             && request.resource.data.get('userIsAdmin', false) == isAdmin()
+          && heroOk(request.resource.data)
             && !channelMuteActive();
           // Replies were write-once: nobody, not even an admin, could edit or
           // remove one. A typo stood forever and a post someone regretted
@@ -1202,6 +1213,7 @@ service cloud.firestore {
           && request.resource.data.userId == uid()
           && request.resource.data.challengeId == challengeId
           && request.resource.data.get('userIsAdmin', false) == isAdmin()
+          && heroOk(request.resource.data)
           && postBodySane(request.resource.data)
           && (!('submission' in request.resource.data)
               || (request.resource.data.submission.result is string

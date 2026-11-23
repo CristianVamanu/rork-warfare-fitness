@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone, Swords, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
+import { HeroBadge, isHeroMember } from '@/components/ui/HeroBadge';
 import { useSearchParams } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { unblockUser } from '@/lib/moderation';
@@ -410,7 +411,7 @@ export default function ProfilePage() {
               </button>
             </div>
             <div className="flex items-center justify-center gap-1.5">
-              <h2 className="text-[22px] font-black text-white tracking-tight">{profile?.displayName || 'Athlete'}</h2>
+              <h2 className="text-[22px] font-black text-white tracking-tight inline-flex items-center gap-2 flex-wrap justify-center">{profile?.displayName || 'Athlete'}{isHeroMember(profile as never) && <HeroBadge size="md" />}</h2>
               <QuestBadgeRow questIds={profile?.questsCompleted ?? []} />
             </div>
             <p className="text-text-secondary text-sm mt-0.5">{user?.email}</p>

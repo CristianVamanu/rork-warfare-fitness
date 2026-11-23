@@ -737,6 +737,8 @@ export interface ChallengePost {
   userDisplayName: string;
   userPhotoURL?: string;
   userIsAdmin?: boolean;
+  /** Author was on the yearly Hero plan when posting (gold badge). */
+  userIsHero?: boolean;
   content: string;
   media?: PostMedia[];
   submission?: { result: string; resultValue?: number };
@@ -755,6 +757,8 @@ export interface ChannelPost {
   // anyway (see firestore.rules), so this is the only way the badge could
   // render for anyone but the admin's own client.
   userIsAdmin?: boolean;
+  /** Author was on the yearly Hero plan when posting (gold badge). */
+  userIsHero?: boolean;
   content: string;
   /** URL of the attached photo OR clip — named imageURL for the posts that
    *  already exist with that field. mediaType says which it is. */

@@ -2677,7 +2677,7 @@ export function subscribeChannelPosts(
 }
 
 export function createChannelPost(channelId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; userIsHero?: boolean;
   content: string; imageURL?: string; mediaType?: 'image' | 'video'; posterURL?: string;
   media?: PostMedia[];
 }): { id: string; saved: Promise<void> } {
@@ -2728,7 +2728,7 @@ export async function getPostReplies(channelId: string, postId: string): Promise
 }
 
 export function createReply(channelId: string, postId: string, data: {
-  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; content: string;
+  userId: string; userDisplayName: string; userPhotoURL?: string; userIsAdmin?: boolean; userIsHero?: boolean; content: string;
   /** Set to thread this under another reply instead of the post itself. */
   parentReplyId?: string;
 }): { id: string; saved: Promise<void> } {
