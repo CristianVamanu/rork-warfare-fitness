@@ -8,12 +8,13 @@
 import { useEffect } from 'react';
 
 export const HUD = {
-  ground: '#0A0A0A',
-  panel: '#111111',
-  line: '#222222',
-  fg: '#E9EEF2',
-  dim: '#8A96A1',
-  faint: '#56616B',
+  // Theme-aware: these follow light/dark mode instead of being fixed dark.
+  ground: 'var(--background)',
+  panel: 'var(--surface)',
+  line: 'var(--border-subtle)',
+  fg: 'var(--foreground)',
+  dim: 'var(--text-secondary)',
+  faint: 'var(--text-tertiary)',
   amber: '#F5A623',
   signal: '#4FE3C1',
   alert: '#FF6B5B',
@@ -71,10 +72,10 @@ export function Bars({ values, height = 34, refValue, alertLast, color = HUD.sig
     <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} preserveAspectRatio="none" role="img" aria-label={label}>
       {values.map((v, i) => {
         const last = i === n - 1;
-        if (v == null) return <rect key={i} x={i * (bw + gap)} y={height - 2} width={bw} height={2} fill={HUD.line} />;
+        if (v == null) return <rect key={i} x={i * (bw + gap)} y={height - 2} width={bw} height={2} style={{ fill: HUD.line }} />;
         return <rect key={i} x={i * (bw + gap)} y={y(v)} width={bw} height={height - y(v)} rx={Math.min(2, bw / 3)} fill={last ? (alertLast ? HUD.alert : color) : color} opacity={last ? 1 : 0.38} />;
       })}
-      {refValue != null && <line x1={0} x2={W} y1={y(refValue)} y2={y(refValue)} stroke={HUD.faint} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
+      {refValue != null && <line x1={0} x2={W} y1={y(refValue)} y2={y(refValue)} style={{ stroke: HUD.faint }} strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
     </svg>
   );
 }
@@ -86,7 +87,7 @@ export function Line({ values, height = 34, band, alertLast, color = HUD.signal,
   const W = 120, pad = 4;
   const nums = values.filter((v): v is number => v != null);
   if (nums.length < 2) {
-    return <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} role="img" aria-label={`${label}: not enough data yet`}><line x1={0} x2={W} y1={height / 2} y2={height / 2} stroke={HUD.line} strokeDasharray="3 4" /></svg>;
+    return <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height} role="img" aria-label={`${label}: not enough data yet`}><line x1={0} x2={W} y1={height / 2} y2={height / 2} style={{ stroke: HUD.line }} strokeDasharray="3 4" /></svg>;
   }
   let lo = Math.min(...nums, ...(band ?? [])), hi = Math.max(...nums, ...(band ?? []));
   if (hi - lo < 1e-6) { lo -= 1; hi += 1; }

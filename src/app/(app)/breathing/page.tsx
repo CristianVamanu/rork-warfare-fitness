@@ -442,7 +442,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'session' && method && (
-        <div className="fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        <div className="wf-dark fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           <CosmicBackdrop drive={size} />
           <div className="relative w-full max-w-lg px-4 flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label="End session"><X className="w-5 h-5" /></button>

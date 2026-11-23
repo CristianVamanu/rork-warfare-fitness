@@ -353,7 +353,7 @@ export default function BarcodePage() {
         )}
         {/* Camera Viewfinder */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="relative aspect-square bg-black rounded-2xl overflow-hidden">
+          <div className="wf-dark relative aspect-square bg-black rounded-2xl overflow-hidden">
 
             {/* VIDEO — always in DOM when scanning so ZXing can attach to it */}
             {/* autoPlay is required in React; playsInline prevents fullscreen on iOS */}

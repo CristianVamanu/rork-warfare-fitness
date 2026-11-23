@@ -54,17 +54,17 @@
 
 /* ── Light theme ── */
 html.light {
-  --background: #F2F2F7;
+  --background: #FFF9EE;
   --surface: #FFFFFF;
-  --surface-elevated: #E8E8ED;
+  --surface-elevated: #F6EEDF;
   --accent: #D4820A;
   --accent-hover: #C07508;
   --accent-muted: rgba(212, 130, 10, 0.12);
   --foreground: #0A0A0A;
   --accent-rgb: 212 130 10;
-  --background-rgb: 242 242 247;
+  --background-rgb: 255 249 238;
   --surface-rgb: 255 255 255;
-  --text-secondary: rgba(0, 0, 0, 0.55);
+  --text-secondary: rgba(0, 0, 0, 0.6);
   --text-tertiary: rgba(0, 0, 0, 0.38);
   --border-subtle: rgba(0, 0, 0, 0.09);
   --overlay: rgba(0, 0, 0, 0.45);
@@ -80,7 +80,7 @@ html.light {
   --glow-shadow: 0 4px 14px rgba(212, 130, 10, 0.15);
   --skeleton-bg: rgba(0, 0, 0, 0.07);
   --nav-bg: rgba(255, 255, 255, 0.88);
-  --header-bg: rgba(242, 242, 247, 0.88);
+  --header-bg: rgba(255, 249, 238, 0.9);
   --progress-track: rgba(0, 0, 0, 0.08);
   --badge-muted-bg: rgba(0, 0, 0, 0.05);
   --badge-default-bg: rgba(0, 0, 0, 0.08);
@@ -2191,13 +2191,8 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 50%); mask-image: linear-gradient(90deg, transparent, #000 50%); opacity: .95; }
 .pf-ic { width: 50px; height: 50px; flex: none; display: grid; place-items: center; border-radius: 14px; border: 1px solid rgba(245,166,35,.5); background: rgba(20,16,10,.85); }
 .pf-glow { filter: drop-shadow(0 0 8px rgba(245,166,35,.55)); }
-html.light .pf-card { background: #0c0b0a !important; }
-/* Light mode: the profile cards stay dark (the art is dark), so their text
-   keeps its dark-mode colours instead of the light theme's dark ink. */
-html.light .pf-card .text-white, html.light .pf-card p.text-white, html.light .pf-card span.text-white { color: #fff !important; }
-html.light .pf-card .text-text-secondary { color: #c4c4c4 !important; }
-html.light .pf-card .text-text-tertiary { color: #9a9a9a !important; }
-html.light .pf-card { color: #fff; }
+
+
 
 /* ── Admin overview board ── */
 .ov { display: grid; gap: 14px; grid-template-columns: 1fr; }
@@ -2273,3 +2268,11 @@ html:not(.light) .wf-glow {
 .wx-centre { border-color: rgba(245,166,35,0.45) !important; }
 .wx-ripz-feat, .wx-ripz-feat2 li { box-shadow: none; }
 html.light { --hc-card-shadow: 0 8px 16px -14px rgba(200,110,10,0.35); }
+
+/* ── Light mode (cream #FFF9EE): profile cards turn light. White card,
+   dark text, the art kept faint on the right, a thin amber edge. ── */
+html.light .pf-card { background: #FFFFFF !important; border-color: rgba(212,130,10,0.35) !important; box-shadow: 0 6px 18px -10px rgba(160,90,10,0.25) !important; }
+html.light .pf-art { opacity: .22; filter: sepia(.4) saturate(1.2); }
+html.light .pf-ic { background: #FFF4E0; border-color: rgba(212,130,10,0.35); }
+html.light .pf-card .text-white { color: #111 !important; }
+html.light body { background-color: #FFF9EE; }

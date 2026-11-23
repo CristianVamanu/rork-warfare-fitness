@@ -101,7 +101,7 @@ function ChallengeCard({ c, index }: { c: Challenge; index: number }) {
               portrait reel covers with the headline running most of their
               height, so any crop cuts the words in half; instead the frame
               sits in a 4:5 box, letterboxed over a blurred copy of itself. */}
-          <div className="relative aspect-[4/5] bg-black overflow-hidden">
+          <div className="wf-dark relative aspect-[4/5] bg-black overflow-hidden">
             {cover ? (
               <>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
