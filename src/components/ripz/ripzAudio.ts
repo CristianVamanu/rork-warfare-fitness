@@ -97,6 +97,16 @@ export class RipzAudio {
     });
   }
 
+  /** Countdown beep: short for 3-2-1, long and higher for GO / time up. */
+  beep(go = false) {
+    const ctx = this.ensure();
+    if (!ctx) return;
+    const t = ctx.currentTime; const len = go ? 0.5 : 0.14;
+    const o = ctx.createOscillator(); o.type = 'sine'; o.frequency.value = go ? 1175 : 784;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + len + 0.02);
+  }
+
   close() { this.dragEnd(); void this.ctx?.close(); this.ctx = null; }
 }
 

@@ -23,6 +23,8 @@ export const RIPZ_MOVES: RipzMove[] = [
   { id: 'sit-ups', name: 'Sit-ups', unit: 'reps' },
   { id: 'lunges', name: 'Lunges', unit: 'reps' },
   { id: 'mountain-climbers', name: 'Mountain climbers', unit: 'reps' },
+  // The one pack measured in time. Its count is seconds to hold.
+  { id: 'plank', name: 'Plank', unit: 'seconds' },
 ];
 
 /**
@@ -37,6 +39,7 @@ export const RIPZ_PACKS: RipzPackDef[] = [
   { id: 'green', label: 'Sit-ups', moveId: 'sit-ups', colors: ['#8CF0B0', '#27C46B', '#0C7A3C'] },
   { id: 'red', label: 'Lunges', moveId: 'lunges', colors: ['#FF9A8A', '#F0472F', '#A31A0A'] },
   { id: 'purple', label: 'Mountain climbers', moveId: 'mountain-climbers', colors: ['#D0A6FF', '#9052F0', '#5320A8'] },
+  { id: 'teal', label: 'Plank', moveId: 'plank', colors: ['#7FF3E0', '#14B8A6', '#0B6B63'] },
   { id: 'steel', label: 'Wild card', moveId: null, colors: ['#F1F4F8', '#AEB7C2', '#5F6B78'] },
 ];
 
@@ -87,14 +90,28 @@ export function scaleCount(count: number, level: RipzLevel): number {
 }
 export function isRipzLevel(x: unknown): x is RipzLevel { return x === 'beginner' || x === 'intermediate' || x === 'advanced'; }
 
+/** Seconds a plank pack asks for. The same rarity as a rep pack, on a time
+ *  scale: beginner 15–60 s, intermediate 30–120 s, advanced 45–180 s. */
+export const PLANK_RANGE: Record<RipzLevel, [number, number]> = { beginner: [15, 60], intermediate: [30, 120], advanced: [45, 180] };
+export function plankSeconds(rawCount: number, level: RipzLevel): number {
+  const [lo, hi] = PLANK_RANGE[level];
+  const k = (Math.min(RIPZ_MAX, Math.max(RIPZ_MIN, rawCount)) - RIPZ_MIN) / (RIPZ_MAX - RIPZ_MIN);
+  return Math.round((lo + k * (hi - lo)) / STEP) * STEP;
+}
+/** "45 seconds" / "45 reps", and a short form for cards. */
+export function isTimed(move: { unit?: string } | null | undefined): boolean { return move?.unit === 'seconds'; }
+
 export function rollChallenge(prev: RipzChallenge | null, rng: () => number = Math.random, moveId?: string | null, level: RipzLevel = 'advanced'): RipzChallenge {
   const pick = <T,>(xs: T[]): T => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))];
-  const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES);
+  // The wild card deals any rep move. Plank only comes from its own pack: it
+  // needs the timer, so nobody should land on it by surprise.
+  const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES.filter((m) => m.unit === 'reps'));
   // Tier first, by its odds; then any number inside that tier.
   let roll = rng(); let tier: RipzTier = 'rookie';
   for (const t of Object.keys(RIPZ_TIERS) as RipzTier[]) { tier = t; roll -= RIPZ_TIERS[t].chance; if (roll < 0) break; }
   const inTier = RIPZ_COUNTS.filter((c) => tierFor(c) === tier);
-  const pool = prev && prev.move.id === move.id ? inTier.filter((c) => scaleCount(c, level) !== prev.count) : inTier;
+  const final = (c: number) => (isTimed(move) ? plankSeconds(c, level) : scaleCount(c, level));
+  const pool = prev && prev.move.id === move.id ? inTier.filter((c) => final(c) !== prev.count) : inTier;
   const raw = pick(pool.length ? pool : inTier);
-  return { move, count: scaleCount(raw, level), tier: tierFor(raw) };
+  return { move, count: final(raw), tier: tierFor(raw) };
 }

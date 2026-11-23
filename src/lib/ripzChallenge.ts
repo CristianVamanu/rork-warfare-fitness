@@ -11,7 +11,7 @@
  *     forgiven ("rest passes"); a fourth ends the challenge;
  *   - a day counts once, however often the page is opened.
  */
-import { RIPZ_MOVES, tierFor, scaleCount, isRipzLevel, type RipzChallenge, type RipzLevel } from './ripz';
+import { RIPZ_MOVES, tierFor, scaleCount, isRipzLevel, isTimed, type RipzChallenge, type RipzLevel } from './ripz';
 
 export const CHALLENGE_DAYS = 30;
 export const REST_PASSES = 3;
@@ -39,12 +39,17 @@ export function recordLevel(rec: { level?: unknown } | null | undefined): RipzLe
 /** One pack for a challenge day. `prevCount` is the first rip when this is the retry. */
 export function rollChallengeDay(day: number, moveId: string | null, prevCount: number | null, rng: () => number = Math.random, level: RipzLevel = 'advanced'): RipzChallenge {
   const pick = <T,>(xs: T[]): T => xs[Math.min(xs.length - 1, Math.floor(rng() * xs.length))];
-  const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES);
+  const move = (moveId && RIPZ_MOVES.find((m) => m.id === moveId)) || pick(RIPZ_MOVES.filter((m) => m.unit === 'reps'));
   const { min, max } = rangeForDay(day, level);
   const all = Array.from({ length: (max - min) / 5 + 1 }, (_, i) => min + i * 5);
-  const pool = prevCount == null || all.length < 2 ? all : all.filter((c) => c !== prevCount);
+  // Plank days are held, not counted: three-quarters of a second per rep the
+  // day would have asked for, never under 15 s (advanced day 30: 150–190 s).
+  const timed = isTimed(move);
+  const final = (c: number) => (timed ? Math.max(15, Math.round((c * 0.75) / 5) * 5) : c);
+  const vals = [...new Set(all.map(final))];
+  const pool = prevCount == null || vals.length < 2 ? vals : vals.filter((c) => c !== prevCount);
   const count = pick(pool);
-  return { move, count, tier: tierFor(count) };
+  return { move, count, tier: tierFor(timed ? Math.round(count / 0.75) : count) };
 }
 
 /** What is stored on the member's profile under `ripzChallenge`. */
@@ -94,7 +99,7 @@ export function challengeView(rec: ChallengeRecord | null | undefined, today: st
   let missed = 0; let doneCount = 0; let totalReps = 0;
   const grid: ChallengeView['grid'] = [];
   for (let d = 1; d <= CHALLENGE_DAYS; d++) {
-    if (isDone(d)) { doneCount++; totalReps += Number(days[String(d)].count) || 0; grid.push('done'); }
+    if (isDone(d)) { doneCount++; if (days[String(d)].move !== 'Plank') totalReps += Number(days[String(d)].count) || 0; grid.push('done'); }
     else if (d < raw) { missed++; grid.push('missed'); }
     else if (d === raw) grid.push('today');
     else grid.push('ahead');

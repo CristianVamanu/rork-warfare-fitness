@@ -43,8 +43,10 @@ export default function RipzChallengePage() {
       logDay: (day, p) => save(setDoc(ref(), {
         ripzChallenge: { days: { [String(day)]: { count: p.count, move: p.move, date: today } }, pending: deleteField() },
         ripz: {
-          completed: increment(1), reps: increment(p.count), lastAt: serverTimestamp(),
-          ...(p.count > best ? { best: p.count, bestMove: p.move } : {}),
+          completed: increment(1), lastAt: serverTimestamp(),
+          // A plank day is seconds held, kept apart from the rep total.
+          ...(p.moveId === 'plank' ? { plankSeconds: increment(p.count) } : { reps: increment(p.count) }),
+          ...(p.moveId !== 'plank' && p.count > best ? { best: p.count, bestMove: p.move } : {}),
         },
       }, { merge: true })),
       getRef: async () => {

@@ -7,7 +7,7 @@
  * the pack in front to pick it.
  */
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Dices, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RIPZ_PACKS, type RipzPackDef } from '@/lib/ripz';
 import { RipzAudio, buzz } from './ripzAudio';
 
@@ -69,9 +69,37 @@ export function RipzWheel({ audio, onPick }: { audio: RipzAudio; onPick: (pack: 
   // The rip screen uses the full-size render; fetch it while the pack is in front.
   useEffect(() => { const im = new Image(); im.src = packImage(front); }, [front]);
 
-  function turn(by: number) { setAngle((a) => Math.round(a / STEP) * STEP + by * STEP); audio.tick(0.3); buzz(8); }
+  // Roulette spin: the ring whirls, ticking past each pack and slowing down,
+  // lands on a random one and picks it. Chance decides the pack as well as the number.
+  const [spinning, setSpinning] = useState(false);
+  const raf = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
+  function spin() {
+    if (spinning) return;
+    audio.unlock(); setSpinning(true); setDragging(true);
+    const from = Math.round(angle / STEP) * STEP;
+    const N = RIPZ_PACKS.length;
+    const steps = N * 3 + Math.floor(Math.random() * N);      // three full turns, then a random stop
+    const to = from - steps * STEP; const dur = 3600; const t0 = performance.now();
+    let last = idxAt(from);
+    const frame = (now: number) => {
+      const k = Math.min(1, (now - t0) / dur);
+      const a = from + (to - from) * (1 - Math.pow(1 - k, 3.2));   // fast, then easing to a stop
+      setAngle(a);
+      const i = idxAt(a);
+      if (i !== last) { last = i; audio.tick(0.25 + 0.5 * (1 - k)); buzz(6); }
+      if (k < 1) { raf.current = requestAnimationFrame(frame); return; }
+      setAngle(to); setDragging(false);
+      audio.sting(1); buzz([30, 40, 80]);
+      window.setTimeout(() => { setSpinning(false); onPick(RIPZ_PACKS[idxAt(to)]); }, 750);
+    };
+    raf.current = requestAnimationFrame(frame);
+  }
+
+  function turn(by: number) { if (spinning) return; setAngle((a) => Math.round(a / STEP) * STEP + by * STEP); audio.tick(0.3); buzz(8); }
 
   function down(e: React.PointerEvent) {
+    if (spinning) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     drag.current = { x: e.clientX, start: angle, moved: 0, lastIdx: idxAt(angle) };
     setDragging(true);
@@ -121,12 +149,17 @@ export function RipzWheel({ audio, onPick }: { audio: RipzAudio; onPick: (pack: 
       </div>
       <div className="flex items-center justify-center gap-4 mt-2">
         <button type="button" onClick={() => turn(1)} aria-label="Previous pack" className="p-2 rounded-xl border border-white/10 text-text-secondary hover:text-white"><ChevronLeft className="w-5 h-5" /></button>
-        <button type="button" onClick={() => { audio.tick(0.8); buzz(15); onPick(front); }} className="px-5 py-2.5 rounded-xl font-black text-sm text-black" style={{ background: front.colors[1] }}>
+        <button type="button" disabled={spinning} onClick={() => { audio.tick(0.8); buzz(15); onPick(front); }} className="px-5 py-2.5 rounded-xl font-black text-sm text-black disabled:opacity-60" style={{ background: front.colors[1] }}>
           Pick {front.label}
         </button>
         <button type="button" onClick={() => turn(-1)} aria-label="Next pack" className="p-2 rounded-xl border border-white/10 text-text-secondary hover:text-white"><ChevronRight className="w-5 h-5" /></button>
       </div>
-      <p className="text-center wf-readout text-[10px] font-bold text-text-tertiary mt-3">Swipe to spin · tap the front pack to pick it</p>
+      <button type="button" onClick={spin} disabled={spinning}
+        className="mt-3 mx-auto flex items-center justify-center gap-2 h-11 px-6 rounded-full border border-accent/50 text-sm font-black text-white disabled:opacity-60 active:scale-95 transition-transform"
+        style={{ background: 'linear-gradient(180deg, rgba(245,166,35,0.22), rgba(245,166,35,0.06))', boxShadow: '0 0 18px -6px rgba(245,166,35,0.7)' }}>
+        <Dices className={`w-4 h-4 text-accent ${spinning ? 'animate-spin' : ''}`} /> {spinning ? 'Spinning…' : 'Spin for a random pack'}
+      </button>
+      <p className="text-center wf-readout text-[10px] font-bold text-text-tertiary mt-3">Swipe to choose · or spin and let luck decide</p>
     </div>
   );
 }

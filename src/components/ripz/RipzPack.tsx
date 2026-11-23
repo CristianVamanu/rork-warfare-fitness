@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { ChevronsRight, ChevronLeft } from 'lucide-react';
-import { RIPZ_TIERS, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { RIPZ_TIERS, isTimed, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
 import { packVars, PackArt } from './RipzWheel';
 import { RipzAudio, buzz } from './ripzAudio';
 
@@ -102,9 +102,9 @@ export function RipzPack({ challenge, audio, packKey, onRevealed, pack, onBack }
         {phase === 'revealed' && (
           <>
             <p className="wf-readout text-[10px] font-bold" style={{ color: tier.color }}>{tier.label} pull</p>
-            <p className="text-[92px] leading-none font-black text-white tabular-nums mt-2" style={{ textShadow: `0 0 28px ${tier.color}88` }}>{shown}</p>
+            <p className="text-[92px] leading-none font-black text-white tabular-nums mt-2" style={{ textShadow: `0 0 28px ${tier.color}88` }}>{shown}{isTimed(challenge.move) && <span className="text-3xl">s</span>}</p>
             <p className="text-xl font-black text-white uppercase mt-2">{challenge.move.name}</p>
-            <p className="text-xs text-text-secondary mt-2">Break them into sets if you need to. All of them count.</p>
+            <p className="text-xs text-text-secondary mt-2">{isTimed(challenge.move) ? 'Hold it for the full time. The timer starts when you are ready.' : 'Break them into sets if you need to. All of them count.'}</p>
           </>
         )}
       </div>

@@ -55,7 +55,7 @@ describe('ripz', () => {
         prev = c;
       }
     }
-    expect(RIPZ_PACKS).toHaveLength(6);
+    expect(RIPZ_PACKS).toHaveLength(7);
   });
   it('tiers by size', () => {
     expect([20, 39, 40, 60, 80, 100, 105, 200].map(tierFor)).toEqual(['rookie', 'rookie', 'soldier', 'veteran', 'elite', 'elite', 'legend', 'legend']);
@@ -73,4 +73,24 @@ describe('ripz levels', () => {
     }
   });
   it('never deals under 5', () => { expect(scaleCount(20, 'beginner')).toBe(5); });
+});
+
+import { plankSeconds, PLANK_RANGE } from './ripz';
+describe('plank pack (seconds, not reps)', () => {
+  it('is on the wheel, before the wild card, and deals seconds inside the level range', () => {
+    expect(RIPZ_PACKS.map((p) => p.id)).toEqual(['gold', 'blue', 'green', 'red', 'purple', 'teal', 'steel']);
+    for (const level of ['beginner', 'intermediate', 'advanced'] as const) {
+      const [lo, hi] = PLANK_RANGE[level];
+      for (let i = 0; i < 300; i++) {
+        const c = rollChallenge(null, Math.random, 'plank', level);
+        expect(c.move.unit).toBe('seconds');
+        expect(c.count).toBeGreaterThanOrEqual(lo); expect(c.count).toBeLessThanOrEqual(hi); expect(c.count % 5).toBe(0);
+      }
+    }
+    expect(plankSeconds(20, 'beginner')).toBe(15); expect(plankSeconds(200, 'advanced')).toBe(180);
+  });
+  it('a retry never deals the same seconds twice in a row', () => {
+    let prev = rollChallenge(null, Math.random, 'plank', 'beginner');
+    for (let i = 0; i < 300; i++) { const n = rollChallenge(prev, Math.random, 'plank', 'beginner'); expect(n.count).not.toBe(prev.count); prev = n; }
+  });
 });

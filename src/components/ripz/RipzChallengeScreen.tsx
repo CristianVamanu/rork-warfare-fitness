@@ -24,6 +24,7 @@ import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzWheel } from '@/components/ripz/RipzWheel';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
 import { RipzShare } from '@/components/ripz/RipzShare';
+import { RipzPlankTimer } from '@/components/ripz/RipzPlankTimer';
 
 const MUTE_KEY = 'wf.ripz.muted';
 
@@ -136,11 +137,12 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
       .catch((err) => console.error('[ripz challenge] save failed', err));
   }
 
-  async function done() {
+  // `held`: seconds actually held, on a plank day.
+  async function done(held?: number) {
     if (!pending || busy) return;
     setBusy(true);
     try {
-      await store.logDay(view.day, pending);
+      await store.logDay(view.day, held != null ? { ...pending, count: held } : pending);
       setPack(null); setLive(null); setRevealed(false);
     } catch (err) { console.error(err); toast.error('Could not save that. Try again.'); }
     finally { setBusy(false); }
@@ -253,7 +255,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                 <div className="rounded-2xl border border-accent/50 bg-accent/[0.09] p-6 text-center ripz-card-in" style={{ boxShadow: '0 0 60px rgb(var(--accent-rgb) / 0.22)' }}>
                   <div className="w-16 h-16 rounded-full bg-accent flex items-center justify-center mx-auto"><Check className="w-9 h-9 text-black" strokeWidth={3} /></div>
                   <p className="wf-readout text-[10px] font-bold text-accent mt-4">Day {view.day} complete</p>
-                  <p className="text-5xl font-black text-white tabular-nums mt-1">{todayDone.count}</p>
+                  <p className="text-5xl font-black text-white tabular-nums mt-1">{todayDone.count}{todayDone.move === 'Plank' && <span className="text-2xl">s</span>}</p>
                   <p className="text-base font-black text-white uppercase">{todayDone.move}</p>
                   <p className="text-sm text-text-secondary mt-4">
                     {view.day < CHALLENGE_DAYS ? 'That is today done. Rest, eat, sleep. Come back tomorrow.' : 'That was the last one.'}
@@ -262,7 +264,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                     <p className="text-xs text-text-tertiary mt-2">Day {view.day + 1} opens in {untilMidnight} · {tomorrow.min}–{tomorrow.max} reps</p>
                   )}
                 </div>
-                <RipzShare challenge={shareOf(todayDone.count, todayDone.move)} getRef={referralCode} label={`Share day ${view.day}`} text={`Day ${view.day} of the 30-day Ripz challenge: ${todayDone.count} ${todayDone.move.toLowerCase()} done.`} />
+                <RipzShare challenge={shareOf(todayDone.count, todayDone.move)} getRef={referralCode} label={`Share day ${view.day}`} text={todayDone.move === 'Plank' ? `Day ${view.day} of the 30-day Ripz challenge: a ${todayDone.count}-second plank held.` : `Day ${view.day} of the 30-day Ripz challenge: ${todayDone.count} ${todayDone.move.toLowerCase()} done.`} />
               </div>
             ) : (
               <>
@@ -273,7 +275,7 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                     /* Came back after ripping: the number stands, shown without the pack. */
                     <div className="mx-auto w-[216px] h-[346px] mt-6 rounded-2xl border bg-surface flex flex-col items-center justify-center text-center px-3" style={{ borderColor: RIPZ_TIERS[tierFor(pending!.count)].color, boxShadow: `0 0 46px ${RIPZ_TIERS[tierFor(pending!.count)].color}55` }}>
                       <p className="wf-readout text-[10px] font-bold" style={{ color: RIPZ_TIERS[tierFor(pending!.count)].color }}>Today&apos;s pull</p>
-                      <p className="text-[84px] leading-none font-black text-white tabular-nums mt-2">{pending!.count}</p>
+                      <p className="text-[84px] leading-none font-black text-white tabular-nums mt-2">{pending!.count}{pending!.moveId === 'plank' && <span className="text-3xl">s</span>}</p>
                       <p className="text-xl font-black text-white uppercase mt-2">{pending!.move}</p>
                     </div>
                   ) : (
@@ -285,7 +287,9 @@ export function RipzChallengeScreen({ rec, today, store }: { rec: ChallengeRecor
                 )}
                 {pending && (revealed || staticPending) && (
                   <div ref={actions} className="space-y-2 wf-rise scroll-mb-28">
-                    <Button fullWidth onClick={done} disabled={busy}><Check className="w-4 h-4" /> Done. Log day {view.day}</Button>
+                    {pending.moveId === 'plank'
+                      ? <RipzPlankTimer seconds={pending.count} audio={audio} busy={busy} doneLabel={`Done. Log day ${view.day}`} onDone={(h) => done(h)} />
+                      : <Button fullWidth onClick={() => done()} disabled={busy}><Check className="w-4 h-4" /> Done. Log day {view.day}</Button>}
                     {ripsUsed < RIPS_PER_DAY ? (
                       <Button fullWidth variant="ghost" onClick={() => { setPack(null); setLive(null); setRevealed(false); setRetrying(true); }}><RotateCcw className="w-4 h-4" /> Use my one retry</Button>
                     ) : (

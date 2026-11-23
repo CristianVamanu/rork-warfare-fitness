@@ -23,6 +23,7 @@ import { RipzLevelPicker, useRipzLevel } from '@/components/ripz/RipzLevelPicker
 import { RipzAudio } from '@/components/ripz/ripzAudio';
 import { RipzOdds } from '@/components/ripz/RipzOdds';
 import { RipzShare } from '@/components/ripz/RipzShare';
+import { RipzPlankTimer } from '@/components/ripz/RipzPlankTimer';
 
 const MUTE_KEY = 'wf.ripz.muted';
 // Visitors get this many packs; after that, ripping more needs an account.
@@ -126,6 +127,7 @@ export function RipzPublic() {
 
       {revealed && challenge && (
         <div ref={actions} className="space-y-2 wf-rise scroll-mb-10">
+          {challenge.move.unit === 'seconds' && <RipzPlankTimer seconds={challenge.count} audio={audio} />}
           <RipzShare challenge={challenge} />
           <Link href={joinHref} onClick={() => funnelHit('ripz_join')} className="block">
             <Button fullWidth>Save my reps. Start free <ChevronRight className="w-4 h-4" /></Button>

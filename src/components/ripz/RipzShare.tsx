@@ -30,7 +30,7 @@ export function RipzShare({ challenge, getRef, text: customText, label }: {
   async function share() {
     const ref = getRef ? await getRef().catch(() => null) : null;
     const url = ripzShareUrl(window.location.origin, challenge, ref);
-    const text = customText ?? `I pulled ${challenge.count} ${challenge.move.name.toLowerCase()} on Ripz. What do you get?`;
+    const text = customText ?? (challenge.move.unit === 'seconds' ? `I pulled a ${challenge.count}-second ${challenge.move.name.toLowerCase()} on Ripz. What do you get?` : `I pulled ${challenge.count} ${challenge.move.name.toLowerCase()} on Ripz. What do you get?`);
     funnelHit('ripz_share');
     try {
       if (navigator.share) { await navigator.share({ title: 'Ripz', text, url }); return; }

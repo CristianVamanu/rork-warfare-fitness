@@ -14,7 +14,8 @@ import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/Button';
-import { rollChallenge, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { rollChallenge, isTimed, type RipzChallenge, type RipzPackDef } from '@/lib/ripz';
+import { RipzPlankTimer } from '@/components/ripz/RipzPlankTimer';
 import { RipzOdds } from '@/components/ripz/RipzOdds';
 import { useLocalDate } from '@/hooks/useLocalDate';
 import { challengeView, CHALLENGE_DAYS, type ChallengeRecord } from '@/lib/ripzChallenge';
@@ -65,7 +66,7 @@ export default function RipzPage() {
 
   const today = useLocalDate();
   const chal = challengeView((profile as unknown as { ripzChallenge?: ChallengeRecord } | null)?.ripzChallenge ?? null, today);
-  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string } } | null)?.ripz;
+  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string; plankSeconds?: number } } | null)?.ripz;
 
   // The member's referral code, fetched the first time they share: the link
   // then pays out the free month if the friend subscribes.
@@ -78,8 +79,10 @@ export default function RipzPage() {
     return refCode.current;
   }
 
-  async function done() {
+  // `held` is the seconds actually held on a plank pack (may be under the pull).
+  async function done(held?: number) {
     if (!user || !challenge || saving || logged) return;
+    const timed = isTimed(challenge.move); const amount = timed ? (held ?? challenge.count) : challenge.count;
     setSaving(true);
     try {
       // Offline, a Firestore write waits for the network before it resolves,
@@ -87,15 +90,17 @@ export default function RipzPage() {
       // the button spinning on it: after a moment, count it as logged.
       const write = setDoc(doc(db, 'users', user.uid), {
         ripz: {
-          completed: increment(1), reps: increment(challenge.count), lastAt: serverTimestamp(),
-          // Biggest pull finished so far, for the record tile.
-          ...(challenge.count > (stats?.best ?? 0) ? { best: challenge.count, bestMove: challenge.move.name } : {}),
+          completed: increment(1), lastAt: serverTimestamp(),
+          // Plank is time, kept apart so it never inflates the rep total.
+          ...(timed ? { plankSeconds: increment(amount) } : { reps: increment(amount) }),
+          // Biggest rep pull finished so far, for the record tile.
+          ...(!timed && amount > (stats?.best ?? 0) ? { best: amount, bestMove: challenge.move.name } : {}),
         },
       }, { merge: true });
       await Promise.race([write, new Promise((r) => setTimeout(r, 2500))]);
       write.catch((err) => console.error('[ripz] log failed', err));
       setLogged(true);
-      toast.success(`${challenge.count} ${challenge.move.name.toLowerCase()} logged`);
+      toast.success(timed ? `${amount}-second plank logged` : `${amount} ${challenge.move.name.toLowerCase()} logged`);
       void refreshProfile();
     } catch (err) {
       console.error('[ripz] log failed', err);
@@ -129,8 +134,10 @@ export default function RipzPage() {
 
         {revealed && challenge && (
           <div ref={actions} className="space-y-2 wf-rise scroll-mb-28">
-            {!logged ? (
-              <Button fullWidth onClick={done} disabled={saving}><Check className="w-4 h-4" /> Done. Log it</Button>
+            {!logged && isTimed(challenge.move) ? (
+              <RipzPlankTimer seconds={challenge.count} audio={audio} busy={saving} onDone={(h) => done(h)} />
+            ) : !logged ? (
+              <Button fullWidth onClick={() => done()} disabled={saving}><Check className="w-4 h-4" /> Done. Log it</Button>
             ) : (
               <p className="text-center text-sm font-bold text-accent py-2">Logged. Rip another when you are ready.</p>
             )}
@@ -155,6 +162,9 @@ export default function RipzPage() {
                 </div>
               ))}
             </div>
+            {!!stats?.plankSeconds && (
+              <p className="text-center text-xs text-text-secondary">Plank time held: <b className="text-white tabular-nums">{Math.floor(stats.plankSeconds / 60)}m {stats.plankSeconds % 60}s</b></p>
+            )}
             {/* The 30-day challenge is opt-in and lives here, not on the home screen. */}
             <Link href="/ripz/challenge" className="flex items-center gap-3 rounded-2xl border border-accent/30 bg-accent/[0.07] p-3">
               <span className="flex-1">
