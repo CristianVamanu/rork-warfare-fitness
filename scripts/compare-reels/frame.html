@@ -1,0 +1,111 @@
+<!doctype html><html><head><meta charset="utf-8">
+<style>
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+:root{--bg:#09090B;--gold:#F5A623;--txt:#F4F4F5;--mut:#8B8B93;--line:#1F2024}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden;font-family:Inter,system-ui,sans-serif;color:var(--txt)}
+#stage{position:absolute;inset:0}
+.eyebrow{position:absolute;left:90px;top:190px;font:600 24px Inter;letter-spacing:.32em;color:var(--gold)}
+.h1{position:absolute;left:86px;top:226px;font:700 118px/1 Barlow;letter-spacing:.01em;text-transform:uppercase}
+.h1 i{font-style:normal;color:var(--gold);font-size:.62em;vertical-align:.32em;margin:0 14px}
+.sub{position:absolute;left:90px;top:362px;font:400 34px Inter;color:#B4B4BC}
+.tag{position:absolute;font:700 46px/1 Barlow;letter-spacing:.04em;text-transform:uppercase}
+.tag small{display:block;font:600 18px Inter;letter-spacing:.28em;color:var(--mut);margin-top:10px}
+.meters{position:absolute;width:300px}
+.m{margin-bottom:22px}
+.m p{font:500 22px Inter;color:#C9C9CF;display:flex;justify-content:space-between}
+.m p b{font-weight:600;color:var(--gold)}
+.seg{display:flex;gap:6px;margin-top:10px}.seg i{flex:1;height:7px;border-radius:2px;background:#24252A}.seg i.on{background:var(--gold);box-shadow:0 0 12px rgba(245,166,35,.45)}
+.vs{position:absolute;left:50%;top:968px;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;border:1.5px solid #2E2F35;background:#0E0E11;display:grid;place-items:center;font:700 30px Barlow;color:var(--gold);letter-spacing:.05em}
+.rule{position:absolute;left:90px;right:90px;top:968px;height:1px;background:linear-gradient(90deg,transparent,#2A2B30 20%,#2A2B30 80%,transparent)}
+.logo{position:absolute;left:50%;top:1452px;transform:translateX(-50%);height:34px;opacity:.85}
+</style></head><body>
+<svg id="stage" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+<div class="eyebrow">EXERCISE BREAKDOWN · 01</div>
+<div class="h1">Squat<i>vs</i>Leg Press</div>
+<div class="sub">Same goal. Very different jobs.</div>
+
+<div class="tag" style="left:620px;top:520px">Back Squat<small>FREE WEIGHT</small></div>
+<div class="meters" style="left:620px;top:640px" id="mA"></div>
+<div class="rule"></div><div class="vs">VS</div>
+<div class="tag" style="left:620px;top:1060px">Leg Press<small>MACHINE</small></div>
+<div class="meters" style="left:620px;top:1180px" id="mB"></div>
+<img class="logo" src="logo-wf.webp">
+<script src="figure.js"></script>
+<script>
+const NS='http://www.w3.org/2000/svg', svg=document.getElementById('stage');
+const el=(t,a,p=svg)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+const defs=el('defs',{});
+defs.innerHTML=`
+<linearGradient id="skin" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#4A4D55"/><stop offset=".55" stop-color="#2A2C32"/><stop offset="1" stop-color="#17181B"/></linearGradient>
+<linearGradient id="skinFar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#24252A"/><stop offset="1" stop-color="#121215"/></linearGradient>
+<radialGradient id="musc"><stop offset="0" stop-color="#FFD27A"/><stop offset=".55" stop-color="#F5A623"/><stop offset="1" stop-color="#C4700A"/></radialGradient>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="soft"><feGaussianBlur stdDeviation="22"/></filter>
+<radialGradient id="spot" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#F5A623" stop-opacity=".16"/><stop offset="1" stop-color="#F5A623" stop-opacity="0"/></radialGradient>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#141418" stroke-width="1"/></pattern>`;
+el('rect',{width:1080,height:1920,fill:'url(#grid)',opacity:.6});
+el('rect',{width:1080,height:1920,fill:'url(#vign)'});
+defs.innerHTML+=`<radialGradient id="vign" cx=".5" cy=".45" r=".75"><stop offset=".45" stop-color="#09090B" stop-opacity="0"/><stop offset="1" stop-color="#09090B" stop-opacity="1"/></radialGradient>`;
+
+let clipN=0;
+function panel({ex,s,ox,oy,scale,levels}){
+  const P=(p)=>({x:ox+p.x*scale,y:oy-p.y*scale});
+  const g=el('g',{});
+  el('ellipse',{cx:ox+(ex==='press'?0.55:0.05)*scale,cy:oy-0.9*scale,rx:1.3*scale,ry:1.0*scale,fill:'url(#spot)'},g);
+  // floor
+  el('line',{x1:ox-0.9*scale,x2:ox+(ex==='press'?1.9:1.1)*scale,y1:oy,y2:oy,stroke:'#2A2B30','stroke-width':1.5},g);
+  el('ellipse',{cx:ox+(ex==='press'?0.5:0.05)*scale,cy:oy+4,rx:(ex==='press'?1.1:0.45)*scale,ry:10,fill:'#000',opacity:.6,filter:'url(#soft)'},g);
+  const J=WF.POSES[ex](s), F=WF.figure(J,P);
+  const steel={stroke:'#5C5E66','stroke-width':3,fill:'none','stroke-linecap':'round'};
+  if(ex==='press'){
+    const W=J.W, n={x:-W.y,y:W.x};
+    const A=(p,k,q=n,m=0)=>WF.add(WF.add(p,WF.mul(W,k)),WF.mul(q,m));
+    const r0=A(J.hip,0.35,n,-0.3), r1=A(J.hip,1.3,n,-0.3);
+    el('path',{d:`M${P(r0).x} ${P(r0).y}L${P(r1).x} ${P(r1).y}`,...steel,stroke:'#34363C','stroke-width':10},g);
+    el('path',{d:`M${P(r1).x} ${P(r1).y}L${P(r1).x} ${oy}M${P(r0).x} ${P(r0).y}L${P(r0).x} ${oy}`,...steel,stroke:'#2A2B30','stroke-width':8},g);
+    // seat + back pad
+    const seatA=P({x:-0.36,y:0.5}),seatB=P({x:0.12,y:0.5});
+    el('path',{d:`M${seatA.x} ${seatA.y}L${seatB.x} ${seatB.y}`,stroke:'#26272C','stroke-width':0.1*scale,'stroke-linecap':'round'},g);
+    const b0=WF.add(J.hip,WF.add(WF.mul(J.t,0.05),WF.mul(J.f,-0.16))),b1=WF.add(J.hip,WF.add(WF.mul(J.t,0.85),WF.mul(J.f,-0.16)));
+    el('path',{d:`M${P(b0).x} ${P(b0).y}L${P(b1).x} ${P(b1).y}`,stroke:'#26272C','stroke-width':0.1*scale,'stroke-linecap':'round'},g);
+    el('path',{d:`M${P({x:-0.1,y:0.45}).x} ${P({x:-0.1,y:0.45}).y}L${P({x:-0.1,y:0}).x} ${oy}`,stroke:'#202126','stroke-width':0.12*scale},g);
+    // sled + plate
+    const c=A(J.ankle,0.05), pa=WF.add(c,WF.mul(n,-0.2)), pb=WF.add(c,WF.mul(n,0.36));
+    const pl=A(J.ankle,0.24,n,0.02);
+    el('circle',{cx:P(pl).x,cy:P(pl).y,r:0.2*scale,fill:'#111114',stroke:'#3A3C43','stroke-width':2.5},g);
+    el('circle',{cx:P(pl).x,cy:P(pl).y,r:0.13*scale,fill:'none',stroke:'#26272C','stroke-width':2},g);
+    el('path',{d:`M${P(pa).x} ${P(pa).y}L${P(pb).x} ${P(pb).y}`,stroke:'#4A4C53','stroke-width':0.05*scale,'stroke-linecap':'round'},g);
+  }
+  // far limbs (depth), offset back + up
+  const far=el('g',{transform:'translate(-7,-5)'},g);
+  for(const k of ['uarm','farm','hand','thigh','shank','calf','foot']) el('path',{d:F.near[k],fill:'url(#skinFar)'},far);
+  // rim light: gold copy behind, nudged up-left
+  const body=[...['thigh','shank','calf','foot'].map(k=>F.near[k]),...Object.values(F.trunk)];
+  const rim=el('g',{transform:'translate(-2.5,-2.5)',opacity:.75},g);
+  body.forEach(d=>el('path',{d,fill:'#8C8F99'},rim));
+  const main=el('g',{},g);
+  body.forEach(d=>el('path',{d,fill:'url(#skin)'},main));
+  // muscles, clipped to the body
+  const cid='c'+(clipN++); const cp=el('clipPath',{id:cid},defs);
+  body.forEach(d=>el('path',{d},cp));
+  const mg=el('g',{'clip-path':`url(#${cid})`},g);
+  for(const [k,lv] of Object.entries(levels)) if(lv>0) el('path',{d:F.muscles[k],fill:'url(#musc)',opacity:(0.15+0.7*lv).toFixed(2),filter:'url(#glow)'},mg);
+  // near arm over the trunk
+  const arm=el('g',{},g);
+  ['uarm','farm','hand'].forEach(k=>{el('path',{d:F.near[k],fill:'#8C8F99',transform:'translate(-2,-2)',opacity:.7},arm);el('path',{d:F.near[k],fill:'url(#skin)'},arm);});
+  if(ex==='squat'){
+    const b=P(J.bar);
+    el('circle',{cx:b.x,cy:b.y,r:0.225*scale,fill:'none',stroke:'#5A5C64','stroke-width':3,opacity:.9},g);
+    el('circle',{cx:b.x,cy:b.y,r:0.205*scale,fill:'none',stroke:'#3A3C42','stroke-width':1.5},g);
+    el('circle',{cx:b.x,cy:b.y,r:0.028*scale,fill:'#8E9098'},g);
+  }
+}
+const seg=(n)=>Array.from({length:5},(_,i)=>`<i class="${i<n?'on':''}"></i>`).join('');
+const meters=(rows)=>rows.map(([k,n,lab])=>`<div class="m"><p>${k}<b>${lab}</b></p><div class="seg">${seg(n)}</div></div>`).join('');
+document.getElementById('mA').innerHTML=meters([['Quads',4,'High'],['Glutes',4,'High'],['Core & lower back',4,'High'],['Balance needed',5,'Max']]);
+document.getElementById('mB').innerHTML=meters([['Quads',5,'Max'],['Glutes',3,'Med'],['Core & lower back',1,'Low'],['Balance needed',1,'Low']]);
+
+panel({ex:'squat',s:0.78,ox:330,oy:930,scale:310,levels:{quad:0.9,glute:0.85,core:0.6,back:0.7,ham:0.25}});
+panel({ex:'press',s:0.62,ox:235,oy:1470,scale:235,levels:{quad:1,glute:0.5,core:0.05,back:0,ham:0.1}});
+</script></body></html>
