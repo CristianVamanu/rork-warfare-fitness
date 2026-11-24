@@ -56,6 +56,26 @@
     deadlift(s) { return hinge(s, 12 * s, 4 + 54 * s, 0.1, 0.07); },
     // Romanian deadlift: soft knees barely move, hips travel back, bar slides down the thighs.
     rdl(s) { return hinge(s, -6 * s, 3 + 24 * s, 0.1 + 0.02 * s, null); },
+    // Pull-up: hands fixed on the bar, the body travels. Bottom = dead hang (s=0 here is the hang).
+    pullup(s) {
+      const hand = v(0.05, 2.22);
+      const sh = v(hand.x - 0.06 * s, hand.y - (0.6 - 0.42 * s));
+      const t = fromDeg(-14 * s), f = perpF(t);
+      const neck = add(sh, mul(t, 0.05)), hip = sub(neck, mul(t, L.to));
+      const legDir = norm(v(Math.sin(0.18 + 0.12 * s), -Math.cos(0.18 + 0.12 * s)));
+      const knee = add(hip, mul(legDir, L.th)), ankle = add(knee, mul(norm(v(legDir.x * 0.6, legDir.y)), L.sh));
+      return { ankle, knee, hip, neck, t, f, sh, hand, elbowBend: -1, armK: 1.1, toe: norm(v(0.35, -1)), headUp: 0.15 + 0.3 * s, upper: true };
+    },
+    // Lat pulldown: seated, thighs braced under the pad, bar pulled to the upper chest.
+    pulldown(s) {
+      const hip = v(0, 0.56);
+      const knee = v(0.43, 0.6), ankle = v(0.47, 0.085);
+      const t = fromDeg(-(12 + 10 * s)), f = perpF(t);
+      const neck = add(hip, mul(t, L.to)), sh = add(neck, mul(t, -0.05));
+      const top = add(sh, v(0.1, 0.6)), bottom = add(add(neck, mul(f, 0.17)), mul(t, -0.08));
+      const hand = add(top, mul(sub(bottom, top), s));
+      return { ankle, knee, hip, neck, t, f, sh, hand, elbowBend: -1, armK: 1.1, toe: v(1, 0), headUp: 0.35, upper: true, pulley: v(0.12, 2.15) };
+    },
     press(s) {
       const W = norm(v(Math.cos(32 * Math.PI / 180), Math.sin(32 * Math.PI / 180)));
       const hip = v(0, 0.62);
@@ -94,6 +114,8 @@
         uarm: capsule(sh, elbow, 0.056, 0.044),
         farm: capsule(elbow, J.hand, 0.044, 0.033),
         hand: capsule(J.hand, add(J.hand, mul(norm(sub(J.hand, elbow)), 0.06)), 0.035, 0.03),
+        bicep: capsule(add(add(sh, mul(sub(elbow, sh), 0.2)), mul(perpF(norm(sub(elbow, sh))), -0.025)), add(add(sh, mul(sub(elbow, sh), 0.85)), mul(perpF(norm(sub(elbow, sh))), -0.02)), 0.04, 0.032),
+        elbowPt: elbow,
       };
     };
     const near = limbs('near');
@@ -114,10 +136,13 @@
       ham: capsule(add(add(hip, mul(th, 0.1)), mul(thf, -0.05)), add(add(J.knee, mul(th, -0.1)), mul(thf, -0.035)), 0.06, 0.04),
       glute: capsule(add(add(hip, mul(tf, -0.06)), mul(t, -0.04)), add(add(hip, mul(tf, -0.055)), mul(t, 0.06)), 0.085, 0.075),
       core: capsule(add(add(hip, mul(t, 0.1)), mul(tf, 0.07)), add(add(hip, mul(t, 0.32)), mul(tf, 0.08)), 0.05, 0.055),
+      lat: capsule(add(add(J.sh, mul(t, -0.1)), mul(tf, -0.08)), add(add(hip, mul(t, 0.16)), mul(tf, -0.1)), 0.075, 0.05),
+      upback: capsule(add(add(J.sh, mul(t, -0.02)), mul(tf, -0.1)), add(add(J.sh, mul(t, -0.16)), mul(tf, -0.11)), 0.06, 0.06),
       back: capsule(add(add(hip, mul(t, 0.08)), mul(tf, -0.085)), add(add(hip, mul(t, 0.36)), mul(tf, -0.09)), 0.045, 0.05),
     };
+    const bicep = near.bicep, elbowPt = near.elbowPt; delete near.bicep; delete near.elbowPt;
     const S = (o) => Object.fromEntries(Object.entries(o).map(([k, p]) => [k, poly(p, P)]));
-    return { near: S(near), trunk: S(trunk), muscles: S(muscles), clip: { thigh: poly(near.thigh, P), trunk: [trunk.pelvis, trunk.abs, trunk.chest].map((p) => poly(p, P)).join(' ') } };
+    return { elbow: elbowPt, bicep: poly(bicep, P), near: S(near), trunk: S(trunk), muscles: S(muscles), clip: { thigh: poly(near.thigh, P), trunk: [trunk.pelvis, trunk.abs, trunk.chest].map((p) => poly(p, P)).join(' ') } };
   }
 
   G.WF = { POSES, figure, v, add, mul, norm, sub, L };

@@ -57,7 +57,7 @@ function fillMeter(id,p){document.querySelectorAll(`em[data-m="${id}"]`).forEach
 
 const C=COMPS[new URLSearchParams(location.search).get('c')||'squat_press'];
 mk('hEy','eyebrow','EXERCISE BREAKDOWN · '+C.n,90,200);
-mk('hH','h1',C.title,86,236);
+mk('hH','h1',C.title,86,236); if(C.titleSize) D.hH.style.fontSize=C.titleSize+'px';
 mk('hS','sub',C.hook,90,372);
 mk('hA','tag',C.A.label,90,1500); mk('hB','tag',C.B.label,620,1500);
 [['q',C.A],['p',C.B]].forEach(([k,X])=>{
@@ -115,9 +115,26 @@ function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
   const cid='c'+(clipN++); const cp=el('clipPath',{id:cid},defs); body.forEach(d=>el('path',{d},cp));
   const mg=el('g',{'clip-path':`url(#${cid})`},g);
   // activation follows load: brighter as the rep gets harder
-  for(const [k,lv] of Object.entries(levels)) if(lv>0) el('path',{d:F.muscles[k],fill:'url(#musc)',opacity:(act*(0.1+0.6*lv)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},mg);
+  for(const [k,lv] of Object.entries(levels)) if(lv>0&&F.muscles[k]) el('path',{d:F.muscles[k],fill:'url(#musc)',opacity:(act*(0.1+0.6*lv)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},mg);
   const arm=el('g',{},g);
   ['uarm','farm','hand'].forEach(k=>{el('path',{d:F.near[k],fill:'#8C8F99',transform:'translate(-2,-2)',opacity:.7},arm);el('path',{d:F.near[k],fill:'url(#skin)'},arm);});
+  if(levels.bicep){ const ac='a'+(clipN++); const acp=el('clipPath',{id:ac},defs); el('path',{d:F.near.uarm},acp);
+    el('path',{d:F.bicep,fill:'url(#musc)','clip-path':`url(#${ac})`,opacity:(act*(0.1+0.6*levels.bicep)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},arm); }
+  const line=(a,b,w,c)=>{const A=P(a),B=P(b);el('path',{d:`M${A.x} ${A.y}L${B.x} ${B.y}`,stroke:c,'stroke-width':w*scale,'stroke-linecap':'round',fill:'none'},g);};
+  if(ex==='pullup'){
+    line({x:-0.75,y:0},{x:-0.75,y:2.3},0.045,'#24252A'); line({x:-0.75,y:2.22},{x:0.3,y:2.22},0.035,'#2E3036');
+    const b=P(J.hand); el('circle',{cx:b.x,cy:b.y,r:0.03*scale,fill:'#8E9098'},g);
+  }
+  if(ex==='pulldown'){
+    line({x:-0.55,y:0},{x:-0.55,y:2.3},0.06,'#202126'); line({x:-0.55,y:2.24},{x:0.2,y:2.24},0.04,'#26272C');
+    line(J.pulley,J.hand,0.006,'#6A6C74');
+    const pu=P(J.pulley); el('circle',{cx:pu.x,cy:pu.y,r:0.05*scale,fill:'#17181B',stroke:'#4A4C53','stroke-width':2},g);
+    line({x:-0.3,y:0.47},{x:0.15,y:0.47},0.09,'#26272C'); line({x:-0.05,y:0.45},{x:-0.05,y:0},0.06,'#1F2024');
+    const pad=P({x:0.43,y:0.72}); el('circle',{cx:pad.x,cy:pad.y,r:0.06*scale,fill:'#26272C'},g);
+    line({x:0.43,y:0.72},{x:0.43,y:0.95},0.03,'#1F2024');
+    const b=P(J.hand); line(WF.add(J.hand,{x:0,y:0}),WF.add(J.hand,{x:0.0,y:0}),0.03,'#8E9098');
+    el('circle',{cx:b.x,cy:b.y,r:0.03*scale,fill:'#8E9098'},g);
+  }
   if(J.barR){
     const b=P(J.bar);
     el('circle',{cx:b.x,cy:b.y,r:J.barR*scale,fill:'#0D0D10','fill-opacity':.35,stroke:'#5A5C64','stroke-width':Math.max(2,0.01*scale),opacity:.95},g);

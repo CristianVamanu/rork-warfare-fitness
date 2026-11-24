@@ -5,6 +5,7 @@
   const thighMid = (J) => add(J.hip, mul(sub(J.knee, J.hip), 0.55));
   const glute = (J) => add(J.hip, mul(J.f, -0.1));
   const lowBack = (J) => add(J.hip, add(mul(J.t, 0.22), mul(J.f, -0.09)));
+  const latPt = (J) => WF.add(J.sh, WF.add(WF.mul(J.t, -0.2), WF.mul(J.f, -0.1)));
   const hamMid = (J) => add(add(J.hip, mul(sub(J.knee, J.hip), 0.5)), mul(J.f, -0.06));
 
   G.COMPS = {
@@ -28,6 +29,28 @@
         ['CHOOSE THE SQUAT FOR', 'Strength & athleticism', ['Whole-body strength that carries over', 'Glutes, core and back working together']],
         ['CHOOSE THE LEG PRESS FOR', 'Extra quad growth', ['More leg volume with less fatigue', 'Training legs when your back needs a break']]],
       both: 'Best plan? <em>Both.</em><br>Squat first. Press after.',
+    },
+
+    pullup_pulldown: {
+      n: '03', title: 'Pull-Up<i>vs</i>Pulldown', titleSize: 104, hook: 'Which one builds a bigger back?',
+      A: { ex: 'pullup', label: 'PULL-UP', title: 'Pull-Up', tag: 'BODYWEIGHT · YOU MOVE, THE BAR STAYS',
+        levels: { lat: .95, upback: .6, bicep: .6 }, hook: { ox: 300, scale: 270 }, fig: { ox: 420, oy: 1360, scale: 380 },
+        calls: [
+          { b: 'The load is you', s: 'No weight stack. Your bodyweight is the resistance.', x: 620, y: 520, at: 4.4, a: (J) => J.hip, to: { x: 600, y: 548 } },
+          { b: 'Lats pull you up', s: 'Lats and upper back do the main work, biceps assist.', x: 620, y: 820, at: 6.0, a: latPt, to: { x: 600, y: 848 } },
+          { b: 'Needs strength for rep one', s: "Can't do one yet? You need a band or machine to help.", x: 620, y: 1060, at: 7.6, a: (J) => J.hand, to: { x: 600, y: 1088 } }],
+        meters: [['Lats', 4, 'High'], ['Load options', 2, 'Bodyweight'], ['Strength to start', 5, 'High']] },
+      B: { ex: 'pulldown', label: 'LAT PULLDOWN', title: 'Lat Pulldown', tag: 'CABLE MACHINE · THE BAR MOVES, YOU STAY',
+        levels: { lat: .9, upback: .55, bicep: .55 }, hook: { ox: 740, scale: 270 }, fig: { ox: 420, oy: 1360, scale: 380 },
+        calls: [
+          { b: 'Pick any weight', s: 'Start light and add plates as you get stronger.', x: 620, y: 520, at: 11.8, a: (J) => J.hand, to: { x: 600, y: 548 } },
+          { b: 'Similar lat work', s: 'Studies measure similar lat activity to pull-ups.', x: 620, y: 820, at: 13.4, a: latPt, to: { x: 600, y: 848 } },
+          { b: 'Thighs locked in', s: 'The pad holds you down so you can focus on the pull.', x: 620, y: 1060, at: 15.0, a: (J) => J.knee, to: { x: 600, y: 1088 } }],
+        meters: [['Lats', 4, 'High'], ['Load options', 5, 'Any'], ['Strength to start', 1, 'Low']] },
+      verdict: [
+        ['CHOOSE THE PULL-UP FOR', 'Relative strength', ['Getting strong at moving your own body', 'Training anywhere with a bar']],
+        ['CHOOSE THE PULLDOWN FOR', 'Adjustable back work', ['Any level, any weight', 'Easy to add reps and sets for size']]],
+      both: "Can't do pull-ups yet? <em>Pulldown.</em><br>Already can? Do both.",
     },
 
     deadlift_rdl: {
