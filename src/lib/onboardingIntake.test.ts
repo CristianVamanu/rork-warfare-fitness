@@ -65,7 +65,7 @@ describe('offer words', () => {
     const o = offerWords({ enabled: true, trialDays: 30, paidTrialEnabled: true, trialPriceCents: 100 }, plan);
     expect(o.kind).toBe('paid-trial');
     expect(o.button).toBe('Start for $1.00');
-    expect(o.line).toBe('$1.00 today · then $49.00/mo · cancel anytime');
+    expect(o.line).toBe('$1.00 today · then $49.00/month · cancel anytime');
     expect(o.boxes.map((b) => b.title)).toEqual(['Today', 'Days 1–30', 'Day 31']);
     expect(o.checkout).toBe(true);
   });

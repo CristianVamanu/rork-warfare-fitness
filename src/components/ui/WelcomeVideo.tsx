@@ -20,7 +20,7 @@
  * after clearing site data.
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -104,25 +104,59 @@ export function WelcomeVideo() {
               allowFullScreen
             />
           ) : (
-            // controls, and NOT muted: mobile browsers block autoplay with
-            // sound, so a muted autoplay would silently play a video nobody
-            // can hear. Let them press play.
-            <video
-              src={url}
-              // The first frame is fetched while the modal animates in, so
-              // the player is not a black box for the first second.
-              preload="metadata"
-              controls
-              playsInline
-              webkit-playsinline="true"
-              crossOrigin="anonymous"
-              className="w-full h-full object-contain"
-            />
+            <WelcomeClip url={url} />
           )}
         </div>
         <p className="text-sm text-text-secondary text-center">A personal welcome to get you started.</p>
         <Button fullWidth onClick={dismiss}>Let&apos;s Go! →</Button>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Starts by itself, muted, so the modal opens on a moving picture instead of
+ * a black box (phones only allow autoplay without sound). One tap turns the
+ * sound on and restarts it from the top.
+ */
+function WelcomeClip({ url }: { url: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    v.muted = true;
+    v.play().catch(() => { /* blocked: the first frame and the controls still show */ });
+  }, []);
+  function unmute() {
+    const v = ref.current; if (!v) return;
+    v.muted = false; v.currentTime = 0; setMuted(false);
+    v.play().catch(() => {});
+  }
+  return (
+    <div className="relative w-full h-full">
+      <video
+        ref={ref}
+        // #t asks the browser to paint a frame even before play, which is
+        // what stops iPhone showing black.
+        src={`${url}#t=0.1`}
+        preload="auto"
+        autoPlay
+        muted
+        loop={muted}
+        controls={!muted}
+        playsInline
+        webkit-playsinline="true"
+        className="w-full h-full object-contain"
+      />
+      {muted && (
+        <button
+          type="button" onClick={unmute}
+          className="absolute inset-0 flex items-end justify-center pb-4 bg-gradient-to-t from-black/60 via-transparent to-transparent"
+          aria-label="Play with sound"
+        >
+          <span className="px-4 py-2 rounded-full bg-accent text-black text-sm font-black shadow-glow-sm">🔊 Tap for sound</span>
+        </button>
+      )}
+    </div>
   );
 }

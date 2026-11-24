@@ -53,6 +53,7 @@ export interface RevealOfferProps {
 export function RevealOffer(p: RevealOfferProps) {
   const [cfg, setCfg] = useState<MembershipConfig | null>(null);
   const [plan, setPlan] = useState<MembershipPlan | null>(null);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [copy, setCopy] = useState(() => revealCopy(null));
   const [loaded, setLoaded] = useState(false);
   const [password, setPassword] = useState('');
@@ -77,9 +78,15 @@ export function RevealOffer(p: RevealOfferProps) {
       // no plan, no price, no subscribe button. The button just creates the
       // account and starts training.
       const live = nativeBillingBlocked() ? [] : plans.filter((x) => x.active && planHasAnyPrice(x));
+      // Lead with the lowest price a person can start on, so the number on
+      // this screen is never the yearly total by surprise. The yearly plan
+      // is offered beside it as the saver, and a plan clicked on the landing
+      // page still wins.
+      const cheapestFirst = [...live].sort((a, b) => (getPlanBillingPeriods(a)[0]?.price ?? 0) - (getPlanBillingPeriods(b)[0]?.price ?? 0));
+      setPlans(cheapestFirst);
       setPlan(
         (p.preferredPlanId ? live.find((x) => x.id === p.preferredPlanId) : undefined)
-        ?? live.find((x) => x.mostPopular) ?? live[0] ?? null,
+        ?? cheapestFirst[0] ?? null,
       );
       setCopy(revealCopy(sys as { onboardingCopy?: { whyPrice?: unknown; offerStack?: unknown } } | null));
       const fp = freePlanConfig(sys as Parameters<typeof freePlanConfig>[0]);
@@ -277,23 +284,53 @@ export function RevealOffer(p: RevealOfferProps) {
           </div>
 
           {plan && period && (
-            <div className="relative overflow-hidden rounded-2xl border border-accent/40 bg-surface mt-4 p-5">
-              <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
-              <div className="relative flex items-end justify-between gap-3">
-                <div>
-                  <p className="wf-readout text-[10px] font-bold text-accent">{plan.name}</p>
-                  {offer.kind === 'paid-trial' ? (
-                    <p className="text-4xl font-black text-white mt-1">{money((cfg?.trialPriceCents ?? 100) / 100)}<span className="text-base text-text-tertiary font-bold ml-1">today</span></p>
-                  ) : (
-                    <p className="text-4xl font-black text-white mt-1">{money(period.price)}<span className="text-base text-text-tertiary font-bold ml-1">{period.months === 1 ? '/mo' : `/ ${period.months}mo`}</span></p>
-                  )}
-                </div>
-                <div className="text-right">
-                  {offer.kind === 'paid-trial' && <p className="text-sm text-text-secondary"><span className="line-through text-text-tertiary">{money(period.price)}</span> first {cfg?.trialDays ?? 30} days</p>}
-                  {discount > 0 && offer.kind !== 'paid-trial' && <p className="text-sm text-text-secondary">First payment {money(applyDiscount(period.price, discount))}, {discount}% off</p>}
-                  <p className="wf-readout text-[9px] font-bold text-text-tertiary mt-1">cancel in the app anytime</p>
-                </div>
+            <div className="mt-5">
+              <p className="wf-readout text-[10px] font-bold text-accent">
+                {offer.kind === 'free-trial' ? `After your ${cfg?.trialDays ?? 7} free days, if you stay` : 'Choose your plan'}
+              </p>
+              <div className="mt-3 space-y-2" role="radiogroup" aria-label="Plan">
+                {plans.map((pl) => {
+                  const per = getPlanBillingPeriods(pl)[0];
+                  if (!per) return null;
+                  const on = pl.id === plan.id;
+                  const monthlyBase = getPlanBillingPeriods(plans[0])[0];
+                  const perMonth = per.price / per.months;
+                  const saved = per.months > 1 && monthlyBase?.months === 1 ? monthlyBase.price * per.months - per.price : 0;
+                  return (
+                    <button
+                      key={pl.id} type="button" role="radio" aria-checked={on} onClick={() => setPlan(pl)}
+                      className={`w-full text-left rounded-2xl border p-4 flex items-center gap-3 transition ${on ? 'border-accent bg-accent/[0.08]' : 'border-white/10 bg-surface'}`}
+                    >
+                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${on ? 'border-accent' : 'border-white/25'}`}>
+                        {on && <span className="w-2.5 h-2.5 rounded-full bg-accent" />}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-black text-white">{pl.name}</span>
+                          <span className="px-2 py-0.5 rounded-full border border-white/15 text-[10px] font-bold text-text-secondary uppercase tracking-wide">
+                            {per.months === 1 ? 'Monthly' : per.months === 12 ? 'Yearly' : `Every ${per.months} months`}
+                          </span>
+                          {saved > 0 && <span className="px-2 py-0.5 rounded-full bg-accent text-black text-[10px] font-bold">Save {money(Math.round(saved))}</span>}
+                        </span>
+                        <span className="block text-[12px] text-text-secondary mt-1">
+                          {per.months === 1 ? 'Pay month by month. Cancel anytime.' : `One payment of ${money(per.price)} a year. Works out at ${money(perMonth)} a month.`}
+                        </span>
+                      </span>
+                      <span className="text-right flex-shrink-0">
+                        <span className="block text-lg font-black text-white tabular-nums leading-none">{money(per.price)}</span>
+                        <span className="block text-[11px] text-text-tertiary mt-1">{per.months === 1 ? 'per month' : per.months === 12 ? 'per year' : `per ${per.months} months`}</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+              <p className="text-[12px] text-text-secondary mt-3 text-center">
+                {offer.kind === 'free-trial'
+                  ? <><b className="text-white">Nothing to pay today and no card needed.</b> You only choose and pay if you decide to stay.</>
+                  : offer.kind === 'paid-trial'
+                    ? <>Today you pay {money((cfg?.trialPriceCents ?? 100) / 100)}. The plan price starts after {cfg?.trialDays ?? 30} days.</>
+                    : discount > 0 ? <>First payment {money(applyDiscount(period.price, discount))}, {discount}% off. Cancel in the app anytime.</> : <>Cancel in the app anytime.</>}
+              </p>
             </div>
           )}
 

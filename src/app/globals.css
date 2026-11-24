@@ -2276,3 +2276,6 @@ html.light .pf-art { opacity: .22; filter: sepia(.4) saturate(1.2); }
 html.light .pf-ic { background: #FFF4E0; border-color: rgba(212,130,10,0.35); }
 html.light .pf-card .text-white { color: #111 !important; }
 html.light body { background-color: #FFF9EE; }
+
+/* The email-confirm screen replaces the slim banner while it is up. */
+body[data-verify-screen] .verify-banner { display: none; }

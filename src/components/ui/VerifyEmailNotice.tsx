@@ -152,6 +152,15 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
     void sendCodeRef.current?.();
   }, [variant, user, statusChecked, codeSent]);
 
+  // The full screen and the slim banner are the same control. While the
+  // screen is up, the banner above it is hidden so the code box is not
+  // shown twice on one page.
+  useEffect(() => {
+    if (variant !== 'screen') return;
+    document.body.setAttribute('data-verify-screen', '1');
+    return () => document.body.removeAttribute('data-verify-screen');
+  }, [variant]);
+
   if (!user || user.emailVerified) return null;
 
   const post = async (path: string, body?: unknown) => {
@@ -308,79 +317,114 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
   );
 
   if (variant === 'screen') {
+    const boxes = (
+      <label className="relative block" aria-label="6-digit confirmation code">
+        <div className="grid grid-cols-6 gap-2" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, k) => (
+            <span
+              key={k}
+              className={`h-14 rounded-xl border flex items-center justify-center text-2xl font-black tabular-nums text-white bg-black/20 transition-colors ${
+                k === Math.min(code.length, 5) && code.length < 6 ? 'border-accent shadow-[0_0_0_1px_rgb(var(--accent-rgb)/0.35)]' : code[k] ? 'border-accent/40' : 'border-white/10'
+              }`}
+            >
+              {code[k] ?? ''}
+            </span>
+          ))}
+        </div>
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onKeyDown={(e) => { if (e.key === 'Enter') confirm(); }}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          autoFocus
+          className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+        />
+      </label>
+    );
     return (
-      <div className="px-4 pt-10 max-w-lg mx-auto">
-        <Card className="p-6 text-center space-y-4">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center">
-            <MailCheck className="w-6 h-6 text-accent" aria-hidden="true" />
-          </div>
-          <h2 className="text-xl font-black text-white">Confirm your email to start</h2>
-          <p className="text-sm text-text-secondary">
-            {codeSent
-              ? <>We sent a 6-digit code to <span className="text-white font-medium">{user.email}</span>. Enter it below — your trial starts the moment it&apos;s confirmed.</>
-              : <>We&apos;ll send a 6-digit code to <span className="text-white font-medium">{user.email}</span>. No links to chase — you confirm right here.</>}
-          </p>
-          {codeSent ? (
-            <div className="space-y-2">
-              {codeInput}
-              {status}
-              {resendButton}
-              {sendsLeft <= 0 && (
-                <p className="text-[11px] text-text-tertiary">
-                  You have requested the most codes we send in one go. If none arrived, check spam, or correct the address below.
-                </p>
-              )}
+      <div className="px-4 pt-8 max-w-lg mx-auto">
+        <div className="pf-card relative overflow-hidden rounded-3xl border border-accent/30 bg-surface p-6">
+          <div aria-hidden className="wf-ember pointer-events-none absolute inset-0" />
+          <div className="relative space-y-5">
+            <div className="flex items-center gap-3">
+              <span className="w-11 h-11 rounded-2xl bg-accent/15 border border-accent/30 flex items-center justify-center flex-shrink-0">
+                <MailCheck className="w-5 h-5 text-accent" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="wf-readout text-[10px] font-bold text-accent">One last step</p>
+                <h2 className="text-xl font-black text-white leading-tight">Confirm your email</h2>
+              </div>
             </div>
-          ) : (
-            <Button fullWidth onClick={sendCode} loading={busy === 'send'}>Send me a code</Button>
-          )}
-
-          {/* The way out of a typo. Without this, a wrong address at signup is
-              an account that can never be confirmed and therefore never used,
-              with nothing in the app able to fix it. */}
-          <div className="pt-2 border-t border-white/8">
-            {editingEmail ? (
-              <div className="space-y-2 text-left">
-                <label htmlFor="new-email" className="text-xs text-text-secondary">Correct email address</label>
-                <div className="flex gap-2">
-                  <input
-                    id="new-email"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') changeEmail(); }}
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder="you@example.com"
-                    className="flex-1 min-w-0 bg-surface border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
-                  />
-                  <Button onClick={changeEmail} loading={busy === 'email'} disabled={!newEmail.trim()}>Save</Button>
+            <p className="text-sm text-text-secondary">
+              {codeSent
+                ? <>Enter the 6-digit code we sent to <span className="text-white font-semibold break-all">{user.email}</span>. Your trial starts as soon as it is confirmed.</>
+                : <>We will send a 6-digit code to <span className="text-white font-semibold break-all">{user.email}</span>. No links to chase, you confirm right here.</>}
+            </p>
+            {codeSent ? (
+              <div className="space-y-3">
+                {boxes}
+                <Button fullWidth onClick={confirm} loading={busy === 'confirm'} disabled={code.length !== 6}>Confirm and start</Button>
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  {status}
+                  <button
+                    type="button" onClick={sendCode} disabled={!canResend}
+                    className="tabular-nums font-semibold text-accent hover:underline disabled:opacity-40 disabled:no-underline whitespace-nowrap ml-auto"
+                  >
+                    {busy === 'send' ? 'Sending…' : resendLabel}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => { setEditingEmail(false); setNewEmail(''); }}
-                  className="text-xs text-text-tertiary hover:text-white"
-                >
-                  Cancel
-                </button>
+                {sendsLeft <= 0 && (
+                  <p className="text-[11px] text-text-tertiary">
+                    You have requested the most codes we send in one go. If none arrived, check spam, or correct the address below.
+                  </p>
+                )}
+                <p className="text-[11px] text-text-tertiary">Nothing in your inbox? Check spam or promotions.</p>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => { setEditingEmail(true); setNewEmail(user.email ?? ''); }}
-                className="text-xs text-text-secondary hover:text-white"
-              >
-                Wrong address? <span className="text-accent font-semibold">Change it</span>
-              </button>
+              <Button fullWidth onClick={sendCode} loading={busy === 'send'}>Send me a code</Button>
             )}
+
+            {/* The way out of a typo. Without this, a wrong address at signup is
+                an account that can never be confirmed and therefore never used. */}
+            <div className="pt-4 border-t border-white/8">
+              {editingEmail ? (
+                <div className="space-y-2">
+                  <label htmlFor="new-email" className="text-xs text-text-secondary">Correct email address</label>
+                  <div className="flex gap-2">
+                    <input
+                      id="new-email"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') changeEmail(); }}
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      className="flex-1 min-w-0 bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-text-tertiary focus:outline-none focus:border-accent/50"
+                    />
+                    <Button onClick={changeEmail} loading={busy === 'email'} disabled={!newEmail.trim()}>Save</Button>
+                  </div>
+                  <button type="button" onClick={() => { setEditingEmail(false); setNewEmail(''); }} className="text-xs text-text-tertiary hover:text-white">Cancel</button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { setEditingEmail(true); setNewEmail(user.email ?? ''); }}
+                  className="text-xs text-text-secondary hover:text-white"
+                >
+                  Wrong address? <span className="text-accent font-semibold">Change it</span>
+                </button>
+              )}
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div role="status" className="mx-4 mt-3 max-w-lg md:max-w-2xl lg:max-w-4xl lg:mx-auto rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-secondary">
+    <div role="status" className="verify-banner mx-4 mt-3 max-w-lg md:max-w-2xl lg:max-w-4xl lg:mx-auto rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-xs text-text-secondary">
       <div className="flex items-center gap-3">
         <MailCheck className="w-4 h-4 text-accent shrink-0" aria-hidden="true" />
         <span className="flex-1">

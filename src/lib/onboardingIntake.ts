@@ -306,7 +306,7 @@ export function offerWords(cfg: {
   if (!cfg?.enabled || !plan) {
     return { kind: 'none', button: 'Start training', line: '', boxes: [], checkout: false };
   }
-  const per = plan.months === 1 ? '/mo' : ` / ${plan.months} months`;
+  const per = plan.months === 1 ? '/month' : plan.months === 12 ? '/year' : ` / ${plan.months} months`;
   const price = `$${plan.price.toFixed(2)}${per}`;
   const days = cfg.trialDays ?? 0;
   if (cfg.paidTrialEnabled && days > 0) {
