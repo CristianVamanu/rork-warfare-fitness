@@ -36,6 +36,9 @@ svg{position:absolute;inset:0}
 <div id="ui"></div>
 <script src="figure.js"></script><script src="comps.js"></script>
 <script>
+const OV=location.search.includes('overlay');
+if(OV) document.documentElement.style.setProperty('--bg','transparent');
+if(OV){ const st=document.createElement('style'); st.textContent='.call,.sub,.tag,.meter,.eyebrow{text-shadow:0 0 10px #000,0 0 3px #000,0 1px 2px #000}'; document.head.appendChild(st); }
 const NS='http://www.w3.org/2000/svg', svg=document.getElementById('s'), ui=document.getElementById('ui');
 const DUR=26, FPS=30;
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
@@ -65,6 +68,8 @@ mk('hA','tag',C.A.label,90,1500); mk('hB','tag',C.B.label,620,1500);
   X.calls.forEach((c,i)=>mk(k+(i+1),'call',`<b>${c.b}</b><span>${c.s}</span>`,c.x,c.y));
   X.meters.forEach((m,i)=>meter(k+'m'+(i+1),m[0],m[1],m[2],90+310*i,1390));
 });
+// Footage mode: callouts in one right-hand column, under the neon sign.
+if(OV) ['q','p'].forEach(k=>[1,2,3].forEach((n,i)=>{const e=D[k+n]; if(e){e.style.left='620px'; e.style.top=[820,1015,1210][i]+'px';}}));
 mk('vK','eyebrow','THE VERDICT',90,200);
 C.verdict.forEach((v,i)=>mk(i?'vB':'vA','card',`<div class="k">${v[0]}</div><h3>${v[1]}</h3><ul>${v[2].map(x=>`<li>${x}</li>`).join('')}</ul>`,90,i?780:300));
 mk('vC','both',C.both,0,1270);
@@ -83,8 +88,6 @@ const DEFS=`<defs>
 <linearGradient id="topfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".75"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient><linearGradient id="botfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".35" stop-color="#000" stop-opacity=".7"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#131317" stroke-width="1"/></pattern></defs>`;
 let clipN=0, defs;
 
-const OV=location.search.includes('overlay');
-if(OV) document.documentElement.style.setProperty('--bg','transparent');
 function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
   if(OV) return {J:WF.POSES.squat(0),P:(q)=>q};
   const P=(q)=>({x:ox+q.x*scale,y:oy-q.y*scale});
@@ -199,7 +202,7 @@ function render(t){
   if(q>0){ const z=1.06-0.06*ease(ramp(t,3.2,10.7)), dx=-40*(1-out(ramp(t,3.2,4)));
     const g=el('g',{transform:`translate(${dx} 0) translate(330 1000) scale(${z}) translate(-330 -1000)`},L);
     const {J,P}=drawFigure(g,{ex:C.A.ex,s:rep(t-3.2,2.6),...C.A.fig,levels:C.A.levels,op:q});
-    C.A.calls.forEach(c=>leader(g,P(c.a(J)),c.to,win(t,c.at-0.1,10.7,.5)*q));
+    if(!OV) C.A.calls.forEach(c=>leader(g,P(c.a(J)),c.to,win(t,c.at-0.1,10.7,.5)*q));
   }
 
   // ===== 3. LEG PRESS 10.6–18 =====
@@ -210,7 +213,7 @@ function render(t){
   if(p>0){ const z=1.06-0.06*ease(ramp(t,10.6,18.1)), dx=40*(1-out(ramp(t,10.6,11.4)));
     const g=el('g',{transform:`translate(${dx} 0) translate(540 1050) scale(${z}) translate(-540 -1050)`},L);
     const {J,P}=drawFigure(g,{ex:C.B.ex,s:rep(t-10.6,2.6),...C.B.fig,levels:C.B.levels,op:p});
-    C.B.calls.forEach(c=>leader(g,P(c.a(J)),c.to,win(t,c.at-0.1,18.1,.5)*p));
+    if(!OV) C.B.calls.forEach(c=>leader(g,P(c.a(J)),c.to,win(t,c.at-0.1,18.1,.5)*p));
   }
 
   // ===== 4. VERDICT 18–23.6 =====

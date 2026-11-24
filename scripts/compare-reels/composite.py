@@ -13,6 +13,9 @@ wd, cutA, cutB, out = sys.argv[1:5]
 FPS, W, H = 30, 1080, 1920
 layout = json.load(open(os.path.join(wd, 'layout.json')))
 gym = cv2.cvtColor(cv2.imread(os.path.join(wd, 'gym.png')), cv2.COLOR_BGR2RGB).astype(np.float32)
+# keep the ceiling lights from fighting the headline: darken the top of the room
+_g = np.clip((np.arange(gym.shape[0]) - 120) / 520, 0, 1) ** 1.3
+gym *= (0.12 + 0.88 * _g)[:, None, None]
 
 def load(d):
     files = sorted(glob.glob(os.path.join(d, 'f_*.png')))
@@ -26,7 +29,7 @@ _logo = cv2.imread(os.path.join(wd, 'logo-wf.webp'), cv2.IMREAD_UNCHANGED)
 _logo = cv2.cvtColor(_logo, cv2.COLOR_BGRA2RGBA).astype(np.float32)
 _lw = 560; _lh = int(_logo.shape[0] * _lw / _logo.shape[1])
 _logo = cv2.resize(_logo, (_lw, _lh), interpolation=cv2.INTER_AREA)
-NEON_X, NEON_Y = (W - _lw) // 2, 610
+NEON_X, NEON_Y = (W - _lw) // 2, 500
 _core = np.zeros((H, W, 3), np.float32); _a = np.zeros((H, W), np.float32)
 _core[NEON_Y:NEON_Y + _lh, NEON_X:NEON_X + _lw] = _logo[..., :3] * (_logo[..., 3:] / 255)
 _a[NEON_Y:NEON_Y + _lh, NEON_X:NEON_X + _lw] = _logo[..., 3] / 255
