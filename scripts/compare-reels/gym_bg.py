@@ -90,6 +90,6 @@ co = bpy.data.objects.new('cam', cam); sc.collection.objects.link(co); sc.camera
 co.location = (0, -4.6, 1.0); co.rotation_euler = (math.radians(91), 0, 0)
 
 r = sc.render; r.engine = 'CYCLES'; sc.cycles.samples = SAMPLES; sc.cycles.use_denoising = True; sc.cycles.device = 'CPU'
-r.resolution_x, r.resolution_y = 1080, 1920
+r.resolution_x, r.resolution_y = (2160, 3840) if '--4k' in a else (1080, 1920)
 sc.view_settings.view_transform = 'AgX'; sc.view_settings.look = 'AgX - Medium High Contrast'
 r.filepath = OUT; bpy.ops.render.render(write_still=True)
