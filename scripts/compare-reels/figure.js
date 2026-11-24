@@ -16,6 +16,29 @@
     return add(add(root, mul(u, a)), mul(p, h));
   }
 
+  // Shared hinge: shank lean, thigh angle, shoulder target x, bar x (null = touch the legs).
+  function hinge(s, shankDeg, thighDeg, shX, barX) {
+    const ankle = v(0, 0.085);
+    const knee = add(ankle, mul(fromDeg(shankDeg), L.sh));
+    const hip = add(knee, mul(fromDeg(-thighDeg), L.th));
+    let lean = Math.asin(Math.max(-0.95, Math.min(0.95, (shX - hip.x) / 0.45))) * 180 / Math.PI;
+    lean = Math.max(lean, 3);
+    const t = fromDeg(lean), neck = add(hip, mul(t, L.to)), f = perpF(t);
+    const sh = add(neck, mul(t, -0.05));
+    const R = 0.76;
+    let bx = barX;
+    if (bx === null) { // slide along the front of the thigh / shin
+      const y = sh.y - R * 0.98; const onShank = y < knee.y;
+      const a = onShank ? ankle : hip, b2 = onShank ? knee : knee;
+      const k = onShank ? (y - ankle.y) / (knee.y - ankle.y) : (hip.y - y) / (hip.y - knee.y);
+      const px = onShank ? ankle.x + (knee.x - ankle.x) * k : hip.x + (knee.x - hip.x) * k;
+      bx = px + 0.085;
+    }
+    const dx = Math.max(-R + 0.01, Math.min(R - 0.01, bx - sh.x));
+    const hand = v(sh.x + dx, sh.y - Math.sqrt(R * R - dx * dx));
+    return { ankle, knee, hip, neck, t, f, sh, hand, bar: hand, straightArms: true, barR: 0.225, toe: v(1, 0), headUp: 0.35 };
+  }
+
   const POSES = {
     squat(s) {
       const ankle = v(0, 0.085);
@@ -29,6 +52,10 @@
       const hand = add(bar, mul(f, 0.02));
       return { ankle, knee, hip, neck, t, f, bar, sh, hand, elbowBend: 1, armK: 0.62, toe: v(1, 0), headUp: 0.6 };
     },
+    // Conventional deadlift: bar over mid-foot, knees and hips extend together.
+    deadlift(s) { return hinge(s, 12 * s, 4 + 54 * s, 0.1, 0.07); },
+    // Romanian deadlift: soft knees barely move, hips travel back, bar slides down the thighs.
+    rdl(s) { return hinge(s, -6 * s, 3 + 24 * s, 0.1 + 0.02 * s, null); },
     press(s) {
       const W = norm(v(Math.cos(32 * Math.PI / 180), Math.sin(32 * Math.PI / 180)));
       const hip = v(0, 0.62);
@@ -57,7 +84,7 @@
     const limbs = (side) => {
       const o = side === 'far' ? 0.012 : 0; // far side sits a touch higher in frame
       const sh = add(J.sh, v(-o, o));
-      const k = J.armK || 1; const elbow = ik(sh, J.hand, L.ua * k, L.fa * k, J.elbowBend);
+      const k = J.armK || 1; const elbow = J.straightArms ? add(sh, mul(sub(J.hand, sh), 0.5)) : ik(sh, J.hand, L.ua * k, L.fa * k, J.elbowBend);
       const heel = add(J.ankle, mul(J.toe, -0.06)), toe = add(heel, mul(J.toe, 0.27));
       return {
         thigh: capsule(J.hip, J.knee, 0.105, 0.065),
