@@ -80,10 +80,13 @@ const DEFS=`<defs>
 <filter id="soft"><feGaussianBlur stdDeviation="22"/></filter>
 <radialGradient id="spot" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#F5A623" stop-opacity=".14"/><stop offset="1" stop-color="#F5A623" stop-opacity="0"/></radialGradient>
 <radialGradient id="vign" cx=".5" cy=".45" r=".78"><stop offset=".45" stop-color="#09090B" stop-opacity="0"/><stop offset="1" stop-color="#09090B" stop-opacity="1"/></radialGradient>
-<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#131317" stroke-width="1"/></pattern></defs>`;
+<linearGradient id="topfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".75"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient><linearGradient id="botfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset=".35" stop-color="#000" stop-opacity=".7"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></linearGradient><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#131317" stroke-width="1"/></pattern></defs>`;
 let clipN=0, defs;
 
+const OV=location.search.includes('overlay');
+if(OV) document.documentElement.style.setProperty('--bg','transparent');
 function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
+  if(OV) return {J:WF.POSES.squat(0),P:(q)=>q};
   const P=(q)=>({x:ox+q.x*scale,y:oy-q.y*scale});
   const g=el('g',{opacity:op},p);
   el('ellipse',{cx:ox+(ex==='press'?0.55:0.05)*scale,cy:oy-0.9*scale,rx:1.3*scale,ry:1.0*scale,fill:'url(#spot)'},g);
@@ -164,7 +167,7 @@ function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
   return {J,P};
 }
 // leader line + dot from a body point to a text anchor
-function leader(p,a,b,o){ if(o<=0)return; const g=el('g',{opacity:o},p);
+function leader(p,a,b,o){ if(o<=0||OV)return; const g=el('g',{opacity:o},p);
   const mx=b.x, len=Math.hypot(b.x-a.x,b.y-a.y);
   el('circle',{cx:a.x,cy:a.y,r:7,fill:'#F5A623'},g); el('circle',{cx:a.x,cy:a.y,r:15,fill:'none',stroke:'#F5A623','stroke-opacity':.35,'stroke-width':1.5},g);
   const path=el('path',{d:`M${a.x} ${a.y}L${b.x} ${b.y}`,stroke:'#F5A623','stroke-width':1.5,fill:'none','stroke-dasharray':len,'stroke-dashoffset':(len*(1-o)).toFixed(1)},g);
@@ -172,9 +175,11 @@ function leader(p,a,b,o){ if(o<=0)return; const g=el('g',{opacity:o},p);
 
 function render(t){
   svg.innerHTML=DEFS; defs=svg.querySelector('defs'); clipN=0;
-  el('rect',{width:1080,height:1920,fill:'url(#grid)',opacity:.6});
+  if(!OV) el('rect',{width:1080,height:1920,fill:'url(#grid)',opacity:.6});
   const L=el('g',{});
-  el('rect',{width:1080,height:1920,fill:'url(#vign)'});
+  if(!OV) el('rect',{width:1080,height:1920,fill:'url(#vign)'});
+  else { // legibility: soft dark band behind the headline area
+    el('rect',{width:1080,height:470,fill:'url(#topfade)'}); el('rect',{y:1340,width:1080,height:580,fill:'url(#botfade)'}); }
 
   // ===== 1. HOOK 0–3.2 =====
   const h=win(t,0,3.3,.3);
@@ -218,6 +223,15 @@ function render(t){
 
 window.poseSheet=function(names){ svg.innerHTML=DEFS; defs=svg.querySelector('defs'); clipN=0; ui.innerHTML='';
   names.forEach((n,i)=>[0,0.5,1].forEach((sv,j)=>{ const g=el('g',{}); drawFigure(g,{ex:n,s:sv,ox:170+j*350,oy:300+i*330,scale:120,levels:{quad:.5,glute:.5,ham:.5,chestU:.8,chestL:.8,delt:.6,tricep:.8,lat:.8,bicep:.5,core:.3}}); }));};
+// Where the composited footage goes at time t (overlay mode). Boxes are the
+// area a clip is fitted into, bottom-aligned; z is the slow push-in.
+window.figLayout=function(t){
+  const out=[]; const h=win(t,0,3.3,.3), q=win(t,3.2,10.7,.45), p=win(t,10.6,18.1,.45);
+  if(h>0){ out.push({k:'A',x:30,y:560,w:500,h:860,op:h,z:1+0.04*ease(ramp(t,0,3.3)),t0:0}); out.push({k:'B',x:550,y:560,w:500,h:860,op:h,z:1+0.04*ease(ramp(t,0,3.3)),t0:0}); }
+  if(q>0) out.push({k:'A',x:10,y:420,w:600,h:930,op:q,z:1.06-0.06*ease(ramp(t,3.2,10.7)),t0:3.2});
+  if(p>0) out.push({k:'B',x:10,y:420,w:600,h:930,op:p,z:1.06-0.06*ease(ramp(t,10.6,18.1)),t0:10.6});
+  return out;
+};
 window.render=render; window.DUR=DUR; window.FPS=FPS;
 if(!location.search.includes('static')){ let t0=performance.now(); (function loop(){render(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})(); }
 </script></body></html>
