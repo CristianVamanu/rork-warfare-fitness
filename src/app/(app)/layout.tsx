@@ -13,6 +13,7 @@ import { BrandSplash } from '@/components/ui/BrandSplash';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
 import { MembershipGuard } from '@/components/ui/MembershipGuard';
 import { WelcomeVideo } from '@/components/ui/WelcomeVideo';
+import { RateAppPrompt } from '@/components/ui/RateAppPrompt';
 import { VerifyEmailNotice } from '@/components/ui/VerifyEmailNotice';
 import { AppThemeScope } from '@/contexts/ThemeContext';
 import { AppBackground } from '@/components/ui/AppBackground';
@@ -167,6 +168,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           who already has access, and mounting it inside would tie it to
           whichever page happens to be rendered. */}
       <WelcomeVideo />
+      <RateAppPrompt />
       {/* The workout session has its own fixed action bar; the nav's raised
           centre button would sit on top of it. */}
       {/* Channel and challenge rooms are chat screens: their message bar takes the nav's place. */}

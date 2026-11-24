@@ -343,6 +343,10 @@ export default function DashboardPage() {
     precachePage('/dashboard');
     precachePage('/dashboard?source=native'); // the app shell's start URL
   }, [activeProgram?.programId, nextAbsIdx, isRestToday]);
+  // The main tabs too, so they open without signal and are warm when tapped.
+  useEffect(() => {
+    ['/training', '/progress', '/profile', '/nutrition', '/ripz/play'].forEach(precachePage);
+  }, []);
   // Home-screen widget (Android app): streak and what is next.
   useEffect(() => {
     if (!profile) return;
