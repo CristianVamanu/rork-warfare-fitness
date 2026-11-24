@@ -1,0 +1,199 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Warfare Fitness comparison reel. render(t) draws frame at time t (seconds).
+     Driven frame by frame by render.mjs; open directly to preview (auto plays). -->
+<style>
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+:root{--bg:#09090B;--gold:#F5A623;--txt:#F4F4F5;--mut:#8B8B93}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden;font-family:Inter,system-ui,sans-serif;color:var(--txt)}
+svg{position:absolute;inset:0}
+.x{position:absolute;will-change:transform,opacity}
+.eyebrow{font:600 24px Inter;letter-spacing:.32em;color:var(--gold)}
+.h1{font:700 118px/1 Barlow;text-transform:uppercase;white-space:nowrap}
+.h1 i{font-style:normal;color:var(--gold);font-size:.62em;vertical-align:.32em;margin:0 14px}
+.h2{font:700 92px/1 Barlow;text-transform:uppercase;white-space:nowrap}
+.sub{font:400 36px/1.35 Inter;color:#B9B9C1}
+.tag{font:600 19px Inter;letter-spacing:.3em;color:var(--mut)}
+.call{width:390px}
+.call b{display:block;font:700 40px/1.05 Barlow;text-transform:uppercase;letter-spacing:.01em}
+.call span{display:block;font:400 25px/1.4 Inter;color:#B4B4BC;margin-top:8px}
+.meter{width:280px}.meter p{font:500 22px Inter;color:#C9C9CF;display:flex;justify-content:space-between}.meter p b{color:var(--gold);font-weight:600}
+.seg{display:flex;gap:6px;margin-top:10px}.seg i{flex:1;height:7px;border-radius:2px;background:#24252A;position:relative;overflow:hidden}
+.seg i em{position:absolute;inset:0;background:var(--gold);box-shadow:0 0 12px rgba(245,166,35,.45);transform-origin:left}
+.card{width:900px;border:1px solid #232429;background:linear-gradient(180deg,#111114,#0C0C0F);border-radius:22px;padding:34px 38px}
+.card .k{font:600 20px Inter;letter-spacing:.3em;color:var(--gold)}
+.card h3{font:700 64px/1 Barlow;text-transform:uppercase;margin-top:12px}
+.card li{list-style:none;font:400 30px/1.35 Inter;color:#C9C9CF;margin-top:16px;padding-left:30px;position:relative}
+.card li:before{content:'';position:absolute;left:0;top:17px;width:12px;height:2px;background:var(--gold)}
+.both{font:700 76px/1.05 Barlow;text-transform:uppercase;text-align:center;width:1080px}
+.both em{font-style:normal;color:var(--gold)}
+.end{width:1080px;text-align:center}
+.end img{height:64px}
+.end p{font:400 30px Inter;color:#B4B4BC;margin-top:30px}
+.end small{display:block;font:600 22px Inter;letter-spacing:.28em;color:var(--gold);margin-top:22px}
+</style></head><body>
+<svg id="s" width="1080" height="1920" viewBox="0 0 1080 1920"></svg>
+<div id="ui"></div>
+<script src="figure.js"></script>
+<script>
+const NS='http://www.w3.org/2000/svg', svg=document.getElementById('s'), ui=document.getElementById('ui');
+const DUR=26, FPS=30;
+const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
+const ease=(x)=>{x=clamp(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;};
+const out=(x)=>1-Math.pow(1-clamp(x),3);
+const ramp=(t,a,b)=>clamp((t-a)/(b-a));
+// visible window: fade in at a over d, out at b over d
+const win=(t,a,b,d=.35)=>Math.min(out(ramp(t,a,a+d)),1-ease(ramp(t,b-d,b)));
+function rep(t,period){const x=((t%period)+period)%period/period;
+  if(x<.10)return 0; if(x<.52)return ease((x-.10)/.42); if(x<.60)return 1; if(x<.92)return 1-ease((x-.60)/.32); return 0;}
+
+// ---------- DOM text layer ----------
+const D={};
+function mk(id,cls,html,x,y){const e=document.createElement('div');e.className='x '+cls;e.innerHTML=html;e.style.left=x+'px';e.style.top=y+'px';ui.appendChild(e);D[id]=e;return e;}
+function show(id,o,dy=0,sc=1){const e=D[id];e.style.opacity=o.toFixed(3);e.style.transform=`translateY(${(dy*(1-o)).toFixed(1)}px) scale(${sc})`;}
+const seg=(n,id)=>`<div class="seg">${Array.from({length:5},(_,i)=>`<i>${i<n?`<em data-m="${id}" data-i="${i}"></em>`:''}</i>`).join('')}</div>`;
+const meter=(id,k,n,lab,x,y)=>mk(id,'meter',`<p>${k}<b>${lab}</b></p>${seg(n,id)}`,x,y);
+function fillMeter(id,p){document.querySelectorAll(`em[data-m="${id}"]`).forEach(e=>{const i=+e.dataset.i;e.style.transform=`scaleX(${clamp(p*5-i).toFixed(3)})`;});}
+
+// Hook
+mk('hEy','eyebrow','EXERCISE BREAKDOWN · 01',90,200);
+mk('hH','h1','Squat<i>vs</i>Leg Press',86,236);
+mk('hS','sub','Which one actually builds your legs?',90,372);
+mk('hA','tag','BACK SQUAT',90,1500); mk('hB','tag','LEG PRESS',620,1500);
+// Squat breakdown
+mk('qT','h2','Back Squat',86,210); mk('qG','tag','FREE WEIGHT · YOU CONTROL THE BAR',90,318);
+mk('q1','call','<b>You balance the bar</b><span>Nothing guides the path. Your core and back hold you upright.</span>',620,520);
+mk('q2','call','<b>Deep hip bend</b><span>Glutes stretch hard at the bottom.</span>',620,820);
+mk('q3','call','<b>Quads drive you up</b><span>Plus adductors and calves keep you stable.</span>',620,1060);
+meter('qm1','Quads',4,'High',90,1390); meter('qm2','Glutes',4,'High',400,1390); meter('qm3','Core & back',4,'High',710,1390);
+// Leg press breakdown
+mk('pT','h2','Leg Press',86,210); mk('pG','tag','MACHINE · THE SLED GUIDES THE PATH',90,318);
+mk('p1','call','<b>Back supported</b><span>Very little load on your spine or core.</span>',90,430);
+mk('p2','call','<b>Fixed path</b><span>No balancing, so you can push closer to failure.</span>',600,430);
+mk('p3','call','<b>Quads take the load</b><span>Easy to add volume without the fatigue of heavy squats.</span>',600,1170);
+meter('pm1','Quads',5,'Max',90,1390); meter('pm2','Glutes',3,'Med',400,1390); meter('pm3','Core & back',1,'Low',710,1390);
+// Verdict
+mk('vK','eyebrow','THE VERDICT',90,200);
+mk('vA','card','<div class="k">CHOOSE THE SQUAT FOR</div><h3>Strength & athleticism</h3><ul><li>Whole-body strength that carries over</li><li>Glutes, core and back working together</li></ul>',90,300);
+mk('vB','card','<div class="k">CHOOSE THE LEG PRESS FOR</div><h3>Extra quad growth</h3><ul><li>More leg volume with less fatigue</li><li>Training legs when your back needs a break</li></ul>',90,780);
+mk('vC','both','Best plan? <em>Both.</em><br>Squat first. Press after.',0,1270);
+// End
+mk('eE','end','<img src="logo-wf.webp"><p>Programs that put the right lifts in the right order.</p><small>WARFAREFITNESS.COM</small>',0,780);
+
+// ---------- SVG figure layer ----------
+const el=(t,a,p=svg)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p.appendChild(e);return e;};
+const DEFS=`<defs>
+<linearGradient id="skin" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#4D5058"/><stop offset=".55" stop-color="#2B2D33"/><stop offset="1" stop-color="#17181B"/></linearGradient>
+<linearGradient id="skinFar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#25262B"/><stop offset="1" stop-color="#121215"/></linearGradient>
+<radialGradient id="musc"><stop offset="0" stop-color="#FFD480"/><stop offset=".55" stop-color="#F5A623"/><stop offset="1" stop-color="#C4700A"/></radialGradient>
+<filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="soft"><feGaussianBlur stdDeviation="22"/></filter>
+<radialGradient id="spot" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#F5A623" stop-opacity=".14"/><stop offset="1" stop-color="#F5A623" stop-opacity="0"/></radialGradient>
+<radialGradient id="vign" cx=".5" cy=".45" r=".78"><stop offset=".45" stop-color="#09090B" stop-opacity="0"/><stop offset="1" stop-color="#09090B" stop-opacity="1"/></radialGradient>
+<pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#131317" stroke-width="1"/></pattern></defs>`;
+let clipN=0, defs;
+
+function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
+  const P=(q)=>({x:ox+q.x*scale,y:oy-q.y*scale});
+  const g=el('g',{opacity:op},p);
+  el('ellipse',{cx:ox+(ex==='press'?0.55:0.05)*scale,cy:oy-0.9*scale,rx:1.3*scale,ry:1.0*scale,fill:'url(#spot)'},g);
+  el('line',{x1:ox-0.9*scale,x2:ox+(ex==='press'?1.7:1.1)*scale,y1:oy,y2:oy,stroke:'#26272C','stroke-width':1.5},g);
+  el('ellipse',{cx:ox+(ex==='press'?0.5:0.05)*scale,cy:oy+4,rx:(ex==='press'?1.1:0.45)*scale,ry:10,fill:'#000',opacity:.6,filter:'url(#soft)'},g);
+  const J=WF.POSES[ex](s), F=WF.figure(J,P);
+  if(ex==='press'){
+    const W=J.W,n={x:-W.y,y:W.x};
+    const A=(q,k,m=0)=>WF.add(WF.add(q,WF.mul(W,k)),WF.mul(n,m));
+    const r0=P(A(J.hip,0.35,-0.3)), r1=P(A(J.hip,1.3,-0.3));
+    el('path',{d:`M${r0.x} ${r0.y}L${r1.x} ${r1.y}`,stroke:'#34363C','stroke-width':0.04*scale,'stroke-linecap':'round'},g);
+    el('path',{d:`M${r0.x} ${r0.y}L${r0.x} ${oy}`,stroke:'#26272C','stroke-width':0.033*scale},g);
+    const sa=P({x:-0.36,y:0.5}),sb=P({x:0.12,y:0.5});
+    el('path',{d:`M${sa.x} ${sa.y}L${sb.x} ${sb.y}`,stroke:'#26272C','stroke-width':0.1*scale,'stroke-linecap':'round'},g);
+    const b0=P(WF.add(J.hip,WF.add(WF.mul(J.t,0.05),WF.mul(J.f,-0.16)))),b1=P(WF.add(J.hip,WF.add(WF.mul(J.t,0.85),WF.mul(J.f,-0.16))));
+    el('path',{d:`M${b0.x} ${b0.y}L${b1.x} ${b1.y}`,stroke:'#26272C','stroke-width':0.1*scale,'stroke-linecap':'round'},g);
+    const c0=P({x:-0.1,y:0.45}); el('path',{d:`M${c0.x} ${c0.y}L${c0.x} ${oy}`,stroke:'#1F2024','stroke-width':0.12*scale},g);
+    const c=A(J.ankle,0.05), pa=P(WF.add(c,WF.mul(n,-0.2))), pb=P(WF.add(c,WF.mul(n,0.36)));
+    const pl=P(A(J.ankle,0.24,0.02));
+    el('circle',{cx:pl.x,cy:pl.y,r:0.2*scale,fill:'#111114',stroke:'#3A3C43','stroke-width':2.5},g);
+    el('circle',{cx:pl.x,cy:pl.y,r:0.13*scale,fill:'none',stroke:'#26272C','stroke-width':2},g);
+    el('path',{d:`M${pa.x} ${pa.y}L${pb.x} ${pb.y}`,stroke:'#4A4C53','stroke-width':0.05*scale,'stroke-linecap':'round'},g);
+  }
+  const far=el('g',{transform:`translate(${-0.022*scale},${-0.016*scale})`},g);
+  for(const k of ['uarm','farm','hand','thigh','shank','calf','foot']) el('path',{d:F.near[k],fill:'url(#skinFar)'},far);
+  const body=[...['thigh','shank','calf','foot'].map(k=>F.near[k]),...Object.values(F.trunk)];
+  const rim=el('g',{transform:'translate(-2.5,-2.5)',opacity:.75},g); body.forEach(d=>el('path',{d,fill:'#8C8F99'},rim));
+  const main=el('g',{},g); body.forEach(d=>el('path',{d,fill:'url(#skin)'},main));
+  const cid='c'+(clipN++); const cp=el('clipPath',{id:cid},defs); body.forEach(d=>el('path',{d},cp));
+  const mg=el('g',{'clip-path':`url(#${cid})`},g);
+  // activation follows load: brighter as the rep gets harder
+  for(const [k,lv] of Object.entries(levels)) if(lv>0) el('path',{d:F.muscles[k],fill:'url(#musc)',opacity:(act*(0.1+0.6*lv)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},mg);
+  const arm=el('g',{},g);
+  ['uarm','farm','hand'].forEach(k=>{el('path',{d:F.near[k],fill:'#8C8F99',transform:'translate(-2,-2)',opacity:.7},arm);el('path',{d:F.near[k],fill:'url(#skin)'},arm);});
+  if(ex==='squat'){
+    const b=P(J.bar);
+    el('circle',{cx:b.x,cy:b.y,r:0.225*scale,fill:'none',stroke:'#5A5C64','stroke-width':Math.max(2,0.01*scale),opacity:.9},g);
+    el('circle',{cx:b.x,cy:b.y,r:0.205*scale,fill:'none',stroke:'#3A3C42','stroke-width':1.5},g);
+    el('circle',{cx:b.x,cy:b.y,r:0.028*scale,fill:'#8E9098'},g);
+  }
+  return {J,P};
+}
+// leader line + dot from a body point to a text anchor
+function leader(p,a,b,o){ if(o<=0)return; const g=el('g',{opacity:o},p);
+  const mx=b.x, len=Math.hypot(b.x-a.x,b.y-a.y);
+  el('circle',{cx:a.x,cy:a.y,r:7,fill:'#F5A623'},g); el('circle',{cx:a.x,cy:a.y,r:15,fill:'none',stroke:'#F5A623','stroke-opacity':.35,'stroke-width':1.5},g);
+  const path=el('path',{d:`M${a.x} ${a.y}L${b.x} ${b.y}`,stroke:'#F5A623','stroke-width':1.5,fill:'none','stroke-dasharray':len,'stroke-dashoffset':(len*(1-o)).toFixed(1)},g);
+}
+
+function render(t){
+  svg.innerHTML=DEFS; defs=svg.querySelector('defs'); clipN=0;
+  el('rect',{width:1080,height:1920,fill:'url(#grid)',opacity:.6});
+  const L=el('g',{});
+  el('rect',{width:1080,height:1920,fill:'url(#vign)'});
+
+  // ===== 1. HOOK 0–3.2 =====
+  const h=win(t,0,3.3,.3);
+  show('hEy',win(t,0.05,3.3),20); show('hH',win(t,0.15,3.3),40); show('hS',win(t,0.6,3.3),24);
+  show('hA',win(t,0.9,3.3),10); show('hB',win(t,0.9,3.3),10);
+  if(h>0){ const z=1+0.04*ease(ramp(t,0,3.3));
+    const g=el('g',{transform:`translate(540 1100) scale(${z}) translate(-540 -1100)`},L);
+    drawFigure(g,{ex:'squat',s:rep(t+0.6,2.0),ox:230,oy:1440,scale:360,levels:{quad:.9,glute:.85,core:.6,back:.7,ham:.25},op:h});
+    drawFigure(g,{ex:'press',s:rep(t,2.0),ox:600,oy:1440,scale:250,levels:{quad:1,glute:.5,core:.05,ham:.1},op:h});
+  }
+
+  // ===== 2. SQUAT 3.2–10.6 =====
+  const q=win(t,3.2,10.7,.45);
+  show('qT',win(t,3.35,10.7),30); show('qG',win(t,3.5,10.7),16);
+  [['q1',4.4],['q2',6.0],['q3',7.6]].forEach(([id,a])=>show(id,win(t,a,10.7,.4),18));
+  [['qm1',8.8],['qm2',9.0],['qm3',9.2]].forEach(([id,a])=>{show(id,win(t,a-.1,10.7,.3),12);fillMeter(id,out(ramp(t,a,a+.6)));});
+  if(q>0){ const z=1.06-0.06*ease(ramp(t,3.2,10.7)), dx=-40*(1-out(ramp(t,3.2,4)));
+    const g=el('g',{transform:`translate(${dx} 0) translate(330 1000) scale(${z}) translate(-330 -1000)`},L);
+    const {J,P}=drawFigure(g,{ex:'squat',s:rep(t-3.2,2.6),ox:300,oy:1330,scale:470,levels:{quad:.9,glute:.85,core:.6,back:.7,ham:.25},op:q});
+    const tf=J.f,tt=J.t;
+    leader(g,P(WF.add(J.hip,WF.add(WF.mul(tt,0.26),WF.mul(tf,0.1)))),{x:600,y:548},win(t,4.3,10.7,.5)*q);
+    leader(g,P(WF.add(J.hip,WF.add(WF.mul(tf,-0.1),WF.mul(tt,0.0)))),{x:600,y:848},win(t,5.9,10.7,.5)*q);
+    leader(g,P(WF.add(J.hip,WF.mul(WF.sub(J.knee,J.hip),0.55))),{x:600,y:1088},win(t,7.5,10.7,.5)*q);
+  }
+
+  // ===== 3. LEG PRESS 10.6–18 =====
+  const p=win(t,10.6,18.1,.45);
+  show('pT',win(t,10.75,18.1),30); show('pG',win(t,10.9,18.1),16);
+  [['p1',11.8],['p2',13.4],['p3',15.0]].forEach(([id,a])=>show(id,win(t,a,18.1,.4),18));
+  [['pm1',16.2],['pm2',16.4],['pm3',16.6]].forEach(([id,a])=>{show(id,win(t,a-.1,18.1,.3),12);fillMeter(id,out(ramp(t,a,a+.6)));});
+  if(p>0){ const z=1.06-0.06*ease(ramp(t,10.6,18.1)), dx=40*(1-out(ramp(t,10.6,11.4)));
+    const g=el('g',{transform:`translate(${dx} 0) translate(540 1050) scale(${z}) translate(-540 -1050)`},L);
+    const {J,P}=drawFigure(g,{ex:'press',s:rep(t-10.6,2.6),ox:340,oy:1300,scale:370,levels:{quad:1,glute:.5,core:.05,ham:.1},op:p});
+    leader(g,P(WF.add(J.hip,WF.add(WF.mul(J.t,0.45),WF.mul(J.f,-0.14)))),{x:250,y:600},win(t,11.7,18.1,.5)*p);
+    leader(g,P(WF.add(J.ankle,WF.mul(J.W,0.06))),{x:760,y:600},win(t,13.3,18.1,.5)*p);
+    leader(g,P(WF.add(J.hip,WF.mul(WF.sub(J.knee,J.hip),0.55))),{x:600,y:1198},win(t,14.9,18.1,.5)*p);
+  }
+
+  // ===== 4. VERDICT 18–23.6 =====
+  show('vK',win(t,18.1,23.7),16); show('vA',win(t,18.3,23.7,.45),40); show('vB',win(t,19.4,23.7,.45),40);
+  show('vC',win(t,21.0,23.7,.45),24);
+
+  // ===== 5. END 23.6–26 =====
+  const e=win(t,23.7,26.2,.6); show('eE',e,20);
+}
+
+window.render=render; window.DUR=DUR; window.FPS=FPS;
+if(!location.search.includes('static')){ let t0=performance.now(); (function loop(){render(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})(); }
+</script></body></html>

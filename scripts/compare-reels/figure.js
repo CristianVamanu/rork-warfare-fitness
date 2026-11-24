@@ -20,14 +20,14 @@
     squat(s) {
       const ankle = v(0, 0.085);
       const knee = add(ankle, mul(fromDeg(38 * s), L.sh));
-      const hip = add(knee, mul(fromDeg(-(4 + 98 * s)), L.th));
-      let lean = Math.asin(Math.max(-0.9, Math.min(0.9, (0.06 - hip.x) / (L.to + 0.02)))) * 180 / Math.PI;
+      const hip = add(knee, mul(fromDeg(-(4 + 90 * s)), L.th));
+      let lean = Math.asin(Math.max(-0.9, Math.min(0.9, (0.1 - hip.x) / (L.to + 0.02)))) * 180 / Math.PI;
       lean = Math.max(lean, 4);
       const t = fromDeg(lean), neck = add(hip, mul(t, L.to)), f = perpF(t);
       const bar = add(neck, mul(f, -0.07));
       const sh = add(neck, mul(t, -0.05));
-      const hand = add(bar, v(0.03, 0.0));
-      return { ankle, knee, hip, neck, t, f, bar, sh, hand, elbowBend: -1, toe: v(1, 0), headUp: 0.6 };
+      const hand = add(bar, mul(f, 0.02));
+      return { ankle, knee, hip, neck, t, f, bar, sh, hand, elbowBend: 1, armK: 0.62, toe: v(1, 0), headUp: 0.6 };
     },
     press(s) {
       const W = norm(v(Math.cos(32 * Math.PI / 180), Math.sin(32 * Math.PI / 180)));
@@ -57,7 +57,7 @@
     const limbs = (side) => {
       const o = side === 'far' ? 0.012 : 0; // far side sits a touch higher in frame
       const sh = add(J.sh, v(-o, o));
-      const elbow = ik(sh, J.hand, L.ua, L.fa, J.elbowBend);
+      const k = J.armK || 1; const elbow = ik(sh, J.hand, L.ua * k, L.fa * k, J.elbowBend);
       const heel = add(J.ankle, mul(J.toe, -0.06)), toe = add(heel, mul(J.toe, 0.27));
       return {
         thigh: capsule(J.hip, J.knee, 0.105, 0.065),
