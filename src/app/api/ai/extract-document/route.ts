@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
       // instead of a real path — "path must be of type string, received
       // type number" was that module ID, not a bug in pdf-parse itself.)
       const { PDFParse } = await import('pdf-parse');
-      const parser = new PDFParse({ data: buf });
+      const parser = new PDFParse({ data: new Uint8Array(buf) });
       const parsed = await parser.getText();
       text = parsed.text;
     } else if (file.type.startsWith('text/') || file.name.toLowerCase().endsWith('.txt')) {
