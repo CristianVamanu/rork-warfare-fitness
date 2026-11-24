@@ -2162,7 +2162,7 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 
 /* ── Pricing on phones: a selector and one full-width plan ── */
 .wx-psel { position: relative; display: grid; grid-template-columns: repeat(var(--n), 1fr); margin: 0 auto 26px; padding: 4px; max-width: 360px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); background: #121110; }
-.wx-psel button { position: relative; z-index: 1; height: 44px; border-radius: 999px; font-family: 'Barlow Condensed', 'DM Sans', sans-serif; font-weight: 800; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: #bdbdbd; transition: color .25s; }
+.wx-psel button { position: relative; z-index: 1; height: 52px; line-height: 1.05; border-radius: 999px; font-family: 'Barlow Condensed', 'DM Sans', sans-serif; font-weight: 800; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: #bdbdbd; transition: color .25s; }
 .wx-psel button[aria-selected="true"] { color: #1a0d00; }
 .wx-psel-thumb { position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n)); border-radius: 999px; background: linear-gradient(180deg, #FFC45A, #F5A623); box-shadow: 0 0 18px -4px rgba(245,166,35,.8); transform: translateX(calc(var(--i) * 100%)); transition: transform .3s cubic-bezier(.3,.7,.2,1); }
 @media (max-width: 639px) {

@@ -219,6 +219,13 @@ function FaqItem({ q, a, open, onToggle }: { q: string; a: string; open: boolean
   );
 }
 
+/** "Monthly", "Yearly", or "Every 3 months" for a billing period length. */
+function billingLabel(months?: number): string {
+  if (!months || months === 1) return 'Monthly';
+  if (months === 12) return 'Yearly';
+  return `Every ${months} months`;
+}
+
 export default function LandingPage({
   initialAppName,
   initialLogoUrl,
@@ -602,6 +609,8 @@ export default function LandingPage({
           </div>
           {(() => {
             const all = [...membershipPlans.map((p) => p.name), ...coachingPlans.map((p) => p.name)];
+            // Billing cadence under each tab, so a yearly price is never read as monthly.
+            const cadence = [...membershipPlans.map((p) => billingLabel(getPlanBillingPeriods(p)[0]?.months)), ...coachingPlans.map(() => 'Monthly')];
             if (all.length < 2) return null;
             const featured = Math.max(0, anyPlanMarkedPopular ? membershipPlans.findIndex((p) => p.mostPopular) : 0);
             const on = pickedPlan ?? featured;
@@ -609,7 +618,10 @@ export default function LandingPage({
               <div role="tablist" aria-label="Choose a plan" className="wx-psel sm:hidden" style={{ ['--n' as string]: all.length, ['--i' as string]: on }}>
                 <span className="wx-psel-thumb" aria-hidden />
                 {all.map((name, i) => (
-                  <button key={name + i} type="button" role="tab" aria-selected={on === i} onClick={() => setPickedPlan(i)}>{name}</button>
+                  <button key={name + i} type="button" role="tab" aria-selected={on === i} onClick={() => setPickedPlan(i)}>
+                    <span className="block leading-tight">{name}</span>
+                    {cadence[i] && <span className="block text-[10px] font-semibold tracking-[0.14em] opacity-75 leading-tight mt-0.5">{cadence[i].toUpperCase()}</span>}
+                  </button>
                 ))}
               </div>
             );
@@ -659,6 +671,9 @@ export default function LandingPage({
                 <div className="flex items-center gap-2 mb-1">
                   <Crown className="w-3.5 h-3.5 text-accent" />
                   <p className="text-xs font-bold text-accent uppercase tracking-wide">{plan.name}</p>
+                  <span className="ml-auto px-2 py-0.5 rounded-full border border-white/15 text-[10px] font-bold text-white uppercase tracking-wide">
+                    Billed {billingLabel(displayPeriod.months).toLowerCase()}
+                  </span>
                 </div>
                 <div className="flex items-baseline gap-1.5 mt-2">
                   {discountPercent > 0 ? (
@@ -669,7 +684,7 @@ export default function LandingPage({
                   ) : (
                     <span className="text-3xl font-black text-white">${displayPeriod.price.toFixed(2)}</span>
                   )}
-                  <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : ` / ${displayPeriod.months}mo`}</span>
+                  <span className="text-xs text-text-secondary">{displayPeriod.months === 1 ? '/month' : displayPeriod.months === 12 ? '/year' : ` / ${displayPeriod.months} months`}</span>
                 </div>
                 {displayPeriod.months > 1 && (() => {
                   const perMonth = displayPeriod.price / displayPeriod.months;
