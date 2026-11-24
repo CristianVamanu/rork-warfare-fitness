@@ -53,7 +53,7 @@ const withPWA = require('next-pwa')({
     // same app shell for everyone (auth is client-side), so a cached copy
     // holds no one's data.
     {
-      urlPattern: ({ request, url }) => request.mode === 'navigate' && /^\/(dashboard|training)(\/|$)/.test(url.pathname),
+      urlPattern: ({ request, url }) => request.mode === 'navigate' && /^\/(dashboard|training|ripz)(\/|$)/.test(url.pathname),
       handler: 'NetworkFirst',
       options: {
         cacheName: 'app-pages',
