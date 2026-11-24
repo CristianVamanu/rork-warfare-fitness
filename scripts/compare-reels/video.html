@@ -90,6 +90,17 @@ function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
   el('line',{x1:ox-0.9*scale,x2:ox+(ex==='press'?1.7:1.1)*scale,y1:oy,y2:oy,stroke:'#26272C','stroke-width':1.5},g);
   el('ellipse',{cx:ox+(ex==='press'?0.5:0.05)*scale,cy:oy+4,rx:(ex==='press'?1.1:0.45)*scale,ry:10,fill:'#000',opacity:.6,filter:'url(#soft)'},g);
   const J=WF.POSES[ex](s), F=WF.figure(J,P);
+  { const line=(a,b,w,c)=>{const A=P(a),B=P(b);el('path',{d:`M${A.x} ${A.y}L${B.x} ${B.y}`,stroke:c,'stroke-width':w*scale,'stroke-linecap':'round',fill:'none'},g);};
+  if(J.bench){ // lying press bench + rack
+    if(J.bench==='flat'){ line({x:-0.85,y:0.44},{x:0.42,y:0.44},0.08,'#26272C'); line({x:-0.2,y:0.4},{x:-0.2,y:0},0.05,'#1F2024'); line({x:0.3,y:0.4},{x:0.3,y:0},0.05,'#1F2024'); }
+    else { const tt=J.t, back=WF.mul(J.f,-0.14); line(WF.add(J.hip,WF.add(back,WF.mul(tt,-0.05))),WF.add(J.hip,WF.add(back,WF.mul(tt,0.85))),0.08,'#26272C'); line({x:-0.05,y:0.48},{x:0.35,y:0.48},0.08,'#26272C'); line({x:0.1,y:0.44},{x:0.1,y:0},0.05,'#1F2024'); }
+    const rx=J.sh.x-0.12; line({x:rx,y:0},{x:rx,y:J.sh.y+0.62},0.035,'#202126');
+  }
+  if(J.dipBars){ line({x:J.dipBars.x,y:J.dipBars.y},{x:J.dipBars.x,y:0},0.035,'#24252A'); const b=P(J.dipBars); el('circle',{cx:b.x,cy:b.y,r:0.03*scale,fill:'#8E9098'},g); }
+  if(J.thrustBench){ line({x:-0.75,y:0.42},{x:-0.12,y:0.42},0.09,'#26272C'); line({x:-0.65,y:0.38},{x:-0.65,y:0},0.05,'#1F2024'); line({x:-0.2,y:0.38},{x:-0.2,y:0},0.05,'#1F2024'); }
+  if(J.splitBench){ line({x:-0.95,y:0.45},{x:-0.45,y:0.45},0.08,'#26272C'); line({x:-0.7,y:0.41},{x:-0.7,y:0},0.05,'#1F2024'); }
+  if(J.rowBench){ line({x:-0.7,y:0.45},{x:0.55,y:0.45},0.08,'#26272C'); line({x:-0.5,y:0.41},{x:-0.5,y:0},0.05,'#1F2024'); line({x:0.35,y:0.41},{x:0.35,y:0},0.05,'#1F2024'); }
+  }
   if(ex==='press'){
     const W=J.W,n={x:-W.y,y:W.x};
     const A=(q,k,m=0)=>WF.add(WF.add(q,WF.mul(W,k)),WF.mul(n,m));
@@ -108,7 +119,7 @@ function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
     el('path',{d:`M${pa.x} ${pa.y}L${pb.x} ${pb.y}`,stroke:'#4A4C53','stroke-width':0.05*scale,'stroke-linecap':'round'},g);
   }
   const far=el('g',{transform:`translate(${-0.022*scale},${-0.016*scale})`},g);
-  for(const k of ['uarm','farm','hand','thigh','shank','calf','foot']) el('path',{d:F.near[k],fill:'url(#skinFar)'},far);
+  for(const k of ['uarm','farm','hand','thigh','shank','calf','foot']) el('path',{d:F.far[k],fill:'url(#skinFar)'},far);
   const body=[...['thigh','shank','calf','foot'].map(k=>F.near[k]),...Object.values(F.trunk)];
   const rim=el('g',{transform:'translate(-2.5,-2.5)',opacity:.75},g); body.forEach(d=>el('path',{d,fill:'#8C8F99'},rim));
   const main=el('g',{},g); body.forEach(d=>el('path',{d,fill:'url(#skin)'},main));
@@ -118,6 +129,9 @@ function drawFigure(p,{ex,s,ox,oy,scale,levels,op=1,act=1}){
   for(const [k,lv] of Object.entries(levels)) if(lv>0&&F.muscles[k]) el('path',{d:F.muscles[k],fill:'url(#musc)',opacity:(act*(0.1+0.6*lv)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},mg);
   const arm=el('g',{},g);
   ['uarm','farm','hand'].forEach(k=>{el('path',{d:F.near[k],fill:'#8C8F99',transform:'translate(-2,-2)',opacity:.7},arm);el('path',{d:F.near[k],fill:'url(#skin)'},arm);});
+  if(levels.tricep){ const ac='a'+(clipN++); const acp=el('clipPath',{id:ac},defs); el('path',{d:F.near.uarm},acp);
+    el('path',{d:F.tricep,fill:'url(#musc)','clip-path':`url(#${ac})`,opacity:(act*(0.1+0.6*levels.tricep)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},arm); }
+  if(J.dumbbell){ const hb=P(J.hand); el('circle',{cx:hb.x,cy:hb.y,r:0.085*scale,fill:'#111114',stroke:'#5A5C64','stroke-width':Math.max(2,0.008*scale)},g); el('circle',{cx:hb.x,cy:hb.y,r:0.02*scale,fill:'#8E9098'},g); }
   if(levels.bicep){ const ac='a'+(clipN++); const acp=el('clipPath',{id:ac},defs); el('path',{d:F.near.uarm},acp);
     el('path',{d:F.bicep,fill:'url(#musc)','clip-path':`url(#${ac})`,opacity:(act*(0.1+0.6*levels.bicep)*(0.5+0.5*s)).toFixed(3),filter:'url(#glow)'},arm); }
   const line=(a,b,w,c)=>{const A=P(a),B=P(b);el('path',{d:`M${A.x} ${A.y}L${B.x} ${B.y}`,stroke:c,'stroke-width':w*scale,'stroke-linecap':'round',fill:'none'},g);};
@@ -202,6 +216,8 @@ function render(t){
   const e=win(t,23.7,26.2,.6); show('eE',e,20);
 }
 
+window.poseSheet=function(names){ svg.innerHTML=DEFS; defs=svg.querySelector('defs'); clipN=0; ui.innerHTML='';
+  names.forEach((n,i)=>[0,0.5,1].forEach((sv,j)=>{ const g=el('g',{}); drawFigure(g,{ex:n,s:sv,ox:170+j*350,oy:300+i*330,scale:120,levels:{quad:.5,glute:.5,ham:.5,chestU:.8,chestL:.8,delt:.6,tricep:.8,lat:.8,bicep:.5,core:.3}}); }));};
 window.render=render; window.DUR=DUR; window.FPS=FPS;
 if(!location.search.includes('static')){ let t0=performance.now(); (function loop(){render(((performance.now()-t0)/1000)%DUR);requestAnimationFrame(loop);})(); }
 </script></body></html>
