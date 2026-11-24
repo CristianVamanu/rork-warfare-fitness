@@ -17,6 +17,8 @@ import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { setSubscriptionStatus } from '@/lib/stripeMembership';
 import { membershipChangeFor, type RevenueCatEvent } from '@/lib/revenuecat';
 import { recordStoreEvent, type RcMoneyEvent } from '@/lib/finance/sync';
+import { grantReferralReward, applyPendingPlayDays, revenueCatDeferrer, playMonthlyCents } from '@/lib/referralReward';
+import { getStripe } from '@/lib/stripe';
 
 function authorized(header: string | null): boolean {
   const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
@@ -72,5 +74,23 @@ export async function POST(req: NextRequest) {
   // a restricted plan would buy on Play and still see that plan's locks.
   const stalePlan = change.kind === 'grant' && !planId ? { planId: FieldValue.delete(), planName: FieldValue.delete() } : {};
   await db.collection('users').doc(change.uid).set({ membership: { source: 'google_play', storeProductId: change.productId, ...stalePlan } }, { merge: true });
+  // Referral reward: a paid Play payment counts toward the referred member's
+  // second payment, exactly like a card payment. Never fails the webhook.
+  if (change.kind === 'grant') {
+    const e = event as RcMoneyEvent;
+    const paid = (event.type === 'INITIAL_PURCHASE' || event.type === 'RENEWAL') && e.period_type !== 'TRIAL' && (e.price_in_purchased_currency ?? 0) > 0;
+    const play = revenueCatDeferrer(process.env.REVENUECAT_SECRET_KEY);
+    try {
+      if (paid && event.id) {
+        const stripe = await getStripe();
+        await grantReferralReward(db, stripe, {
+          memberUid: change.uid, paymentId: `play-${e.transaction_id || event.id}`,
+          cents: playMonthlyCents(e.price_in_purchased_currency, e.purchased_at_ms, e.expiration_at_ms),
+          currency: (e.currency || 'usd').toLowerCase(), play,
+        });
+      }
+      await applyPendingPlayDays(db, play, change.uid, change.productId);
+    } catch (err) { console.error('[RevenueCat webhook] referral reward failed', err); }
+  }
   return NextResponse.json({ ok: true });
 }

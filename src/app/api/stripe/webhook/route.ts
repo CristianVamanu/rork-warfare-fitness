@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getStripe, getStripeWebhookSecret } from '@/lib/stripe';
-import { grantReferralReward, applyPendingReferralCredit } from '@/lib/referralReward';
+import { grantReferralReward, applyPendingReferralCredit, revokeReferralReward, revenueCatDeferrer, monthlyCents } from '@/lib/referralReward';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminApp, getAdminDb as getDb } from '@/lib/firebase-admin';
 import { resolveAccountEmail } from '@/lib/accountEmail';
@@ -247,8 +247,9 @@ export async function POST(req: NextRequest) {
           if (rdb) {
             try {
               await grantReferralReward(rdb, stripe, {
-                memberUid: userId, memberCustomerId: customerId, amountPaidCents: invoice.amount_paid ?? 0,
-                currency: invoice.currency ?? 'usd', price: sub.items?.data?.[0]?.price,
+                memberUid: userId, memberCustomerId: customerId, paymentId: `stripe-${invoice.id}`,
+                cents: (invoice.amount_paid ?? 0) > 0 ? monthlyCents(sub.items?.data?.[0]?.price) : null,
+                currency: invoice.currency ?? 'usd', play: revenueCatDeferrer(process.env.REVENUECAT_SECRET_KEY),
               });
               await applyPendingReferralCredit(rdb, stripe, userId, customerId);
             } catch (err) {
@@ -431,6 +432,13 @@ export async function POST(req: NextRequest) {
         }
 
         const isFullSeverity = event.type === 'charge.dispute.created' || chargeObj.refunded === true;
+        // A refunded or disputed payment takes back any referral card credit
+        // that member's payments earned (lib/referralReward).
+        if (isFullSeverity) {
+          const rdb = getAdminDb();
+          const cus = typeof chargeObj.customer === 'string' ? chargeObj.customer : chargeObj.customer?.id;
+          if (rdb && cus) await revokeReferralReward(rdb, stripe, cus).catch((err) => console.error('[Stripe webhook] referral reversal failed:', err));
+        }
         if (!isFullSeverity) {
           console.log(`[Stripe webhook] Partial refund on charge ${chargeObj.id} — access not revoked`);
           break;

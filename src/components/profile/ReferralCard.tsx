@@ -71,7 +71,7 @@ export function ReferralCard() {
           Give a month, get a month
         </p>
         <p className="text-xs text-text-secondary">
-          When a friend joins through your link and pays for their first month, you both get a month free.
+          When a friend joins through your link and stays for a second paid month, you both get a month free. Works on the website and Google Play.
           {data.joinCount > 0 && ` ${data.joinCount} joined so far`}{data.rewardCount > 0 && `, ${data.rewardCount} free ${data.rewardCount === 1 ? 'month' : 'months'} earned`}{data.joinCount > 0 && '.'}
         </p>
       </div>
