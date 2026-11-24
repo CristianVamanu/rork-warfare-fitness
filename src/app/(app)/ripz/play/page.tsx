@@ -25,6 +25,8 @@ import { RipzWheel } from '@/components/ripz/RipzWheel';
 import { RipzLevelPicker, useRipzLevel } from '@/components/ripz/RipzLevelPicker';
 import { RipzPack } from '@/components/ripz/RipzPack';
 import { RipzAudio } from '@/components/ripz/ripzAudio';
+import { RipzGhostRace } from '@/components/ripz/RipzGhostRace';
+import { canRaceGhost, type RipzGhost, type GhostVerdict } from '@/lib/ripzGhost';
 
 const MUTE_KEY = 'wf.ripz.muted';
 
@@ -66,7 +68,10 @@ export default function RipzPage() {
 
   const today = useLocalDate();
   const chal = challengeView((profile as unknown as { ripzChallenge?: ChallengeRecord } | null)?.ripzChallenge ?? null, today);
-  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string; plankSeconds?: number } } | null)?.ripz;
+  const stats = (profile as unknown as { ripz?: { completed?: number; reps?: number; best?: number; bestMove?: string; plankSeconds?: number; ghosts?: Record<string, RipzGhost> } } | null)?.ripz;
+  // Ghosts saved this session, so a second race uses the new one before the profile refreshes.
+  const [localGhosts, setLocalGhosts] = useState<Record<string, RipzGhost>>({});
+  const ghostFor = (moveId: string) => localGhosts[moveId] ?? stats?.ghosts?.[moveId];
 
   // The member's referral code, fetched the first time they share: the link
   // then pays out the free month if the friend subscribes.
@@ -80,7 +85,7 @@ export default function RipzPage() {
   }
 
   // `held` is the seconds actually held on a plank pack (may be under the pull).
-  async function done(held?: number) {
+  async function done(held?: number, race?: GhostVerdict) {
     if (!user || !challenge || saving || logged) return;
     const timed = isTimed(challenge.move); const amount = timed ? (held ?? challenge.count) : challenge.count;
     setSaving(true);
@@ -95,10 +100,13 @@ export default function RipzPage() {
           ...(timed ? { plankSeconds: increment(amount) } : { reps: increment(amount) }),
           // Biggest rep pull finished so far, for the record tile.
           ...(!timed && amount > (stats?.best ?? 0) ? { best: amount, bestMove: challenge.move.name } : {}),
+          // A new best pace becomes the ghost for this move.
+          ...(race?.next ? { ghosts: { [challenge.move.id]: race.next } } : {}),
         },
       }, { merge: true });
       await Promise.race([write, new Promise((r) => setTimeout(r, 2500))]);
       write.catch((err) => console.error('[ripz] log failed', err));
+      if (race?.next) setLocalGhosts((g) => ({ ...g, [challenge.move.id]: race.next! }));
       setLogged(true);
       toast.success(timed ? `${amount}-second plank logged` : `${amount} ${challenge.move.name.toLowerCase()} logged`);
       void refreshProfile();
@@ -136,6 +144,9 @@ export default function RipzPage() {
           <div ref={actions} className="space-y-2 wf-rise scroll-mb-28">
             {!logged && isTimed(challenge.move) ? (
               <RipzPlankTimer seconds={challenge.count} audio={audio} busy={saving} onDone={(h) => done(h)} />
+            ) : !logged && canRaceGhost(challenge.move.id) ? (
+              <RipzGhostRace moveId={challenge.move.id} moveName={challenge.move.name} count={challenge.count} ghost={ghostFor(challenge.move.id)}
+                color={pack?.colors[1]} audio={audio} busy={saving} onFinish={(_, v) => done(undefined, v)} onLogOnly={() => done()} />
             ) : !logged ? (
               <Button fullWidth onClick={() => done()} disabled={saving}><Check className="w-4 h-4" /> Done. Log it</Button>
             ) : (
