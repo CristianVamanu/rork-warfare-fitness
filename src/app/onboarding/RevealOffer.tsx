@@ -122,8 +122,62 @@ export function RevealOffer(p: RevealOfferProps) {
     requestAnimationFrame(() => document.getElementById('reveal-cta')?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }
 
+  // The price sits directly above the Start button: nobody is asked to
+  // start before they have seen what it costs afterwards.
+  const planPicker = loaded && offer.kind !== 'none' && plan && period ? (
+    <div>
+              <p className="wf-readout text-[10px] font-bold text-accent">
+                {offer.kind === 'free-trial' ? `After your ${cfg?.trialDays ?? 7} free days, if you stay` : 'Choose your plan'}
+              </p>
+              <div className="mt-3 space-y-2" role="radiogroup" aria-label="Plan">
+                {plans.map((pl) => {
+                  const per = getPlanBillingPeriods(pl)[0];
+                  if (!per) return null;
+                  const on = pl.id === plan.id;
+                  const monthlyBase = getPlanBillingPeriods(plans[0])[0];
+                  const perMonth = per.price / per.months;
+                  const saved = per.months > 1 && monthlyBase?.months === 1 ? monthlyBase.price * per.months - per.price : 0;
+                  return (
+                    <button
+                      key={pl.id} type="button" role="radio" aria-checked={on} onClick={() => setPlan(pl)}
+                      className={`w-full text-left rounded-2xl border p-4 flex items-center gap-3 transition ${on ? 'border-accent bg-accent/[0.08]' : 'border-white/10 bg-surface'}`}
+                    >
+                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${on ? 'border-accent' : 'border-white/25'}`}>
+                        {on && <span className="w-2.5 h-2.5 rounded-full bg-accent" />}
+                      </span>
+                      <span className="flex-1 min-w-0">
+                        <span className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-black text-white">{pl.name}</span>
+                          <span className="px-2 py-0.5 rounded-full border border-white/15 text-[10px] font-bold text-text-secondary uppercase tracking-wide">
+                            {per.months === 1 ? 'Monthly' : per.months === 12 ? 'Yearly' : `Every ${per.months} months`}
+                          </span>
+                          {saved > 0 && <span className="px-2 py-0.5 rounded-full bg-accent text-black text-[10px] font-bold">Save {money(Math.round(saved))}</span>}
+                        </span>
+                        <span className="block text-[12px] text-text-secondary mt-1">
+                          {per.months === 1 ? 'Pay month by month. Cancel anytime.' : `One payment of ${money(per.price)} a year. Works out at ${money(perMonth)} a month.`}
+                        </span>
+                      </span>
+                      <span className="text-right flex-shrink-0">
+                        <span className="block text-lg font-black text-white tabular-nums leading-none">{money(per.price)}</span>
+                        <span className="block text-[11px] text-text-tertiary mt-1">{per.months === 1 ? 'per month' : per.months === 12 ? 'per year' : `per ${per.months} months`}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[12px] text-text-secondary mt-3 text-center">
+                {offer.kind === 'free-trial'
+                  ? <><b className="text-white">Nothing to pay today and no card needed.</b> You only choose and pay if you decide to stay.</>
+                  : offer.kind === 'paid-trial'
+                    ? <>Today you pay {money((cfg?.trialPriceCents ?? 100) / 100)}. The plan price starts after {cfg?.trialDays ?? 30} days.</>
+                    : discount > 0 ? <>First payment {money(applyDiscount(period.price, discount))}, {discount}% off. Cancel in the app anytime.</> : <>Cancel in the app anytime.</>}
+              </p>
+            </div>
+  ) : null;
+
   const cta = (
-    <div className="space-y-2" id="reveal-cta">
+    <div className="space-y-3" id="reveal-cta">
+      {planPicker}
       {!showPassword ? (
         <button
           type="button"
@@ -282,57 +336,6 @@ export function RevealOffer(p: RevealOfferProps) {
               </div>
             ))}
           </div>
-
-          {plan && period && (
-            <div className="mt-5">
-              <p className="wf-readout text-[10px] font-bold text-accent">
-                {offer.kind === 'free-trial' ? `After your ${cfg?.trialDays ?? 7} free days, if you stay` : 'Choose your plan'}
-              </p>
-              <div className="mt-3 space-y-2" role="radiogroup" aria-label="Plan">
-                {plans.map((pl) => {
-                  const per = getPlanBillingPeriods(pl)[0];
-                  if (!per) return null;
-                  const on = pl.id === plan.id;
-                  const monthlyBase = getPlanBillingPeriods(plans[0])[0];
-                  const perMonth = per.price / per.months;
-                  const saved = per.months > 1 && monthlyBase?.months === 1 ? monthlyBase.price * per.months - per.price : 0;
-                  return (
-                    <button
-                      key={pl.id} type="button" role="radio" aria-checked={on} onClick={() => setPlan(pl)}
-                      className={`w-full text-left rounded-2xl border p-4 flex items-center gap-3 transition ${on ? 'border-accent bg-accent/[0.08]' : 'border-white/10 bg-surface'}`}
-                    >
-                      <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${on ? 'border-accent' : 'border-white/25'}`}>
-                        {on && <span className="w-2.5 h-2.5 rounded-full bg-accent" />}
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-black text-white">{pl.name}</span>
-                          <span className="px-2 py-0.5 rounded-full border border-white/15 text-[10px] font-bold text-text-secondary uppercase tracking-wide">
-                            {per.months === 1 ? 'Monthly' : per.months === 12 ? 'Yearly' : `Every ${per.months} months`}
-                          </span>
-                          {saved > 0 && <span className="px-2 py-0.5 rounded-full bg-accent text-black text-[10px] font-bold">Save {money(Math.round(saved))}</span>}
-                        </span>
-                        <span className="block text-[12px] text-text-secondary mt-1">
-                          {per.months === 1 ? 'Pay month by month. Cancel anytime.' : `One payment of ${money(per.price)} a year. Works out at ${money(perMonth)} a month.`}
-                        </span>
-                      </span>
-                      <span className="text-right flex-shrink-0">
-                        <span className="block text-lg font-black text-white tabular-nums leading-none">{money(per.price)}</span>
-                        <span className="block text-[11px] text-text-tertiary mt-1">{per.months === 1 ? 'per month' : per.months === 12 ? 'per year' : `per ${per.months} months`}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-[12px] text-text-secondary mt-3 text-center">
-                {offer.kind === 'free-trial'
-                  ? <><b className="text-white">Nothing to pay today and no card needed.</b> You only choose and pay if you decide to stay.</>
-                  : offer.kind === 'paid-trial'
-                    ? <>Today you pay {money((cfg?.trialPriceCents ?? 100) / 100)}. The plan price starts after {cfg?.trialDays ?? 30} days.</>
-                    : discount > 0 ? <>First payment {money(applyDiscount(period.price, discount))}, {discount}% off. Cancel in the app anytime.</> : <>Cancel in the app anytime.</>}
-              </p>
-            </div>
-          )}
 
           <div className="mt-6">
             <p className="wf-readout text-[10px] font-bold text-accent">What you get</p>

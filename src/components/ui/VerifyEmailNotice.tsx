@@ -277,7 +277,7 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
       // Padded for the same reason as mmss: 10s → 9s is a character narrower,
       // and this label sits next to a countdown that is already moving.
       ? `Send a new code in ${String(Math.ceil(cooldownLeft / 1000)).padStart(2, '0')}s`
-      : 'Send a new code';
+      : codeSent ? 'Send a new code' : 'Send me a code';
 
   // Says which of the three states the person is actually in. Without this the
   // only feedback on a code that quietly aged out was the confirm attempt
@@ -359,14 +359,17 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
             <p className="text-sm text-text-secondary">
               {codeSent
                 ? <>Enter the 6-digit code we sent to <span className="text-white font-semibold break-all">{user.email}</span>. Your trial starts as soon as it is confirmed.</>
-                : <>We will send a 6-digit code to <span className="text-white font-semibold break-all">{user.email}</span>. No links to chase, you confirm right here.</>}
+                : <>Sending a 6-digit code to <span className="text-white font-semibold break-all">{user.email}</span>. Enter it here when it arrives.</>}
             </p>
-            {codeSent ? (
+            {/* The boxes are there from the first frame. The code is requested
+                in the background, so nobody watches an empty card while the
+                server answers. */}
+            {(
               <div className="space-y-3">
                 {boxes}
                 <Button fullWidth onClick={confirm} loading={busy === 'confirm'} disabled={code.length !== 6}>Confirm and start</Button>
                 <div className="flex items-center justify-between gap-3 text-xs">
-                  {status}
+                  {status ?? <p className="text-xs text-text-tertiary">{busy === 'send' || !statusChecked ? 'Sending your code…' : 'No code sent yet.'}</p>}
                   <button
                     type="button" onClick={sendCode} disabled={!canResend}
                     className="tabular-nums font-semibold text-accent hover:underline disabled:opacity-40 disabled:no-underline whitespace-nowrap ml-auto"
@@ -381,8 +384,6 @@ export function VerifyEmailNotice({ variant = 'banner' }: { variant?: 'banner' |
                 )}
                 <p className="text-[11px] text-text-tertiary">Nothing in your inbox? Check spam or promotions.</p>
               </div>
-            ) : (
-              <Button fullWidth onClick={sendCode} loading={busy === 'send'}>Send me a code</Button>
             )}
 
             {/* The way out of a typo. Without this, a wrong address at signup is
