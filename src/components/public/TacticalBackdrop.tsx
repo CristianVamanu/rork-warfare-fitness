@@ -137,11 +137,13 @@ function setupBackdrop(canvasEl: HTMLCanvasElement | null): (() => void) | undef
     // Cap at 1.5x DPR: a retina phone rendering a full-screen shader at 3x is
     // a lot of fragments for a decorative background, and it shows up as heat.
     const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
-      gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.uniform2f(uRes, canvas.width, canvas.height);
+      try {
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        canvas.width = Math.floor(canvas.clientWidth * dpr);
+        canvas.height = Math.floor(canvas.clientHeight * dpr);
+        gl.viewport(0, 0, canvas.width, canvas.height);
+        gl.uniform2f(uRes, canvas.width, canvas.height);
+      } catch { /* a lost context just stops the effect */ }
     };
     resize();
     window.addEventListener('resize', resize);
