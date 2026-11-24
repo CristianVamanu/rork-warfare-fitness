@@ -1539,6 +1539,13 @@ export function rankPrograms(
   // decide, in which case it means "this much kit or more".
   const unsuitable = (p: Program) => {
     if (!equipment) return false;
+    // Bodyweight only is a physical fact, not a preference: someone with no
+    // kit cannot do a kettlebell or dumbbell program, whatever box was ticked
+    // on it. Live, every "no equipment" fat-loss answer was getting Burn Ops
+    // (dumbbells and a barbell) because its list said minimal/home/full.
+    // So for them the program itself must be bodyweight, by the admin's
+    // explicit tier or by its exercises.
+    if (equipment === 'minimal' && estimateEquipmentTier(p) !== 'minimal') return true;
     if (p.suitableEquipment?.length) return !p.suitableEquipment.includes(equipment as 'minimal' | 'home' | 'full-gym');
     return (EQUIPMENT_RANK[estimateEquipmentTier(p)] ?? 0) > (userEquipmentRank ?? 0);
   };
