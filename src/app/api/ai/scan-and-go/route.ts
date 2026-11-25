@@ -7,6 +7,7 @@ import { getAdminApp } from '@/lib/firebase-admin';
 import { checkAndIncrementUsage, refundUsage, getRemainingUsage, resolveLocalDate, ORG_BUDGET_MSG } from '@/lib/usageLimit';
 import { verifyAuthed } from '@/lib/verifyAdmin';
 import { verifyFeatureAccess } from '@/lib/verifyFeatureAccess';
+import { matchesDetectedEquipment, normEquipment } from '@/lib/scanEquipmentMatch';
 
 const DAILY_LIMIT = 10;
 const MAX_IMAGES = 6;
@@ -103,7 +104,7 @@ Work in two passes.
 
 PASS 1 - LOOK. For each photo, describe in "observations" what you can literally see: the frame shape, where the footplate or seat is, the angle of the sled or backrest, handles, weight stack or plate horns, cables, pads. Do this before naming anything.
 
-PASS 2 - NAME. Only then name each piece of equipment, with a confidence of "high", "medium" or "low". List ONLY items you can actually see. One machine in the photo means one item in the list. Never add a machine because it is usually found next to the one you see, and never pad the list.
+PASS 2 - NAME. Only then name each piece of equipment, with a confidence of "high", "medium" or "low", and the number of the photo it is in ("photo": 1 for the first photo). There are ${dataUrls.length} photos: go through EVERY one, and list the main piece of equipment in each. A photo taken on purpose of a machine must produce an item. List ONLY items you can actually see. Never add a machine because it is usually found next to the one you see, and never pad the list.
 
 Machines that are routinely confused. Use the features to tell them apart:
 - Hack squat: you stand, back against an angled pad, shoulders under pads, feet on a plate below you, sled travels on rails. Plate-loaded.
@@ -114,18 +115,25 @@ Machines that are routinely confused. Use the features to tell them apart:
 - Seated leg curl: seated, roller behind the calves, you pull down. Lying leg curl: face down.
 - Pendulum squat: standing, back pad on an arm that swings from a pivot behind you.
 - Belt squat: standing on a platform, load hangs from a belt.
-If two of these fit, choose the one whose features you actually observed and mark confidence "medium". If you cannot tell, say "unidentified machine" with confidence "low" rather than guessing a popular name.
+- Shoulder press machine: seated upright, back pad behind you, handles start at about shoulder height and are pushed UP overhead. Plate horns or a weight stack.
+- Chest press machine: seated or lying, handles start at chest height and are pushed FORWARD.
+- Chest-supported row / T-bar row: a pad you lean your CHEST against, handles in front or below that you PULL toward you; foot platform or footrests.
+- Seated row machine: seated upright, chest pad in front, handles pulled back toward the torso.
+- Lat pulldown: seated under thigh pads, a bar or handles ABOVE you on a cable or lever, pulled DOWN.
+- Pec deck / rear delt fly: seated, two arms that swing in an arc around a vertical pivot.
+If two of these fit, choose the one whose features you actually observed and mark confidence "medium". If you cannot name the exact model but can see how it is used (what you push or pull, and in which direction), name it by that function, for example "shoulder press machine" or "row machine", with confidence "medium". Use "unidentified machine" with confidence "low" only when you cannot tell how it is used at all.
 
 Then build the workout:
-1. Every exercise MUST use bodyweight or one item from your equipment list with confidence high or medium. Name it in "equipmentUsed" exactly as it appears in the list, or "bodyweight". Never use an item you did not list, and never pick an exercise because it is popular if nothing in the photos supports it.
-2. Do NOT force variety across muscle groups. If the photos show one leg machine, build a genuinely leg-focused session: that machine's main movement, a second variation of it (foot position, tempo, rep range), plus bodyweight leg, glute and calf work. A single-focus day from limited equipment is the correct result.
+1. Every exercise MUST use bodyweight or one item from your equipment list with confidence high or medium. Copy its name into "equipmentUsed" character for character from the list, or write "bodyweight".
+1b. USE EVERYTHING. Every item in your equipment list with confidence high or medium MUST appear in at least one exercise. The athlete photographed those machines because they want to train on them. Do not fill the session with bodyweight work while a listed machine goes unused. Never use an item you did not list, and never pick an exercise because it is popular if nothing in the photos supports it.
+2. Do NOT invent variety the photos do not support. If the photos show ONLY one leg machine, build a genuinely leg-focused session: that machine's main movement, a second variation of it (foot position, tempo, rep range), plus bodyweight leg, glute and calf work. A single-focus day is correct only when the equipment is single-focus; when the photos show machines for several muscle groups, build a session that covers all of them, biggest lifts first.
 3. Respect experience level and goal, and NEVER include an exercise that would aggravate a stated limitation; substitute a safer alternative.
 4. For cardio machines used as INTERVALS (sets > 1): "reps" is a duration in SECONDS per round, written as a plain number, 15 to 60. Only use a single set with reps in minutes for one continuous steady-state block.
 
 Return ONLY valid JSON with this exact structure, no markdown fences:
 {
   "observations": ["one short sentence per photo about what is physically visible"],
-  "equipment": [ { "name": "string", "confidence": "high" | "medium" | "low" } ],
+  "equipment": [ { "name": "string", "confidence": "high" | "medium" | "low", "photo": number } ],
   "ignoredNote": "short note about anything irrelevant in the photos, or empty string",
   "exercises": [
     { "name": "string", "equipmentUsed": "string", "sets": number, "reps": "string or number", "restSeconds": number, "notes": "short form cue" }
@@ -147,7 +155,7 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
 
     const response = await openai.chat.completions.create({
       model,
-      max_tokens: 1500,
+      max_tokens: 2500,
       // Forces the model to emit strictly valid JSON instead of relying on
       // the prompt's "no markdown fences" instruction, which the model
       // doesn't always follow exactly — a stray trailing comma or unescaped
@@ -187,20 +195,14 @@ Return ONLY valid JSON with this exact structure, no markdown fences:
     };
     // Equipment the model is at least fairly sure of. Low-confidence guesses
     // and "unidentified machine" are dropped here rather than shown as fact.
-    const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const norm = normEquipment;
     const equipmentDetected = (Array.isArray(parsed.equipment) ? parsed.equipment : [])
       .filter((e): e is { name: string; confidence?: string } => !!e && typeof e.name === 'string' && e.name.trim().length > 0)
       .filter((e) => e.confidence !== 'low' && !/unidentified/i.test(e.name))
       .map((e) => e.name.trim().slice(0, 60))
       .filter((name, i, arr) => arr.findIndex((x) => norm(x) === norm(name)) === i)
       .slice(0, 30);
-    const allowed = new Set(equipmentDetected.map(norm));
-    const usesDetected = (eq: string | undefined) => {
-      const n = norm(eq ?? 'bodyweight');
-      if (!n || n === 'bodyweight' || n === 'none') return true;
-      // "leg press" against "45 degree leg press machine": either contains the other.
-      return [...allowed].some((a) => a === n || a.includes(n) || n.includes(a));
-    };
+    const usesDetected = (eq: string | undefined) => matchesDetectedEquipment(eq, equipmentDetected);
     const exercises = (Array.isArray(parsed.exercises) ? parsed.exercises : [])
       .filter((e): e is NonNullable<typeof e> => !!e && typeof e === 'object' && typeof e.name === 'string' && e.name.trim().length > 0)
       // The prompt says it; this enforces it. An exercise on a machine that
