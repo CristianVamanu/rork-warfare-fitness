@@ -2288,3 +2288,19 @@ html.light .text-accent { color: #C9760A !important; }
    cream set in light mode. */
 .fast { --fb:#0C0B0A; --ft:#F5F1EA; --fm:#B3A99D; --fm2:#7F766C; --fc:#171513; --fc2:#211E1A; --fl:#2E2A25; --ftrack:#262320; --fblob:#2A2219; --fsh:0 6px 30px rgba(0,0,0,.35); --fgold:#F5B544; --fpick:#2E2413; --fpickb:#F5A623; }
 html.light .fast { --fb:#FFF9EE; --ft:#2B1B12; --fm:#7B6B5F; --fm2:#A39486; --fc:#FFFFFF; --fc2:#F6EEE2; --fl:#E9DFD0; --ftrack:#F3EADC; --fblob:#FBEBD9; --fsh:0 6px 30px rgba(120,80,20,.08); --fgold:#C9760A; --fpick:#FFF1D6; --fpickb:#F5A623; }
+
+/* Wordmark: silver lettering on dark, dark lettering on light. */
+.logo-on-light { display: none; }
+html.light .logo-on-light { display: block; }
+html.light .logo-on-dark { display: none; }
+
+/* Home in light mode: the top of the screen and the centre nav button join
+   the cream palette instead of staying black. */
+html.light .home-hero-box { background: radial-gradient(ellipse 70% 90% at 88% 30%, rgba(245,166,35,0.30), transparent 70%), linear-gradient(180deg, #FFF1D6 0%, #FFF9EE 100%); }
+html.light .home-hero-img, html.light .home-hero-shade { display: none; }
+html.light .wf-dark .home-hero-box h1.text-white { color: #2B1B12 !important; }
+html.light .wf-dark .home-hero-box p { color: #7B6B5F !important; }
+html.light .wf-overlay-head .wf-icon-tile { background: #FFFFFF !important; border-color: #E9DFD0 !important; color: #2B1B12 !important; box-shadow: 0 4px 14px rgba(120,80,20,0.10); }
+html.light .nav-core { background: linear-gradient(180deg, #FFC65A, #F5A623) !important; border-color: #FFFFFF !important; box-shadow: 0 0 0 5px #FFFFFF, 0 8px 22px rgba(245,166,35,0.45) !important; }
+html.light .nav-core svg { color: #1A0D00 !important; }
+html.light .home-hero-box::before { display: none; }

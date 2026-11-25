@@ -145,7 +145,7 @@ function AppNav({ pathname }: { pathname: string }) {
             return (
               <Link key={href} href={href} onClick={() => { try { navigator.vibrate?.(8); } catch { /* no haptics */ } }} aria-label={label} aria-current={active ? 'page' : undefined} className="relative -mt-9 flex flex-col items-center gap-1">
                 {/* Dark core inside a glowing amber ring, amber pulse. */}
-                <span className="wf-dark w-[64px] h-[64px] rounded-full flex items-center justify-center active:scale-95 transition-transform"
+                <span className="wf-dark nav-core w-[64px] h-[64px] rounded-full flex items-center justify-center active:scale-95 transition-transform"
                   style={{ background: 'radial-gradient(circle at 50% 40%, #241a0e, #0b0a09 72%)', border: '2.5px solid #F5A623', boxShadow: '0 0 0 5px var(--background), 0 0 24px rgba(245,166,35,0.7), inset 0 0 14px rgba(245,166,35,0.3)' }}>
                   <Icon strokeWidth={2.25} className="w-[26px] h-[26px] text-accent" />
                 </span>

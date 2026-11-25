@@ -108,7 +108,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         <img src="/home/hero.webp" alt="" fetchPriority="high" className="home-hero-img absolute top-0 h-[230px] w-auto max-w-none object-cover" style={{ right: '-30px' }} />
         <div aria-hidden className="home-hero-shade absolute inset-0" style={{ background: 'linear-gradient(90deg, #0A0A0A 18%, rgba(10,10,10,0) 55%)' }} />
         {/* Darkens the corner under the bell / chat / settings buttons so they read over the art. */}
-        <div aria-hidden className="absolute right-0 top-0 w-[70%] h-[120px] pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 70% at 80% 25%, rgba(0,0,0,0.65), transparent 75%)' }} />
+        <div aria-hidden className="home-hero-shade absolute right-0 top-0 w-[70%] h-[120px] pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 70% at 80% 25%, rgba(0,0,0,0.65), transparent 75%)' }} />
         <div aria-hidden className="home-hero-shade absolute inset-x-0 bottom-0 h-14" style={{ background: 'linear-gradient(180deg, rgba(10,10,10,0), #0A0A0A)' }} />
         <div className="absolute left-[24px] top-[80px]">
           <h1 className="text-[22px] font-bold text-white tracking-[-0.01em] leading-none">Hello {name}<span aria-hidden className="ml-3 text-[17px] align-[2px]">👑</span></h1>

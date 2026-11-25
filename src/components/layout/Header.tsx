@@ -41,7 +41,7 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
       // sticky + backdrop-blur, so scrolled content underneath stays
       // legible (frosted-glass, not a hard-edged bar) without a border
       // to draw a line between "header" and "background."
-      className={overlay ? 'absolute inset-x-0 top-0 z-30' : 'sticky top-0 z-30 backdrop-blur-xl'}
+      className={overlay ? 'wf-overlay-head absolute inset-x-0 top-0 z-30' : 'sticky top-0 z-30 backdrop-blur-xl'}
     >
       <div className={`flex items-center justify-between px-4 ${overlay ? 'pt-3 pb-3 pl-5' : 'py-3'} max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto`}>
         {title ? (
@@ -61,7 +61,10 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
           <div className="flex items-center">
             {/* The Warfare Fitness wordmark (W mark + name), transparent PNG/WebP. */}
             <Image src="/brand/logo-wf.webp" alt={appName || 'Warfare Fitness'} width={920} height={155} priority
-              className={overlay ? 'h-[25px] w-auto' : 'h-[28px] w-auto'} />
+              className={`logo-on-dark ${overlay ? 'h-[25px] w-auto' : 'h-[28px] w-auto'}`} />
+            {/* Same wordmark with dark lettering, shown in light mode. */}
+            <Image src="/brand/logo-wf-light.webp" alt="" aria-hidden width={920} height={155}
+              className={`logo-on-light ${overlay ? 'h-[25px] w-auto' : 'h-[28px] w-auto'}`} />
           </div>
         )}
 
