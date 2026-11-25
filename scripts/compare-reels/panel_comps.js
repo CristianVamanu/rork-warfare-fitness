@@ -37,4 +37,29 @@ window.COMPS = {
     b: { name: 'Leg Press', fr: 'fr_Sled_45_Degree_Leg_Wide_Press', primary: 'Quadriceps, glutes', secondary: 'Hamstrings, adductors, calves', move: 'Back supported, the sled moves on a fixed path', best: 'Leg size with less load on the back', short: ['No balance needed', 'Back stays supported', 'Easy to push close to failure'], type: 'Compound' },
     best: '<b>Squat</b> for full-body strength · <b>Press</b> for leg size, back supported',
   },
+  bbcurl_hammer: {
+    a: { name: 'Barbell Curl', fr: 'fr_bbcurl', primary: 'Biceps', secondary: 'Brachialis, forearms', move: 'Palms face up, both arms curl one bar', best: 'Building the biceps with heavier loads', short: ['Palms up targets the biceps', 'Both arms lift together', 'Easy to load heavier'], type: 'Isolation' },
+    b: { name: 'Hammer Curl', fr: 'fr_hammer', primary: 'Brachialis, brachioradialis', secondary: 'Biceps', move: 'Palms face each other, thumbs up', best: 'Thicker arms and stronger forearms', short: ['Neutral grip, thumbs up', 'More forearm work', 'Easier on the wrists for many'], type: 'Isolation' },
+    best: '<b>Barbell curl</b> for the biceps · <b>Hammer</b> for arm thickness',
+  },
+  press_latraise: {
+    a: { name: 'Military Press', fr: 'fr_milpress', primary: 'Front delts', secondary: 'Side delts, triceps, upper chest', move: 'Two joints: shoulders and elbows press overhead', best: 'Overall shoulder strength', short: ['Heavy compound press', 'Triceps work too', 'Builds overhead strength'], type: 'Compound' },
+    b: { name: 'Lateral Raise', fr: 'fr_latraise', primary: 'Side delts', secondary: 'Upper traps, front delts', move: 'One joint: arms raise out to the side', best: 'Wider-looking shoulders', short: ['Isolates the side delts', 'Light weight, strict form', 'Good for higher reps'], type: 'Isolation' },
+    best: '<b>Press</b> for strength · <b>Lateral raise</b> for wider shoulders',
+  },
+  pushdown_overhead: {
+    a: { name: 'Triceps Pushdown', fr: 'fr_pushdown', primary: 'Triceps', secondary: 'None. It is an isolation lift', move: 'Arms by your sides, elbows straighten downward', best: 'Triceps volume, easy on the shoulders', short: ['Simple to learn', 'Arms stay at your sides', 'Good for high reps'], type: 'Isolation' },
+    b: { name: 'Overhead Extension', fr: 'fr_ohext', primary: 'Triceps, long head', secondary: 'None. It is an isolation lift', move: 'Arms overhead, elbows straighten upward', best: 'Training the long head on a stretch', short: ['Stretches the long head', 'Arms raised overhead', 'Pairs well with pushdowns'], type: 'Isolation' },
+    best: '<b>Pushdown</b> for volume · <b>Overhead</b> to stretch the long head',
+  },
+  sldl_legcurl: {
+    a: { name: 'Stiff-Leg Deadlift', fr: 'fr_sldl', primary: 'Hamstrings, glutes', secondary: 'Lower back, forearms', move: 'Hip hinge: the hips move, knees stay almost straight', best: 'Hamstrings and glutes on a stretch, with heavy loads', short: ['Hip hinge movement', 'Works glutes too', 'Trains the lower back to hold'], type: 'Compound' },
+    b: { name: 'Lying Leg Curl', fr: 'fr_legcurl', primary: 'Hamstrings', secondary: 'Calves', move: 'Knee bend: only the knee moves', best: 'Isolating the hamstrings with no back load', short: ['Isolates the hamstrings', 'Only the knee moves', 'No load on your back'], type: 'Isolation' },
+    best: '<b>Deadlift</b> trains the hip · <b>Leg curl</b> trains the knee. Do both',
+  },
+  calf_standing_seated: {
+    a: { name: 'Standing Calf Raise', fr: 'fr_stcalf', primary: 'Gastrocnemius', secondary: 'Soleus', move: 'Knees straight, you rise onto your toes', best: 'The upper calf muscle you see from behind', short: ['Straight knees', 'Works both calf muscles', 'Handles heavy loads'], type: 'Isolation' },
+    b: { name: 'Seated Calf Raise', fr: 'fr_secalf', primary: 'Soleus', secondary: 'Gastrocnemius (less)', move: 'Knees bent at about 90 degrees', best: 'The deeper soleus under the calf', short: ['Bent knees', 'Shifts work to the soleus', 'Pairs well with standing'], type: 'Isolation' },
+    best: '<b>Standing</b> for the upper calf · <b>Seated</b> for the soleus',
+  },
 };

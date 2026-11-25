@@ -72,7 +72,7 @@ if(L==='1'){ // ---------- side by side ----------
 if(L==='2'){ // ---------- top and bottom ----------
   h(`<div class="streak" style="width:460px;left:-170px;top:90px"></div><div class="streak" style="width:460px;right:-170px;top:150px"></div>`);
   h(`<img class="logo" src="logo-wf.webp" style="top:150px">`);
-  h(`<div class="kan" style="position:absolute;left:0;right:0;top:244px;text-align:center;font-size:96px"><span class="wh">${A.name}</span><br><span class="or">vs</span> <span class="wh">${B.name}</span></div>`);
+  h(`<div class="kan" style="position:absolute;left:0;right:0;top:244px;text-align:center;white-space:nowrap;font-size:${Math.min(96,1750/Math.max(A.name.length,B.name.length+3))}px"><span class="wh">${A.name}</span><br><span class="or">vs</span> <span class="wh">${B.name}</span></div>`);
   [[A,470],[B,1030]].forEach(([x,top])=>{
     h(`<div class="box" style="left:50px;top:${top}px;width:980px;height:520px"></div>`);
     h(`<div class="panel" style="left:50px;top:${top}px;width:520px;height:520px"><img src="${x.img}"></div>`);
