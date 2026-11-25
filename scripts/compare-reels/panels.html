@@ -34,12 +34,10 @@ html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden;font-f
 .ico{flex:0 0 46px;height:46px;border-radius:12px;border:2px solid var(--o);display:grid;place-items:center;color:var(--o);font:800 22px Inter}
 .cta{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;padding:22px 40px;border:2px solid rgba(255,122,26,.6);border-radius:24px;background:#101013;font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;font-size:40px}
 </style></head><body><div class="bg"></div><div id="r"></div>
+<script src="panel_comps.js"></script>
 <script>
-const DATA={
-  a:{name:'Leg Extension',img:'legext.png',primary:'Quadriceps',secondary:'None. It is an isolation lift',move:'One joint: only the knee moves',adv:'Isolates the quads with no load on the back',best:'Finishing the quads, or training them when your back is tired',short:['Isolates the quads','Only the knee moves','No load on your back'],focus:'Quad focus',type:'Isolation'},
-  b:{name:'Leg Press',img:'legpress.png',primary:'Quadriceps, glutes',secondary:'Hamstrings, adductors, calves',move:'Two joints: hips and knees move together',adv:'Heavier loads and more muscle worked per rep',best:'Overall leg size and strength',short:['Quads and glutes together','Hips and knees both move','Handles heavier loads'],focus:'Full leg development',type:'Compound'},
-  verdict:'Both build strong legs. Choose based on your goal.',
-};
+const Q0=new URLSearchParams(location.search), C=Q0.get('c')||'legext_legpress', DATA=window.COMPS[C];
+DATA.a.img=DATA.a.fr+'/f_0000.jpg'; DATA.b.img=DATA.b.fr+'/f_0000.jpg';
 const L=new URLSearchParams(location.search).get('l')||'1', r=document.getElementById('r'), A=DATA.a, B=DATA.b;
 const h=(s)=>{r.insertAdjacentHTML('beforeend',s);};
 const two=(n)=>n.replace(' ','<br>');
@@ -82,7 +80,7 @@ if(L==='2'){ // ---------- top and bottom ----------
        ${x.short.map(t=>`<div class="chk" style="font-size:24px;margin-top:13px"><i></i><span>${t}</span></div>`).join('')}</div>`);
   });
   h(`<div class="vs" style="left:482px;top:952px;width:116px;height:116px;font-size:52px">VS</div>`);
-  h(`<div class="box" style="left:50px;top:1574px;width:980px;height:96px;display:flex;align-items:center;justify-content:center;gap:16px;border-color:rgba(255,122,26,.55)"><span class="kan" style="font-size:34px">Best for:</span><span class="sm" style="font-size:25px"><b style="color:#fff">Extension</b> to finish the quads · <b style="color:#fff">Press</b> for overall size</span></div>`);
+  h(`<div class="box" style="left:50px;top:1574px;width:980px;height:96px;display:flex;align-items:center;justify-content:center;gap:16px;border-color:rgba(255,122,26,.55)"><span class="kan" style="font-size:34px">Best for:</span><span class="sm" style="font-size:25px">${DATA.best}</span></div>`);
 }
 if(L==='3'){ // ---------- cinematic diagonal ----------
   h(`<div style="position:absolute;inset:0;background:linear-gradient(118deg,transparent 47%,rgba(255,122,26,.20) 49.4%,rgba(255,166,43,.55) 50%,rgba(255,122,26,.20) 50.6%,transparent 53%)"></div>`);
@@ -110,7 +108,7 @@ if(Q.get('v')){
   if(L==='2'){ up(c[2],.1);up(c[3],.3); lf(c[4],.9);lf(c[5],.9);stag(c[6],1.4); pop(c[10],5.6); rt(c[7],6.1);rt(c[8],6.1);stag(c[9],6.6); up(c[11],11.3); pa=c[5];pb=c[8]; }
   if(L==='3'){ up(c[4],.1); lf(c[5],.5);rt(c[6],1.0);stag(c[7],1.4,.3); pop(c[8],5.6); rt(c[9],6.1);lf(c[10],6.6);stag(c[11],7.0,.3); up(c[12],11.3); pa=c[5];pb=c[9]; }
   const ia=pa.querySelector('img'), ib=pb.querySelector('img'), SP=+(Q.get('speed')||2.5);
-  const fr=(k,t,t0)=>{const n=+Q.get('n'+k);return Q.get('f'+k)+'/f_'+String(Math.floor(Math.max(0,t-t0)*29.97*SP)%n).padStart(4,'0')+'.jpg';};
+  const fr=(k,t,t0)=>{const n=+(Q.get('n'+k)||197);return (Q.get('f'+k)||DATA[k].fr)+'/f_'+String(Math.floor(Math.max(0,t-t0)*29.97*SP)%n).padStart(4,'0')+'.jpg';};
   window.setT=async(t)=>{document.getAnimations().forEach(a=>{a.pause();a.currentTime=t*1000;});ia.src=fr('a',t,.5);ib.src=fr('b',t,6.1);await Promise.all([ia.decode(),ib.decode()]);};
 }
 </script></body></html>
