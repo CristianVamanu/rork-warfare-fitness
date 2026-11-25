@@ -127,7 +127,7 @@ export function WorkoutShareCard({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', bounce: 0.4 }}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] border border-accent/30 p-5"
+        className="wf-share-card relative overflow-hidden rounded-2xl border border-accent/30 p-5"
       >
         {/* Background glow */}
         <div className="absolute -right-8 -top-8 w-32 h-32 bg-accent/10 rounded-full blur-2xl" />

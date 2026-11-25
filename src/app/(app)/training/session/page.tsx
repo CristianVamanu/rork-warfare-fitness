@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { createPortal } from 'react-dom';
 import { isTimedHold, holdSecondsFromReps } from '@/lib/timedHold';
 import { nativeBillingBlocked } from '@/lib/native/billing';
 import { easedSets } from '@/lib/recoveryEase';
@@ -323,12 +324,50 @@ function CardioTimerRow({
   // effect on the result; the interval below only exists to repaint.
   const anchorRef = useRef<{ startedAt: number; base: number } | null>(null);
 
+  // Get-ready countdown. Pressing play on a fresh timer used to start the
+  // clock instantly, so the first seconds of a plank were spent putting the
+  // phone down and getting into position. A short 5-4-3-2-1 comes first;
+  // resuming a paused timer skips it. Wall-clock anchored like the timer.
+  const READY_SECONDS = 5;
+  const [ready, setReady] = useState<number | null>(null);
+  const readyRef = useRef<NodeJS.Timeout>();
+  useEffect(() => () => clearInterval(readyRef.current), []);
+  const buzz = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* not supported */ } };
+
+  function cancelReady() {
+    clearInterval(readyRef.current);
+    setReady(null);
+  }
+  function startNow() {
+    cancelReady();
+    buzz(180);
+    startTimer();
+  }
+  function startReady() {
+    const startedAt = Date.now();
+    setReady(READY_SECONDS);
+    buzz(40);
+    readyRef.current = setInterval(() => {
+      const left = READY_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
+      if (left <= 0) { startNow(); return; }
+      setReady((prev) => { if (prev !== left) buzz(40); return left; });
+    }, 200);
+  }
+
   function toggle() {
     if (running) {
       clearInterval(tickRef.current);
       anchorRef.current = null;
       setRunning(false);
-    } else {
+    } else if (elapsed === 0 && ready === null) {
+      startReady();
+    } else if (ready === null) {
+      startTimer();
+    }
+  }
+
+  function startTimer() {
+    {
       anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
       tickRef.current = setInterval(() => {
@@ -349,6 +388,7 @@ function CardioTimerRow({
 
   function reset() {
     clearInterval(tickRef.current);
+    cancelReady();
     setRunning(false);
     setElapsed(0);
   }
@@ -401,6 +441,45 @@ function CardioTimerRow({
       animate={{ opacity: 1, scale: 1 }}
       className="rounded-[22px] wf-set-active"
     >
+      {ready !== null && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-background/95 backdrop-blur-md px-6 text-center"
+          role="dialog" aria-live="assertive" aria-label={`Get ready, starting in ${ready}`}
+        >
+          <p className="text-xs font-bold tracking-[0.35em] uppercase text-accent">Get ready</p>
+          <p className="text-sm text-text-secondary mt-2">Set {setNum} · {label} · get into position</p>
+          <div className="relative my-8 w-56 h-56 flex items-center justify-center">
+            <svg width={224} height={224} className="absolute inset-0 -rotate-90">
+              <circle cx={112} cy={112} r={100} fill="none" stroke="var(--progress-track)" strokeWidth={8} />
+              <motion.circle
+                cx={112} cy={112} r={100} fill="none" stroke="var(--accent)" strokeWidth={8} strokeLinecap="round"
+                strokeDasharray={2 * Math.PI * 100}
+                animate={{ strokeDashoffset: 2 * Math.PI * 100 * (1 - ready / READY_SECONDS) }}
+                transition={{ duration: 0.9, ease: 'linear' }}
+                style={{ filter: 'drop-shadow(0 0 14px rgba(245,166,35,0.55))' }}
+              />
+            </svg>
+            <motion.span
+              key={ready}
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 20 }}
+              className="text-[120px] leading-none font-black tabular-nums text-foreground"
+            >
+              {ready}
+            </motion.span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={cancelReady} className="px-5 py-3 rounded-full bg-surface-elevated border border-border text-sm font-semibold text-text-secondary">
+              Cancel
+            </button>
+            <button onClick={startNow} className="px-6 py-3 rounded-full bg-accent text-black text-sm font-bold shadow-glow-sm active:scale-95 transition-all">
+              Start now
+            </button>
+          </div>
+        </div>,
+        document.body,
+      )}
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-accent/15">
         <div className="flex items-center gap-2">

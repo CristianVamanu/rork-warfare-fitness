@@ -353,6 +353,12 @@ html.light .focus\:ring-accent\/40:focus { --tw-ring-color: rgba(212,130,10,0.35
 /* Primary button text — stays black on accent bg for contrast in both modes */
 html.light .bg-accent.text-black { color: #1A0D00 !important; }
 
+/* Workout-done share card. Its background was a hard-coded dark gradient,
+   while its text follows the theme, so in light mode it was dark text on a
+   dark card. The background now follows the theme too. */
+.wf-share-card { background: linear-gradient(135deg, #1a1a1a, #0d0d0d); }
+html.light .wf-share-card { background: linear-gradient(135deg, #FFFFFF, #FFF1D6); box-shadow: 0 8px 28px rgba(201, 118, 10, 0.14); }
+
 /* ── Always-dark scope ──
    Full-screen focus surfaces (the breathing session) are designed around a
    glowing orb on black and fall apart on a light background. This pins the
