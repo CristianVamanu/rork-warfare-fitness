@@ -1799,8 +1799,10 @@ html.light .wf-art::after {
 html.light { --hc-num-shadow: 0 2px 10px rgba(255,140,0,0.45); }
 /* The flame and mountain art sit on black, so on a light card they are
    replaced by a warm glow drawn in CSS. */
-html.light .hc-streak .hc-flame, html.light .hc-streak .hc-mtn { display: none; }
-html.light .hc-streak .hc-flame + div { background: radial-gradient(closest-side, rgba(255,170,60,.55), rgba(255,150,30,.18) 60%, transparent 100%); border-radius: 50%; }
+html.light .hc-streak .hc-mtn { display: none; }
+html.light .hc-streak .hc-flame { content: url('/home/flame-light.svg'); mix-blend-mode: normal !important; -webkit-mask-image: none !important; mask-image: none !important; filter: drop-shadow(0 8px 16px rgba(245,120,20,.4)) !important; }
+html.light .hc-streak .hc-flame + div { background: none; }
+html.light .hc-streak .hc-flame + div span { color: #FFFFFF !important; text-shadow: 0 2px 8px rgba(120,45,0,.85), 0 0 2px rgba(120,45,0,.9) !important; }
 html.light .hc-streak::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 60%; pointer-events: none; background: radial-gradient(80% 90% at 100% 0%, rgba(255,170,60,.16), transparent 70%); }
 html.light .hc-root .hc-streak [class*="text-white/"] { color: rgba(20,16,12,0.62) !important; }
 html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08) !important; }
@@ -2304,3 +2306,4 @@ html.light .wf-overlay-head .wf-icon-tile { background: #FFFFFF !important; bord
 html.light .nav-core { background: linear-gradient(180deg, #FFC65A, #F5A623) !important; border-color: #FFFFFF !important; box-shadow: 0 0 0 5px #FFFFFF, 0 8px 22px rgba(245,166,35,0.45) !important; }
 html.light .nav-core svg { color: #1A0D00 !important; }
 html.light .home-hero-box::before { display: none; }
+html.light .hc-streak .hc-flame + div span + span { color: #7A2E00 !important; text-shadow: none !important; }
