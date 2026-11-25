@@ -62,4 +62,32 @@ window.COMPS = {
     b: { name: 'Seated Calf Raise', fr: 'fr_secalf', primary: 'Soleus', secondary: 'Gastrocnemius (less)', move: 'Knees bent at about 90 degrees', best: 'The deeper soleus under the calf', short: ['Bent knees', 'Shifts work to the soleus', 'Pairs well with standing'], type: 'Isolation' },
     best: '<b>Standing</b> for the upper calf · <b>Seated</b> for the soleus',
   },
+  chinup_pullup: {
+    hook: { big: ['Chin-up or', 'pull-up?'], sub: 'Your grip changes the muscle' },
+    ctaQ: 'Chin-ups or', ctaQ2: 'pull-ups?',
+    a: { name: 'Chin-Up', fr: 'fr_chinup', n: 196, primary: 'Lats, biceps', secondary: 'Mid back, rear delts, core', move: 'Palms face you, shoulder-width grip', best: 'More biceps work, and usually more reps', short: ['Palms facing you', 'Biceps work harder', 'Most people get more reps'], type: 'Compound' },
+    b: { name: 'Pull-Up', fr: 'fr_pullup', primary: 'Lats', secondary: 'Biceps, mid back, rear delts, core', move: 'Palms face away, wider grip', best: 'Back width and upper body strength', short: ['Palms facing away', 'Lats do more of the work', 'Usually the harder of the two'], type: 'Compound' },
+    best: '<b>Chin-up</b> for more biceps · <b>Pull-up</b> for the lats',
+  },
+  front_back_squat: {
+    hook: { big: ['Front squat or', 'back squat?'], sub: 'Where the bar sits changes everything' },
+    ctaQ: 'Front or', ctaQ2: 'back squat?',
+    a: { name: 'Front Squat', fr: 'fr_frontsquat', primary: 'Quadriceps', secondary: 'Glutes, upper back, core', move: 'Bar on the front of the shoulders, torso upright', best: 'Quads, with less load on the lower back', short: ['Bar in front, torso upright', 'More quad focus', 'Usually lighter than back squat'], type: 'Compound' },
+    b: { name: 'Back Squat', fr: 'fr_Classic_Barbell_Squat', primary: 'Quadriceps, glutes', secondary: 'Adductors, hamstrings, lower back', move: 'Bar on the upper back, more forward lean', best: 'Lifting the most weight, overall leg strength', short: ['Bar on your upper back', 'Hips and glutes work more', 'You can load it heaviest'], type: 'Compound' },
+    best: '<b>Front</b> for the quads · <b>Back</b> for the heaviest loads',
+  },
+  db_bb_bench: {
+    hook: { big: ['Dumbbells or', 'barbell?'], sub: 'Which bench press builds your chest?' },
+    ctaQ: 'Dumbbells or', ctaQ2: 'barbell?',
+    a: { name: 'Dumbbell Bench', fr: 'fr_dbbench', primary: 'Chest', secondary: 'Front delts, triceps', move: 'Each arm presses its own dumbbell', best: 'Range of motion and evening out each side', short: ['Each side works on its own', 'Deeper stretch at the bottom', 'Hands can find their own path'], type: 'Compound' },
+    b: { name: 'Barbell Bench', fr: 'fr_flatbench', primary: 'Chest', secondary: 'Front delts, triceps', move: 'Both arms press one bar', best: 'Lifting the most weight, pressing strength', short: ['Heaviest press you can load', 'Small, exact weight jumps', 'Easy to track progress'], type: 'Compound' },
+    best: '<b>Dumbbells</b> for range · <b>Barbell</b> for strength',
+  },
+  hack_legpress: {
+    hook: { big: ['Hack squat or', 'leg press?'], sub: 'Two machines, one big difference' },
+    ctaQ: 'Hack squat or', ctaQ2: 'leg press?',
+    a: { name: 'Hack Squat', fr: 'fr_hacksquat', primary: 'Quadriceps', secondary: 'Glutes, adductors', move: 'You stand, back on a pad, and squat on rails', best: 'Deep quad work, squat-like but supported', short: ['You squat, standing', 'Back supported on rails', 'Strong quad focus'], type: 'Compound' },
+    b: { name: 'Leg Press', fr: 'fr_Sled_45_Degree_Leg_Wide_Press', primary: 'Quadriceps, glutes', secondary: 'Hamstrings, adductors, calves', move: 'You sit and push the sled away', best: 'Heavy leg work with the back fully supported', short: ['You sit and push', 'Fully supported back', 'Handles very heavy loads'], type: 'Compound' },
+    best: '<b>Hack squat</b> for the quads · <b>Leg press</b> for heavy volume',
+  },
 };
