@@ -4,7 +4,7 @@
  */
 const Blob = ({ children }: { children: React.ReactNode }) => (
   <svg viewBox="0 0 320 280" className="w-full max-w-[320px] mx-auto" aria-hidden>
-    <path d="M40 150c0-60 50-78 96-96 50-20 104-34 140 14 30 40 24 110-6 150-34 44-110 46-166 40-44-5-64-50-64-108z" fill="#FBEBD9" />
+    <path d="M40 150c0-60 50-78 96-96 50-20 104-34 140 14 30 40 24 110-6 150-34 44-110 46-166 40-44-5-64-50-64-108z" fill="var(--fblob)" />
     {children}
   </svg>
 );
@@ -12,7 +12,7 @@ const Blob = ({ children }: { children: React.ReactNode }) => (
 export const ART: Record<string, React.ReactNode> = {
   plate: (
     <Blob>
-      <ellipse cx="160" cy="236" rx="92" ry="9" fill="#EBCFB4" />
+      <ellipse cx="160" cy="236" rx="92" ry="9" fill="var(--fblob)" opacity=".9" />
       <circle cx="160" cy="150" r="88" fill="#FFFDF8" stroke="#EAD9C4" strokeWidth="5" />
       <circle cx="160" cy="150" r="58" fill="none" stroke="#F3E7D6" strokeWidth="3" />
       <path d="M150 112c26-8 50 14 46 42-4 26-34 38-54 24-22-16-18-58 8-66z" fill="#F4795B" />
@@ -26,7 +26,7 @@ export const ART: Record<string, React.ReactNode> = {
     </Blob>),
   question: (
     <Blob>
-      <ellipse cx="192" cy="238" rx="34" ry="6" fill="#EBCFB4" /><ellipse cx="120" cy="230" rx="24" ry="5" fill="#EBCFB4" />
+      <ellipse cx="192" cy="238" rx="34" ry="6" fill="var(--fblob)" opacity=".9" /><ellipse cx="120" cy="230" rx="24" ry="5" fill="var(--fblob)" opacity=".9" />
       <path d="M160 108c0-30 22-48 50-46 28 2 46 24 42 50-4 24-26 32-36 46-6 8-6 16-6 24" fill="none" stroke="#E2703A" strokeWidth="26" strokeLinecap="round" />
       <circle cx="210" cy="222" r="15" fill="#E2703A" />
       <path d="M98 132c0-18 12-28 28-26 16 2 24 16 20 30-3 12-14 16-20 24-3 4-3 8-3 12" fill="none" stroke="#F0A07E" strokeWidth="16" strokeLinecap="round" />
@@ -34,7 +34,7 @@ export const ART: Record<string, React.ReactNode> = {
     </Blob>),
   calendar: (
     <Blob>
-      <ellipse cx="160" cy="240" rx="88" ry="8" fill="#EBCFB4" />
+      <ellipse cx="160" cy="240" rx="88" ry="8" fill="var(--fblob)" opacity=".9" />
       <rect x="84" y="78" width="152" height="156" rx="14" fill="#FFFDF8" />
       <path d="M84 92a14 14 0 0114-14h124a14 14 0 0114 14v24H84z" fill="#F0926B" />
       <rect x="112" y="60" width="14" height="40" rx="7" fill="#FFF1E6" /><rect x="194" y="60" width="14" height="40" rx="7" fill="#FFF1E6" />
@@ -44,7 +44,7 @@ export const ART: Record<string, React.ReactNode> = {
     </Blob>),
   food: (
     <Blob>
-      <ellipse cx="170" cy="238" rx="96" ry="8" fill="#EBCFB4" />
+      <ellipse cx="170" cy="238" rx="96" ry="8" fill="var(--fblob)" opacity=".9" />
       <path d="M196 96c38 0 62 44 58 86-3 34-26 54-56 54s-56-22-58-56c-3-40 20-84 56-84z" fill="#3FBF8F" />
       <path d="M196 110c30 0 48 36 45 70-2 28-20 42-44 42s-44-16-46-44c-2-32 16-68 45-68z" fill="#EEF0D2" />
       <circle cx="197" cy="176" r="30" fill="#D9735A" /><path d="M182 168c4-10 14-14 22-12" stroke="#EFA08B" strokeWidth="5" fill="none" strokeLinecap="round" />
@@ -53,7 +53,7 @@ export const ART: Record<string, React.ReactNode> = {
     </Blob>),
   weights: (
     <Blob>
-      <ellipse cx="170" cy="240" rx="100" ry="8" fill="#EBCFB4" />
+      <ellipse cx="170" cy="240" rx="100" ry="8" fill="var(--fblob)" opacity=".9" />
       <path d="M172 118c0-22 16-34 38-34s38 12 38 34" fill="none" stroke="#FAC6A0" strokeWidth="16" />
       <circle cx="210" cy="176" r="58" fill="#FAC6A0" />
       <rect x="70" y="182" width="200" height="14" rx="7" fill="#FFFDF8" />
@@ -63,7 +63,7 @@ export const ART: Record<string, React.ReactNode> = {
     </Blob>),
   ready: (
     <Blob>
-      <ellipse cx="160" cy="240" rx="64" ry="7" fill="#EBCFB4" />
+      <ellipse cx="160" cy="240" rx="64" ry="7" fill="var(--fblob)" opacity=".9" />
       <circle cx="160" cy="150" r="82" fill="#35BE94" />
       <path d="M124 152l26 26 48-56" stroke="#fff" strokeWidth="18" fill="none" strokeLinecap="round" strokeLinejoin="round" />
     </Blob>),

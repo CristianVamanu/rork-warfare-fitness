@@ -41,7 +41,7 @@ function Ring({ pct, goalHours, hours, active, children }: { pct: number; goalHo
   return (
     <div className="relative mx-auto w-full max-w-[320px] aspect-square">
       <svg viewBox="0 0 300 300" className="w-full h-full" aria-hidden>
-        <path d={arc(1)} fill="none" stroke="#F3EADC" strokeWidth="14" strokeLinecap="round" />
+        <path d={arc(1)} fill="none" stroke="var(--ftrack)" strokeWidth="14" strokeLinecap="round" />
         {pct > 0 && <path d={arc(Math.min(1, pct))} fill="none" stroke="#F5A623" strokeWidth="14" strokeLinecap="round" />}
       </svg>
       {marks.map((s) => {
@@ -51,8 +51,8 @@ function Ring({ pct, goalHours, hours, active, children }: { pct: number; goalHo
         const current = active && stageAt(hours).id === s.id;
         return (
           <span key={s.id} title={s.title}
-            className="absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors bg-white"
-            style={{ left: `${(p.x / 300) * 100}%`, top: `${(p.y / 300) * 100}%`, borderColor: reached ? STAGE_COLOR[s.id] : '#EFE6D8', color: reached ? (current ? '#fff' : STAGE_COLOR[s.id]) : '#C9BBAA', background: current ? STAGE_COLOR[s.id] : '#fff', boxShadow: current ? `0 6px 18px ${STAGE_COLOR[s.id]}66` : undefined }}>
+            className="absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 flex items-center justify-center transition-colors"
+            style={{ left: `${(p.x / 300) * 100}%`, top: `${(p.y / 300) * 100}%`, borderColor: reached ? STAGE_COLOR[s.id] : 'var(--fl)', color: reached ? (current ? '#fff' : STAGE_COLOR[s.id]) : 'var(--fm2)', background: current ? STAGE_COLOR[s.id] : 'var(--fc)', boxShadow: current ? `0 6px 18px ${STAGE_COLOR[s.id]}66` : undefined }}>
             <Icon className="w-5 h-5" />
           </span>
         );
@@ -150,87 +150,87 @@ export function FastingScreen({ demo }: { demo?: { startedAgoH: number } } = {})
 
   return (
     <>
-      <div className="min-h-screen bg-[#FFF9EE] overflow-x-hidden">
+      <div className="fast min-h-screen bg-[var(--fb)] overflow-x-hidden">
       <div className="max-w-lg mx-auto px-4 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center gap-2 h-16">
-        <button type="button" onClick={() => router.back()} aria-label="Back" className="w-10 h-10 -ml-2 flex items-center justify-center text-[#2B1B12]"><ChevronLeft className="w-6 h-6" /></button>
-        <h1 className="flex-1 text-xl font-black text-[#2B1B12]">Fasting</h1>
-        <button type="button" onClick={() => setPlanModal(true)} className="h-10 px-4 rounded-full border border-[#E0D4C2] bg-white text-sm font-bold text-[#2B1B12] flex items-center gap-1.5">{plan.id} <Pencil className="w-3.5 h-3.5" /></button>
-        <button type="button" onClick={() => setInfoModal(true)} aria-label="About fasting" className="w-10 h-10 rounded-full border border-[#E0D4C2] bg-white text-[#2B1B12] flex items-center justify-center"><Info className="w-4 h-4" /></button>
+        <button type="button" onClick={() => router.back()} aria-label="Back" className="w-10 h-10 -ml-2 flex items-center justify-center text-[color:var(--ft)]"><ChevronLeft className="w-6 h-6" /></button>
+        <h1 className="flex-1 text-xl font-black text-[color:var(--ft)]">Fasting</h1>
+        <button type="button" onClick={() => setPlanModal(true)} className="h-10 px-4 rounded-full border border-[color:var(--fl)] bg-[var(--fc)] text-sm font-bold text-[color:var(--ft)] flex items-center gap-1.5">{plan.id} <Pencil className="w-3.5 h-3.5" /></button>
+        <button type="button" onClick={() => setInfoModal(true)} aria-label="About fasting" className="w-10 h-10 rounded-full border border-[color:var(--fl)] bg-[var(--fc)] text-[color:var(--ft)] flex items-center justify-center"><Info className="w-4 h-4" /></button>
       </div>
       <div className="px-4 pb-28 max-w-lg mx-auto space-y-4">
-        <div className="relative rounded-3xl bg-white shadow-[0_6px_30px_rgba(120,80,20,0.08)] p-5">
+        <div className="relative rounded-3xl bg-[var(--fc)] shadow-[var(--fsh)] p-5">
           <div className="relative">
             <Ring pct={fasting ? hours / goalHours : 0} goalHours={goalHours} hours={hours} active={!!fasting}>
               {fasting ? (
                 <>
-                  <p className="text-sm text-[#7B6B5F]">{reached ? 'Goal reached' : 'You are fasting'}</p>
-                  <p className="text-[40px] font-black text-[#2B1B12] tabular-nums leading-none mt-1">{formatHMS(elapsed)}</p>
-                  <p className="text-xs text-[#C9760A] font-semibold mt-2">{reached ? `+${formatHM(hours - goalHours)} past goal` : `${formatHM(Math.max(0, goalHours - hours))} to go`}</p>
+                  <p className="text-sm text-[color:var(--fm)]">{reached ? 'Goal reached' : 'You are fasting'}</p>
+                  <p className="text-[40px] font-black text-[color:var(--ft)] tabular-nums leading-none mt-1">{formatHMS(elapsed)}</p>
+                  <p className="text-xs text-[color:var(--fgold)] font-semibold mt-2">{reached ? `+${formatHM(hours - goalHours)} past goal` : `${formatHM(Math.max(0, goalHours - hours))} to go`}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-[#7B6B5F]">Upcoming fast</p>
-                  <p className="text-[40px] font-black text-[#2B1B12] leading-none mt-1">{plan.fast} hours</p>
-                  <p className="text-xs text-[#A39486] mt-2">{plan.eat}-hour eating window</p>
+                  <p className="text-sm text-[color:var(--fm)]">Upcoming fast</p>
+                  <p className="text-[40px] font-black text-[color:var(--ft)] leading-none mt-1">{plan.fast} hours</p>
+                  <p className="text-xs text-[color:var(--fm2)] mt-2">{plan.eat}-hour eating window</p>
                 </>
               )}
             </Ring>
 
-            <div className="flex items-center gap-3 border-y border-[#EFE6D8] py-3 mt-1">
-              <button type="button" onClick={openTime} aria-label="Change start time" className="w-11 h-11 rounded-full bg-[#F6EEE2] border border-[#E9DFD0] flex items-center justify-center text-[#2B1B12] flex-shrink-0"><Pencil className="w-4 h-4" /></button>
+            <div className="flex items-center gap-3 border-y border-[color:var(--fl)] py-3 mt-1">
+              <button type="button" onClick={openTime} aria-label="Change start time" className="w-11 h-11 rounded-full bg-[var(--fc2)] border border-[color:var(--fl)] flex items-center justify-center text-[color:var(--ft)] flex-shrink-0"><Pencil className="w-4 h-4" /></button>
               <div className="flex-1">
-                <p className="text-lg font-black text-[#2B1B12] tabular-nums leading-tight">{fasting ? clock(startMs) : plannedStart}</p>
-                <p className="text-xs text-[#7B6B5F]">Start{fasting ? `, ${dayWord(startMs, now)}` : ''}</p>
+                <p className="text-lg font-black text-[color:var(--ft)] tabular-nums leading-tight">{fasting ? clock(startMs) : plannedStart}</p>
+                <p className="text-xs text-[color:var(--fm)]">Start{fasting ? `, ${dayWord(startMs, now)}` : ''}</p>
               </div>
               <div className="text-right">
-                <p className="text-lg font-black text-[#2B1B12] tabular-nums leading-tight">{fasting ? clock(goalMs) : toHHMM(toMinutes(plannedStart) + plan.fast * 60)}</p>
-                <p className="text-xs text-[#7B6B5F]">Goal{fasting ? `, ${dayWord(goalMs, now)}` : ''}</p>
+                <p className="text-lg font-black text-[color:var(--ft)] tabular-nums leading-tight">{fasting ? clock(goalMs) : toHHMM(toMinutes(plannedStart) + plan.fast * 60)}</p>
+                <p className="text-xs text-[color:var(--fm)]">Goal{fasting ? `, ${dayWord(goalMs, now)}` : ''}</p>
               </div>
             </div>
 
             <div className="mt-4">
               {fasting
-                ? <button type="button" onClick={() => setStopModal(true)} className={`w-full h-14 rounded-2xl text-base font-black uppercase tracking-wide ${reached ? 'bg-[#F5A623] text-[#1A0D00] shadow-[0_8px_24px_rgba(245,166,35,0.35)]' : 'bg-[#EFE6D8] text-[#2B1B12]'}`}>{reached ? 'End fast' : 'Stop fasting'}</button>
+                ? <button type="button" onClick={() => setStopModal(true)} className={`w-full h-14 rounded-2xl text-base font-black uppercase tracking-wide ${reached ? 'bg-[#F5A623] text-[#1A0D00] shadow-[0_8px_24px_rgba(245,166,35,0.35)]' : 'bg-[var(--fc2)] text-[color:var(--ft)]'}`}>{reached ? 'End fast' : 'Stop fasting'}</button>
                 : <button type="button" onClick={start} className="w-full h-14 rounded-2xl bg-[#F5A623] text-[#1A0D00] text-base font-black uppercase tracking-wide shadow-[0_8px_24px_rgba(245,166,35,0.35)]">Start fasting</button>}
             </div>
           </div>
         </div>
 
-        <div className="rounded-2xl bg-white shadow-[0_4px_20px_rgba(120,80,20,0.06)] p-4">
+        <div className="rounded-2xl bg-[var(--fc)] shadow-[var(--fsh)] p-4">
           <div className="flex items-center gap-3">
-            <span className="w-11 h-11 rounded-full bg-[#FFF1D6] border border-[#F3D08C] text-[#C9760A] flex items-center justify-center flex-shrink-0">
+            <span className="w-11 h-11 rounded-full bg-[var(--fpick)] border border-[color:var(--fpickb)] text-[color:var(--fgold)] flex items-center justify-center flex-shrink-0">
               {fasting ? <StageIcon className="w-5 h-5" style={{ color: STAGE_COLOR[stage.id] }} /> : <Hourglass className="w-5 h-5" />}
             </span>
-            <p className="text-base font-black text-[#2B1B12]">{fasting ? stage.title : 'Prepare for your fast'}</p>
+            <p className="text-base font-black text-[color:var(--ft)]">{fasting ? stage.title : 'Prepare for your fast'}</p>
           </div>
-          <p className="text-sm text-[#7B6B5F] leading-relaxed mt-3">
+          <p className="text-sm text-[color:var(--fm)] leading-relaxed mt-3">
             {fasting ? stage.body : 'Have a meal with protein and fibre before you start, and keep water nearby. Black coffee and plain tea are fine during the fast.'}
           </p>
-          {fasting && (() => { const nx = FASTING_STAGES.find((s) => s.from > hours && s.from < Math.max(goalHours, hours + 0.01)); return nx ? <p className="text-xs text-[#A39486] mt-2">Next: {nx.title.toLowerCase()} at about {nx.from} hours.</p> : null; })()}
+          {fasting && (() => { const nx = FASTING_STAGES.find((s) => s.from > hours && s.from < Math.max(goalHours, hours + 0.01)); return nx ? <p className="text-xs text-[color:var(--fm2)] mt-2">Next: {nx.title.toLowerCase()} at about {nx.from} hours.</p> : null; })()}
         </div>
 
         <div>
           <div className="flex items-end justify-between mb-2">
-            <h2 className="text-lg font-black text-[#2B1B12]">Weekly stats</h2>
-            <span className="text-xs text-[#7B6B5F]">{(p?.fastingLog ?? []).length} fasts logged</span>
+            <h2 className="text-lg font-black text-[color:var(--ft)]">Weekly stats</h2>
+            <span className="text-xs text-[color:var(--fm)]">{(p?.fastingLog ?? []).length} fasts logged</span>
           </div>
-          <div className="rounded-2xl bg-white shadow-[0_4px_20px_rgba(120,80,20,0.06)] p-4">
+          <div className="rounded-2xl bg-[var(--fc)] shadow-[var(--fsh)] p-4">
             <div className="flex items-center justify-between">
-              <button type="button" onClick={() => setWeek(week - 1)} aria-label="Previous week" className="w-10 h-10 rounded-full bg-[#F6EEE2] border border-[#E9DFD0] text-[#2B1B12] flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setWeek(week - 1)} aria-label="Previous week" className="w-10 h-10 rounded-full bg-[var(--fc2)] border border-[color:var(--fl)] text-[color:var(--ft)] flex items-center justify-center"><ChevronLeft className="w-4 h-4" /></button>
               <div className="text-center">
-                <p className="text-sm font-bold text-[#2B1B12]">{week === 0 ? 'This week' : `${fmtDay(ws)} – ${fmtDay(weekEnd)}`}</p>
-                <p className="text-xs text-[#7B6B5F]">Average {formatHM(bars.average)}</p>
+                <p className="text-sm font-bold text-[color:var(--ft)]">{week === 0 ? 'This week' : `${fmtDay(ws)} – ${fmtDay(weekEnd)}`}</p>
+                <p className="text-xs text-[color:var(--fm)]">Average {formatHM(bars.average)}</p>
               </div>
-              <button type="button" onClick={() => setWeek(Math.min(0, week + 1))} disabled={week === 0} aria-label="Next week" className="w-10 h-10 rounded-full bg-[#F6EEE2] border border-[#E9DFD0] text-[#2B1B12] flex items-center justify-center disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+              <button type="button" onClick={() => setWeek(Math.min(0, week + 1))} disabled={week === 0} aria-label="Next week" className="w-10 h-10 rounded-full bg-[var(--fc2)] border border-[color:var(--fl)] text-[color:var(--ft)] flex items-center justify-center disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
             </div>
             <div className="flex items-end gap-2 h-32 mt-4">
               {bars.hours.map((h, i) => (
                 <div key={i} className="flex-1 h-full flex flex-col items-center justify-end gap-1.5">
-                  {h > 0 && <span className="text-[10px] font-bold text-[#2B1B12] tabular-nums">{Math.round(h)}h</span>}
-                  <div className="w-full max-w-[22px] rounded-full bg-[#EFE6D8] flex-1 flex items-end overflow-hidden">
-                    <div className={`w-full rounded-full ${h >= goalHours ? 'bg-accent' : 'bg-[#F8CF86]'}`} style={{ height: `${(h / maxBar) * 100}%` }} />
+                  {h > 0 && <span className="text-[10px] font-bold text-[color:var(--ft)] tabular-nums">{Math.round(h)}h</span>}
+                  <div className="w-full max-w-[22px] rounded-full bg-[var(--fc2)] flex-1 flex items-end overflow-hidden">
+                    <div className={`w-full rounded-full ${h >= goalHours ? 'bg-accent' : 'bg-[#F5A623]/50'}`} style={{ height: `${(h / maxBar) * 100}%` }} />
                   </div>
-                  <span className="text-[10px] text-[#A39486]">{'MTWTFSS'[i]}</span>
+                  <span className="text-[10px] text-[color:var(--fm2)]">{'MTWTFSS'[i]}</span>
                 </div>
               ))}
             </div>
@@ -238,14 +238,14 @@ export function FastingScreen({ demo }: { demo?: { startedAgoH: number } } = {})
         </div>
 
         {(p?.fastingLog ?? []).length > 0 && (
-          <div className="rounded-2xl bg-white shadow-[0_4px_20px_rgba(120,80,20,0.06)] divide-y divide-[#EFE6D8]">
+          <div className="rounded-2xl bg-[var(--fc)] shadow-[var(--fsh)] divide-y divide-[color:var(--fl)]">
             {(p?.fastingLog ?? []).slice(0, 8).map((e) => {
               const h = (e.end - e.start) / 3_600_000;
               return (
                 <div key={e.start} className="flex items-center gap-3 px-4 py-3">
-                  <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${h >= e.goalHours ? 'bg-accent text-black' : 'bg-[#EFE6D8] text-[#A39486]'}`}><Check className="w-4 h-4" /></span>
-                  <div className="flex-1"><p className="text-sm font-bold text-[#2B1B12]">{formatHM(h)}</p><p className="text-xs text-[#7B6B5F]">{new Date(e.end).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} · goal {e.goalHours}h</p></div>
-                  {h >= e.goalHours && <span className="text-[10px] font-bold text-[#C9760A] uppercase tracking-wide">Goal met</span>}
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${h >= e.goalHours ? 'bg-accent text-black' : 'bg-[var(--fc2)] text-[color:var(--fm2)]'}`}><Check className="w-4 h-4" /></span>
+                  <div className="flex-1"><p className="text-sm font-bold text-[color:var(--ft)]">{formatHM(h)}</p><p className="text-xs text-[color:var(--fm)]">{new Date(e.end).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} · goal {e.goalHours}h</p></div>
+                  {h >= e.goalHours && <span className="text-[10px] font-bold text-[color:var(--fgold)] uppercase tracking-wide">Goal met</span>}
                 </div>
               );
             })}

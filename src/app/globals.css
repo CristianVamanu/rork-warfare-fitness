@@ -56,26 +56,26 @@
 html.light {
   --background: #FFF9EE;
   --surface: #FFFFFF;
-  --surface-elevated: #F6EEDF;
-  --accent: #D4820A;
-  --accent-hover: #C07508;
-  --accent-muted: rgba(212, 130, 10, 0.12);
-  --foreground: #0A0A0A;
-  --accent-rgb: 212 130 10;
+  --surface-elevated: #F6EEE2;
+  --accent: #F5A623;
+  --accent-hover: #E8961A;
+  --accent-muted: rgba(245, 166, 35, 0.16);
+  --foreground: #2B1B12;
+  --accent-rgb: 245 166 35;
   --background-rgb: 255 249 238;
   --surface-rgb: 255 255 255;
-  --text-secondary: rgba(0, 0, 0, 0.6);
-  --text-tertiary: rgba(0, 0, 0, 0.38);
-  --border-subtle: rgba(0, 0, 0, 0.09);
+  --text-secondary: #7B6B5F;
+  --text-tertiary: #A39486;
+  --border-subtle: #E9DFD0;
   --overlay: rgba(0, 0, 0, 0.45);
   --input-bg: #FFFFFF;
-  --input-text: #0A0A0A;
+  --input-text: #2B1B12;
   --input-placeholder: rgba(0, 0, 0, 0.35);
   --scrollbar-thumb: rgba(0, 0, 0, 0.15);
   --scrollbar-hover: rgba(0, 0, 0, 0.25);
   --card-glass-bg: rgba(255, 255, 255, 0.70);
   --card-glass-border: rgba(0, 0, 0, 0.08);
-  --card-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  --card-shadow: 0 6px 24px rgba(120, 80, 20, 0.08);
   --glow-border: rgba(212, 130, 10, 0.35);
   --glow-shadow: 0 4px 14px rgba(212, 130, 10, 0.15);
   --skeleton-bg: rgba(0, 0, 0, 0.07);
@@ -87,7 +87,7 @@ html.light {
   --hover-overlay: rgba(0, 0, 0, 0.04);
   --active-overlay: rgba(0, 0, 0, 0.08);
   --shadow-modal: 0 25px 60px rgba(0, 0, 0, 0.20);
-  --btn-primary-text: #ffffff;
+  --btn-primary-text: #1A0D00;
 }
 
 /* ─────────────────────────────────────────── */
@@ -351,7 +351,7 @@ html.light .hover\:text-white:hover   { color: var(--foreground) !important; }
 html.light .focus\:ring-accent\/40:focus { --tw-ring-color: rgba(212,130,10,0.35); }
 
 /* Primary button text — stays black on accent bg for contrast in both modes */
-html.light .bg-accent.text-black { color: #ffffff !important; }
+html.light .bg-accent.text-black { color: #1A0D00 !important; }
 
 /* ── Always-dark scope ──
    Full-screen focus surfaces (the breathing session) are designed around a
@@ -2279,3 +2279,12 @@ html.light body { background-color: #FFF9EE; }
 
 /* The email-confirm screen replaces the slim banner while it is up. */
 body[data-verify-screen] .verify-banner { display: none; }
+
+/* Light mode: bright gold fills, but gold TEXT needs a deeper tone to stay
+   readable on cream. */
+html.light .text-accent { color: #C9760A !important; }
+
+/* Fasting screens: one set of colours per theme. Dark by default, the warm
+   cream set in light mode. */
+.fast { --fb:#0C0B0A; --ft:#F5F1EA; --fm:#B3A99D; --fm2:#7F766C; --fc:#171513; --fc2:#211E1A; --fl:#2E2A25; --ftrack:#262320; --fblob:#2A2219; --fsh:0 6px 30px rgba(0,0,0,.35); --fgold:#F5B544; --fpick:#2E2413; --fpickb:#F5A623; }
+html.light .fast { --fb:#FFF9EE; --ft:#2B1B12; --fm:#7B6B5F; --fm2:#A39486; --fc:#FFFFFF; --fc2:#F6EEE2; --fl:#E9DFD0; --ftrack:#F3EADC; --fblob:#FBEBD9; --fsh:0 6px 30px rgba(120,80,20,.08); --fgold:#C9760A; --fpick:#FFF1D6; --fpickb:#F5A623; }
