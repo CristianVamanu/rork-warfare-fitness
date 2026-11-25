@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { primeBeep, beepTick, beepGo, beepDone } from '@/lib/countdownBeep';
 import { createPortal } from 'react-dom';
 import { isTimedHold, holdSecondsFromReps } from '@/lib/timedHold';
 import { nativeBillingBlocked } from '@/lib/native/billing';
@@ -341,16 +342,20 @@ function CardioTimerRow({
   function startNow() {
     cancelReady();
     buzz(180);
+    beepGo();
     startTimer();
   }
   function startReady() {
     const startedAt = Date.now();
+    primeBeep(); // inside the tap, so iOS allows the sound
+    let shown = READY_SECONDS;
     setReady(READY_SECONDS);
     buzz(40);
+    beepTick();
     readyRef.current = setInterval(() => {
       const left = READY_SECONDS - Math.floor((Date.now() - startedAt) / 1000);
       if (left <= 0) { startNow(); return; }
-      setReady((prev) => { if (prev !== left) buzz(40); return left; });
+      if (left !== shown) { shown = left; buzz(40); beepTick(); setReady(left); }
     }, 200);
   }
 
@@ -367,6 +372,7 @@ function CardioTimerRow({
   }
 
   function startTimer() {
+    primeBeep();
     {
       anchorRef.current = { startedAt: Date.now(), base: elapsed };
       setRunning(true);
@@ -379,6 +385,8 @@ function CardioTimerRow({
           anchorRef.current = null;
           setRunning(false);
           setElapsed(durationSeconds);
+          buzz(300);
+          beepDone();
         } else {
           setElapsed(next);
         }
