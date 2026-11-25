@@ -8,6 +8,9 @@
 :root{--o:#FF7A1A;--o2:#FFA62B;--bg:#0B0B0D;--card:#131316;--line:#2A2A30;--mut:#A7A7B0}
 *{margin:0;box-sizing:border-box}
 html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff}
+/* Instagram safe zone: the username bar covers about the top 220 px and the caption the bottom 300 px,
+   so the whole design is scaled into the middle (content then runs from about y 250 to 1630). */
+#r{position:absolute;inset:0;transform:scale(.88);transform-origin:50% 50%}
 .bg{position:absolute;inset:0;background:
   radial-gradient(900px 700px at 100% 0%,rgba(255,122,26,.20),transparent 60%),
   radial-gradient(800px 700px at 0% 100%,rgba(255,122,26,.16),transparent 60%),
