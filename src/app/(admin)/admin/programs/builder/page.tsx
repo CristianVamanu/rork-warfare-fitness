@@ -29,6 +29,7 @@ import { AdminShell } from '@/components/admin/AdminShell';
 import { adminGroups } from '@/components/admin/nav';
 import type { Program, ExerciseVideo } from '@/types';
 import { stripUndefinedDeep } from '@/lib/utils';
+import { isTimedHold, holdSecondsFromReps, formatHoldSeconds } from '@/lib/timedHold';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -155,17 +156,62 @@ function blankPhase(label: string, startWeek: number, endWeek: number, schedule:
 // admin type in whichever unit is natural (seconds for a HIIT-style
 // finisher, minutes for a walk/run) and always stores the true seconds
 // value regardless of which unit is currently selected.
+// A hold (plank, wall sit, reps written as "30s") is a timed exercise. The AI
+// and older programs often save one as plain sets x reps ("Plank, 30"), which
+// the workout then shows as 30 reps. Normalise on the way in: timer on, and
+// the duration taken from the hold seconds or the reps number.
+function timedFields(e: { name?: string; reps?: string | number; isCardio?: boolean; cardioDurationSeconds?: number; holdSeconds?: number }): { isCardio: boolean; cardioDurationSeconds?: number } {
+  const hold = Number(e.holdSeconds) > 0 || isTimedHold({ name: e.name, reps: e.reps });
+  if (!hold) return { isCardio: !!e.isCardio, cardioDurationSeconds: e.cardioDurationSeconds };
+  const sec = e.cardioDurationSeconds ?? (Number(e.holdSeconds) > 0 ? Math.min(900, Math.round(Number(e.holdSeconds))) : holdSecondsFromReps(e.reps));
+  return { isCardio: true, cardioDurationSeconds: sec };
+}
+
+// Number box that can be emptied and retyped. A controlled type="number"
+// input clamped with Math.max(min, Number(value)) snaps back to the minimum
+// the moment it is cleared, so on a phone the "1" could never be deleted.
+// The text is held locally; valid numbers are committed as typed, and an
+// empty or invalid box falls back to the last good value on blur.
+function NumField({ value, onCommit, min = 0, max = 100000, className }: { value: number; onCommit: (n: number) => void; min?: number; max?: number; className?: string }) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setText(String(value)); }, [value, focused]);
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9]*"
+      value={text}
+      className={className}
+      onFocus={e => { setFocused(true); e.target.select(); }}
+      onChange={e => {
+        const t = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        setText(t);
+        if (t !== '') { const n = Number(t); if (n >= min && n <= max) onCommit(n); }
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const n = Number(text);
+        if (text === '' || !Number.isFinite(n)) { setText(String(value)); return; }
+        const c = Math.min(max, Math.max(min, n));
+        if (c !== value) onCommit(c);
+        setText(String(c));
+      }}
+    />
+  );
+}
+
 function CardioDurationInput({ valueSeconds, onChange }: { valueSeconds: number; onChange: (seconds: number) => void }) {
   const [unit, setUnit] = useState<'sec' | 'min'>(valueSeconds >= 60 && valueSeconds % 60 === 0 ? 'min' : 'sec');
-  const amount = unit === 'min' ? Math.round(valueSeconds / 60) : valueSeconds;
+  const amount = unit === 'min' ? Math.max(1, Math.round(valueSeconds / 60)) : valueSeconds;
 
   return (
     <div className="flex gap-2">
-      <Input
-        type="number"
-        min={1}
+      <NumField
         value={amount}
-        onChange={e => onChange(Math.max(1, Number(e.target.value)) * (unit === 'min' ? 60 : 1))}
+        min={1}
+        max={unit === 'min' ? 600 : 3600}
+        onCommit={n => onChange(n * (unit === 'min' ? 60 : 1))}
         className="flex-1"
       />
       <select
@@ -173,10 +219,10 @@ function CardioDurationInput({ valueSeconds, onChange }: { valueSeconds: number;
         onChange={e => {
           const newUnit = e.target.value as 'sec' | 'min';
           setUnit(newUnit);
-          // Re-express the currently displayed amount in the new unit's
-          // seconds so switching units doesn't silently change the
-          // duration (e.g. "30" showing under "sec" becoming "30 min").
-          onChange(newUnit === 'min' ? amount * 60 : amount);
+          // Keep the DURATION when the unit changes, not the number: 30 sec
+          // stays 30 seconds (shown as 1 min only once it is a whole minute).
+          // Converting the number instead turned a 30 s plank into 30 minutes.
+          if (newUnit === 'min') onChange(Math.max(60, Math.round(valueSeconds / 60) * 60));
         }}
         className="bg-surface border border-white/10 rounded-xl px-2 text-sm text-white focus:outline-none focus:border-accent/50"
       >
@@ -402,8 +448,7 @@ function BuilderInner() {
                 rpe: (e as BEx).rpe || 8,
                 restSeconds: e.restSeconds,
                 notes: e.notes || '',
-                isCardio: (e as BEx).isCardio,
-                cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
+                ...timedFields({ name: e.name, reps: e.reps, isCardio: (e as BEx).isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds }),
                 isHiit: (e as BEx).isHiit,
                 hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
                 hiitRestSeconds: (e as BEx).hiitRestSeconds,
@@ -585,8 +630,7 @@ function BuilderInner() {
           rpe: Number(e.rpe) || 8,
           restSeconds: Number(e.restSeconds) || 90,
           notes: e.notes || '',
-          isCardio: !!e.isCardio,
-          cardioDurationSeconds: (e as BEx).cardioDurationSeconds,
+          ...timedFields({ name: e.name, reps: e.reps, isCardio: e.isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds, holdSeconds: (e as { holdSeconds?: number }).holdSeconds }),
           videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
         })),
       }));
@@ -1174,21 +1218,11 @@ function BuilderInner() {
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">Duration (weeks)</label>
-            <Input
-              type="number"
-              value={prog.weeks}
-              onChange={e => setProg(s => ({ ...s, weeks: Math.max(1, Number(e.target.value)) }))}
-              min={1} max={52}
-            />
+            <NumField value={prog.weeks} min={1} max={52} onCommit={n => setProg(s => ({ ...s, weeks: n }))} />
           </div>
           <div>
             <label className="text-xs text-text-secondary mb-1 block">Days per week</label>
-            <Input
-              type="number"
-              value={prog.daysPerWeek}
-              onChange={e => setProg(s => ({ ...s, daysPerWeek: Math.min(7, Math.max(1, Number(e.target.value))) }))}
-              min={1} max={7}
-            />
+            <NumField value={prog.daysPerWeek} min={1} max={7} onCommit={n => setProg(s => ({ ...s, daysPerWeek: n }))} />
           </div>
         </div>
         <div>
@@ -1406,7 +1440,7 @@ function BuilderInner() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{ex.name || 'Untitled Exercise'}</p>
                         <p className="text-xs text-text-secondary">
-                          {ex.sets}×{ex.reps} · RPE {ex.rpe} · {ex.restSeconds}s rest
+                          {ex.sets}×{ex.isCardio && !ex.isHiit && !parseDistance(ex.reps) && (ex.cardioDurationSeconds !== undefined || isTimedHold(ex)) ? formatHoldSeconds(ex.cardioDurationSeconds ?? holdSecondsFromReps(ex.reps)) : ex.reps} · RPE {ex.rpe} · {ex.restSeconds}s rest
                           {ex.muscleGroup ? ` · ${ex.muscleGroup}` : ''}
                         </p>
                       </div>
@@ -1441,14 +1475,9 @@ function BuilderInner() {
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] text-text-tertiary mb-1 block">{ex.isCardio && !ex.isHiit ? 'Sets (interval reps)' : 'Sets'}</label>
-                            <Input
-                              type="number"
-                              value={ex.sets}
-                              onChange={e => updateEx(activeDay, ex.id, { sets: Math.max(1, Number(e.target.value)) })}
-                              min={1} max={20}
-                            />
-                            {ex.isCardio && !ex.isHiit && ex.sets > 1 && (
+                            <label className="text-[10px] text-text-tertiary mb-1 block">{ex.isCardio && !ex.isHiit && !isTimedHold(ex) ? 'Sets (interval reps)' : 'Sets'}</label>
+                            <NumField value={ex.sets} min={1} max={20} onCommit={n => updateEx(activeDay, ex.id, { sets: n })} />
+                            {ex.isCardio && !ex.isHiit && ex.sets > 1 && !isTimedHold(ex) && (
                               <p className="text-[10px] text-text-tertiary mt-1">
                                 E.g. 8 sets + 400m target + 90s rest = &quot;8x400m&quot; interval repeats, resting between each.
                               </p>
@@ -1496,9 +1525,9 @@ function BuilderInner() {
                                     </div>
                                     {!distanceMode ? (
                                       <div>
-                                        <label className="text-[10px] text-text-tertiary mb-1 block">Duration (per rep)</label>
+                                        <label className="text-[10px] text-text-tertiary mb-1 block">{isTimedHold(ex) ? 'Hold time (per set)' : 'Duration (per rep)'}</label>
                                         <CardioDurationInput
-                                          valueSeconds={ex.cardioDurationSeconds ?? 60}
+                                          valueSeconds={ex.cardioDurationSeconds ?? (isTimedHold(ex) ? holdSecondsFromReps(ex.reps) : 60)}
                                           onChange={sec => updateEx(activeDay, ex.id, { cardioDurationSeconds: sec })}
                                         />
                                       </div>
@@ -1548,20 +1577,15 @@ function BuilderInner() {
                           </div>
                           <div>
                             <label className="text-[10px] text-text-tertiary mb-1 block">Rest (seconds)</label>
-                            <Input
-                              type="number"
-                              value={ex.restSeconds}
-                              onChange={e => updateEx(activeDay, ex.id, { restSeconds: Math.max(0, Number(e.target.value)) })}
-                              min={0} max={600} step={15}
-                            />
+                            <NumField value={ex.restSeconds} min={0} max={600} onCommit={n => updateEx(activeDay, ex.id, { restSeconds: n })} />
                           </div>
                           <div className="col-span-2 flex items-center justify-between p-2.5 bg-surface rounded-xl border border-white/10">
                             <div>
-                              <p className="text-xs font-medium text-white">Cardio Exercise</p>
-                              <p className="text-[10px] text-text-tertiary">Shows a timer during the workout instead of sets/reps</p>
+                              <p className="text-xs font-medium text-white">Timed exercise (cardio or holds)</p>
+                              <p className="text-[10px] text-text-tertiary">Shows a timer in the workout instead of reps. Use for cardio, planks and other holds</p>
                             </div>
                             <button
-                              onClick={() => updateEx(activeDay, ex.id, { isCardio: !ex.isCardio, ...(ex.isCardio ? { isHiit: false } : {}) })}
+                              onClick={() => updateEx(activeDay, ex.id, { isCardio: !ex.isCardio, ...(ex.isCardio ? { isHiit: false } : (ex.cardioDurationSeconds === undefined && isTimedHold(ex) ? { cardioDurationSeconds: holdSecondsFromReps(ex.reps) } : {})) })}
                               className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${ex.isCardio ? 'bg-accent' : 'bg-surface-elevated'}`}
                             >
                               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${ex.isCardio ? 'left-[18px]' : 'left-0.5'}`} />
@@ -1593,27 +1617,15 @@ function BuilderInner() {
                             <div className="col-span-2 grid grid-cols-3 gap-2 p-2.5 bg-surface rounded-xl border border-white/10">
                               <div>
                                 <label className="text-[10px] text-text-tertiary mb-1 block">Work (sec)</label>
-                                <Input
-                                  type="number" min={1} max={600} step={1}
-                                  value={ex.hiitWorkSeconds ?? 30}
-                                  onChange={e => updateEx(activeDay, ex.id, { hiitWorkSeconds: Math.max(1, Number(e.target.value)) })}
-                                />
+                                <NumField value={ex.hiitWorkSeconds ?? 30} min={1} max={600} onCommit={n => updateEx(activeDay, ex.id, { hiitWorkSeconds: n })} />
                               </div>
                               <div>
                                 <label className="text-[10px] text-text-tertiary mb-1 block">Rest (sec)</label>
-                                <Input
-                                  type="number" min={0} max={600} step={5}
-                                  value={ex.hiitRestSeconds ?? 30}
-                                  onChange={e => updateEx(activeDay, ex.id, { hiitRestSeconds: Math.max(0, Number(e.target.value)) })}
-                                />
+                                <NumField value={ex.hiitRestSeconds ?? 30} min={0} max={600} onCommit={n => updateEx(activeDay, ex.id, { hiitRestSeconds: n })} />
                               </div>
                               <div>
                                 <label className="text-[10px] text-text-tertiary mb-1 block">Rounds</label>
-                                <Input
-                                  type="number" min={1} max={50} step={1}
-                                  value={ex.hiitRounds ?? 8}
-                                  onChange={e => updateEx(activeDay, ex.id, { hiitRounds: Math.max(1, Number(e.target.value)) })}
-                                />
+                                <NumField value={ex.hiitRounds ?? 8} min={1} max={50} onCommit={n => updateEx(activeDay, ex.id, { hiitRounds: n })} />
                               </div>
                               <p className="col-span-3 text-[10px] text-text-tertiary">
                                 e.g. 30 sec on / 30 sec off × 8 rounds = 8 min total

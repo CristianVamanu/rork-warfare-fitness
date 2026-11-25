@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { isTimedHold, holdSecondsFromReps } from '@/lib/timedHold';
 import { nativeBillingBlocked } from '@/lib/native/billing';
 import { easedSets } from '@/lib/recoveryEase';
 import { maybeAskForReview } from '@/lib/native/review';
@@ -115,6 +116,10 @@ const CARDIO_KEYWORDS = [
 ];
 
 function isCardioExercise(ex: Exercise): boolean {
+  // A hold (plank, wall sit, reps written as "30s") always runs on the timer,
+  // even when a program saved it as plain sets x reps: "Plank, 30 reps" is
+  // never what was meant.
+  if (isTimedHold(ex)) return true;
   if (ex.isCardio !== undefined) return ex.isCardio;
   const nameLower = ex.name.toLowerCase();
   return CARDIO_KEYWORDS.some((kw) => new RegExp(`\\b${kw}\\b`).test(nameLower));
@@ -142,7 +147,8 @@ function buildExState(exercises: Exercise[]): ExState[] {
     const rawMinutesGuess = targetReps * 60;
     const MAX_PLAUSIBLE_TOTAL_SECONDS = 45 * 60;
     const cardioDuration = ex.cardioDurationSeconds ?? (
-      ex.sets > 1 && rawMinutesGuess * ex.sets > MAX_PLAUSIBLE_TOTAL_SECONDS
+      isTimedHold(ex) ? holdSecondsFromReps(ex.reps)
+      : ex.sets > 1 && rawMinutesGuess * ex.sets > MAX_PLAUSIBLE_TOTAL_SECONDS
         ? targetReps
         : rawMinutesGuess
     );
