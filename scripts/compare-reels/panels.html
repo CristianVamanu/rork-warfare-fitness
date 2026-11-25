@@ -1,0 +1,100 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Warfare Fitness comparison template, "white panel" style.
+     Each exercise keeps its full white illustration panel. ?l=1 side by side,
+     ?l=2 top and bottom, ?l=3 diagonal. Content comes from DATA below. -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+:root{--o:#FF7A1A;--o2:#FFA62B;--bg:#0B0B0D;--card:#131316;--line:#2A2A30;--mut:#A7A7B0}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;background:var(--bg);overflow:hidden;font-family:Inter,system-ui,sans-serif;color:#fff}
+.bg{position:absolute;inset:0;background:
+  radial-gradient(900px 700px at 100% 0%,rgba(255,122,26,.20),transparent 60%),
+  radial-gradient(800px 700px at 0% 100%,rgba(255,122,26,.16),transparent 60%),
+  linear-gradient(180deg,#0E0E11,#08080A)}
+.streak{position:absolute;height:14px;background:linear-gradient(90deg,transparent,var(--o),var(--o2));transform:rotate(-38deg);border-radius:8px;filter:drop-shadow(0 0 14px rgba(255,122,26,.7))}
+.logo{position:absolute;left:50%;transform:translateX(-50%);height:54px}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.92;letter-spacing:.005em}
+.or{background:linear-gradient(180deg,var(--o2),var(--o));-webkit-background-clip:text;background-clip:text;color:transparent}
+.wh{background:linear-gradient(180deg,#fff,#C9C9D0);-webkit-background-clip:text;background-clip:text;color:transparent}
+.panel{position:absolute;background:#fff;border-radius:34px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.panel img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+.glow{box-shadow:0 0 0 3px var(--o),0 0 50px rgba(255,122,26,.55),0 20px 60px rgba(0,0,0,.6)}
+.tag{position:absolute;font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;font-size:44px;line-height:.95;padding:18px 26px;border:2px solid rgba(255,122,26,.55);border-radius:20px;background:linear-gradient(180deg,#17171B,#0E0E11)}
+.vs{position:absolute;display:grid;place-items:center;font-family:Kanit;font-style:italic;font-weight:800;color:var(--o);background:#0B0B0D;border:4px solid var(--o);border-radius:50%;box-shadow:0 0 40px rgba(255,122,26,.6)}
+.lab{font:700 21px Inter;letter-spacing:.2em;color:var(--o);text-transform:uppercase}
+.val{font:700 34px/1.15 Barlow;letter-spacing:.01em;text-transform:uppercase}
+.sm{font:500 25px/1.3 Inter;color:#D5D5DB}
+.box{position:absolute;border:1.5px solid var(--line);border-radius:26px;background:linear-gradient(180deg,rgba(22,22,26,.95),rgba(12,12,14,.95))}
+.chk{display:flex;gap:16px;align-items:flex-start;font:500 28px/1.25 Inter;color:#E6E6EA;margin-top:18px}
+.chk i{flex:0 0 30px;height:30px;border-radius:50%;border:2.5px solid var(--o);position:relative;margin-top:2px}
+.chk i:after{content:'';position:absolute;left:8px;top:4px;width:7px;height:13px;border:solid var(--o);border-width:0 3px 3px 0;transform:rotate(45deg)}
+.row{display:flex;gap:18px;align-items:flex-start;padding:20px 0;border-top:1.5px solid var(--line)}
+.row:first-child{border-top:0}
+.ico{flex:0 0 46px;height:46px;border-radius:12px;border:2px solid var(--o);display:grid;place-items:center;color:var(--o);font:800 22px Inter}
+.cta{position:absolute;left:50%;transform:translateX(-50%);white-space:nowrap;padding:22px 40px;border:2px solid rgba(255,122,26,.6);border-radius:24px;background:#101013;font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;font-size:40px}
+</style></head><body><div class="bg"></div><div id="r"></div>
+<script>
+const DATA={
+  a:{name:'Leg Extension',img:'legext.png',primary:'Quadriceps',secondary:'None. It is an isolation lift',move:'One joint: only the knee moves',adv:'Isolates the quads with no load on the back',best:'Finishing the quads, or training them when your back is tired',short:['Isolates the quads','Only the knee moves','No load on your back'],focus:'Quad focus',type:'Isolation'},
+  b:{name:'Leg Press',img:'legpress.png',primary:'Quadriceps, glutes',secondary:'Hamstrings, adductors, calves',move:'Two joints: hips and knees move together',adv:'Heavier loads and more muscle worked per rep',best:'Overall leg size and strength',short:['Quads and glutes together','Hips and knees both move','Handles heavier loads'],focus:'Full leg development',type:'Compound'},
+  verdict:'Both build strong legs. Choose based on your goal.',
+};
+const L=new URLSearchParams(location.search).get('l')||'1', r=document.getElementById('r'), A=DATA.a, B=DATA.b;
+const h=(s)=>{r.insertAdjacentHTML('beforeend',s);};
+const two=(n)=>n.replace(' ','<br>');
+const rows=(x)=>`
+ <div class="row"><div class="ico">◉</div><div><div class="lab">Primary muscles</div><div class="val">${x.primary}</div></div></div>
+ <div class="row"><div class="ico">＋</div><div><div class="lab">Secondary</div><div class="sm">${x.secondary}</div></div></div>
+ <div class="row"><div class="ico">⇅</div><div><div class="lab">Movement</div><div class="sm">${x.move}</div></div></div>
+ <div class="row"><div class="ico">★</div><div><div class="lab">Main advantage</div><div class="sm">${x.adv}</div></div></div>
+ <div class="row"><div class="ico">◎</div><div><div class="lab">Best for</div><div class="sm">${x.best}</div></div></div>`;
+
+if(L==='1'){ // ---------- side by side ----------
+  h(`<div class="streak" style="width:520px;left:-170px;top:120px"></div><div class="streak" style="width:420px;right:-150px;top:60px"></div><div class="streak" style="width:480px;right:-180px;bottom:150px"></div>`);
+  h(`<img class="logo" src="logo-wf.webp" style="top:150px">`);
+  h(`<div class="kan" style="position:absolute;left:0;right:0;top:250px;text-align:center;font-size:124px"><span class="wh">Exercise</span><br><span class="or">Comparison</span></div>`);
+  [[A,60],[B,550]].forEach(([x,left])=>{
+    h(`<div class="box" style="left:${left}px;top:520px;width:470px;height:1130px"></div>`);
+    h(`<div class="kan" style="position:absolute;left:${left}px;width:470px;top:546px;text-align:center;font-size:50px">${two(x.name)}</div>`);
+    h(`<div class="panel" style="left:${left+18}px;top:666px;width:434px;height:434px"><img src="${x.img}"></div>`);
+    h(`<div style="position:absolute;left:${left+26}px;width:418px;top:1108px">
+      <div class="row" style="padding:17px 0"><div><div class="lab" style="font-size:19px">Primary</div><div class="val" style="font-size:34px">${x.primary}</div></div></div>
+      <div class="row" style="padding:17px 0"><div><div class="lab" style="font-size:19px">Secondary</div><div class="sm" style="font-size:25px">${x.secondary}</div></div></div>
+      <div class="row" style="padding:17px 0"><div><div class="lab" style="font-size:19px">Movement</div><div class="sm" style="font-size:25px">${x.move}</div></div></div>
+      <div class="row" style="padding:17px 0"><div><div class="lab" style="font-size:19px">Advantage</div><div class="sm" style="font-size:25px">${x.adv}</div></div></div>
+      <div class="row" style="padding:17px 0"><div><div class="lab" style="font-size:19px">Best for</div><div class="sm" style="font-size:25px">${x.best}</div></div></div></div>`);
+  });
+  h(`<div class="vs" style="left:482px;top:826px;width:116px;height:116px;font-size:52px">VS</div>`);
+  h(`<div class="cta" style="top:1676px;font-size:34px;padding:16px 34px"><span class="or">⚡</span> Choose the right <span class="or">exercise for your goal</span></div>`);
+}
+if(L==='2'){ // ---------- top and bottom ----------
+  h(`<div class="streak" style="width:460px;left:-170px;top:90px"></div><div class="streak" style="width:460px;right:-170px;top:150px"></div>`);
+  h(`<img class="logo" src="logo-wf.webp" style="top:150px">`);
+  h(`<div class="kan" style="position:absolute;left:0;right:0;top:244px;text-align:center;font-size:96px"><span class="wh">${A.name}</span><br><span class="or">vs</span> <span class="wh">${B.name}</span></div>`);
+  [[A,470],[B,1030]].forEach(([x,top])=>{
+    h(`<div class="box" style="left:50px;top:${top}px;width:980px;height:520px"></div>`);
+    h(`<div class="panel" style="left:50px;top:${top}px;width:520px;height:520px"><img src="${x.img}"></div>`);
+    h(`<div style="position:absolute;left:606px;top:${top+26}px;width:400px">
+       <div class="kan or" style="font-size:52px">${two(x.name)}</div>
+       <div class="lab" style="margin-top:16px;font-size:18px">Primary · ${x.type}</div><div class="val" style="font-size:30px">${x.primary}</div>
+       <div class="lab" style="margin-top:12px;font-size:18px">Secondary</div><div class="sm" style="font-size:22px">${x.secondary}</div>
+       ${x.short.map(t=>`<div class="chk" style="font-size:24px;margin-top:13px"><i></i><span>${t}</span></div>`).join('')}</div>`);
+  });
+  h(`<div class="vs" style="left:482px;top:952px;width:116px;height:116px;font-size:52px">VS</div>`);
+  h(`<div class="box" style="left:50px;top:1574px;width:980px;height:96px;display:flex;align-items:center;justify-content:center;gap:16px;border-color:rgba(255,122,26,.55)"><span class="kan" style="font-size:34px">Best for:</span><span class="sm" style="font-size:25px"><b style="color:#fff">Extension</b> to finish the quads · <b style="color:#fff">Press</b> for overall size</span></div>`);
+}
+if(L==='3'){ // ---------- cinematic diagonal ----------
+  h(`<div style="position:absolute;inset:0;background:linear-gradient(118deg,transparent 47%,rgba(255,122,26,.20) 49.4%,rgba(255,166,43,.55) 50%,rgba(255,122,26,.20) 50.6%,transparent 53%)"></div>`);
+  h(`<div class="streak" style="width:560px;right:-200px;top:330px"></div><div class="streak" style="width:560px;left:-240px;top:1730px"></div><div class="streak" style="width:300px;left:-60px;top:70px;height:8px"></div>`);
+  h(`<img class="logo" src="logo-wf.webp" style="top:150px">`);
+  h(`<div class="panel glow" style="left:50px;top:270px;width:590px;height:590px;transform:rotate(-3deg)"><img src="${A.img}"></div>`);
+  h(`<div class="tag" style="left:668px;top:300px;width:362px">${two(A.name)}</div>`);
+  h(`<div style="position:absolute;left:672px;top:452px;width:360px"><div class="lab">Primary</div><div class="val">${A.primary}</div><div class="lab" style="margin-top:14px">Movement</div><div class="sm">${A.move}</div><div class="lab" style="margin-top:14px">Best for</div><div class="sm">${A.best}</div></div>`);
+  h(`<div class="kan or" style="position:absolute;left:0;right:0;top:852px;text-align:center;font-size:190px;filter:drop-shadow(0 0 30px rgba(255,122,26,.6))">VS</div>`);
+  h(`<div class="panel glow" style="left:440px;top:1040px;width:590px;height:590px;transform:rotate(3deg)"><img src="${B.img}"></div>`);
+  h(`<div class="tag" style="left:50px;top:1060px;width:362px">${two(B.name)}</div>`);
+  h(`<div style="position:absolute;left:54px;top:1212px;width:360px"><div class="lab">Primary</div><div class="val">${B.primary}</div><div class="lab" style="margin-top:14px">Secondary</div><div class="sm">${B.secondary}</div><div class="lab" style="margin-top:14px">Best for</div><div class="sm">${B.best}</div></div>`);
+  h(`<div class="kan" style="position:absolute;left:0;right:0;top:1650px;text-align:center;font-size:64px;line-height:1;white-space:nowrap"><span class="wh">Know the</span> <span class="or">difference</span></div>`);
+}
+</script></body></html>
