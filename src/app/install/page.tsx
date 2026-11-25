@@ -79,9 +79,9 @@ export default function InstallPage() {
       .catch(() => router.replace('/login'));
   }, [router]);
 
-  const configForm = useForm<ConfigData>({ resolver: zodResolver(configSchema), defaultValues: { appName: 'Warfare Fitness', trainerName: '', themeColor: '#F5A623' } });
+  const configForm = useForm<z.input<typeof configSchema>, unknown, ConfigData>({ resolver: zodResolver(configSchema), defaultValues: { appName: 'Warfare Fitness', trainerName: '', themeColor: '#F5A623' } });
   const adminForm = useForm<AdminData>({ resolver: zodResolver(adminSchema) });
-  const openaiForm = useForm<OpenAIData>({ resolver: zodResolver(openaiSchema), defaultValues: { openaiModel: 'gpt-4o-mini' } });
+  const openaiForm = useForm<z.input<typeof openaiSchema>, unknown, OpenAIData>({ resolver: zodResolver(openaiSchema), defaultValues: { openaiModel: 'gpt-4o-mini' } });
   const stripeForm = useForm<StripeData>({ resolver: zodResolver(stripeSchema) });
 
   const handleInstall = async () => {

@@ -22,8 +22,8 @@ const schema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  sex: z.enum(['male', 'female'], { errorMap: () => ({ message: 'Select male or female' }) }),
-  age: z.coerce.number({ invalid_type_error: 'Enter your age' }).int().min(13, 'Must be 13 or older').max(100, 'Enter a valid age'),
+  sex: z.enum(['male', 'female'], { error: 'Select male or female' }),
+  age: z.coerce.number({ error: 'Enter your age' }).int().min(13, 'Must be 13 or older').max(100, 'Enter a valid age'),
   weightUnit: z.enum(['kg', 'lbs']),
   acceptedTerms: z.boolean().refine(v => v === true, 'You must accept the Terms & Conditions'),
 }).refine((d) => d.password === d.confirmPassword, {
@@ -38,7 +38,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, watch, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<z.input<typeof schema>, unknown, FormData>({
     resolver: zodResolver(schema),
     defaultValues: { weightUnit: 'kg', acceptedTerms: false },
   });
