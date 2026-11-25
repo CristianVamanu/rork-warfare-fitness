@@ -2298,12 +2298,14 @@ html.light .logo-on-dark { display: none; }
 
 /* Home in light mode: the top of the screen and the centre nav button join
    the cream palette instead of staying black. */
-html.light .home-hero-box { background: radial-gradient(ellipse 70% 90% at 88% 30%, rgba(245,166,35,0.30), transparent 70%), linear-gradient(180deg, #FFF1D6 0%, #FFF9EE 100%); }
-html.light .home-hero-img, html.light .home-hero-shade { display: none; }
+html.light .home-hero-box { background: #FFF9EE; }
+html.light .home-hero-shade { display: none; }
+html.light .home-hero-img { content: url('/home/hero-light.webp'); }
+html.light .home-hero-box::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, #FFF9EE 20%, rgba(255,249,238,0) 58%), linear-gradient(180deg, rgba(255,249,238,0) 65%, #FFF9EE 100%); }
+html.light .home-hero-box > div:last-child { z-index: 1; }
 html.light .wf-dark .home-hero-box h1.text-white { color: #2B1B12 !important; }
 html.light .wf-dark .home-hero-box p { color: #7B6B5F !important; }
 html.light .wf-overlay-head .wf-icon-tile { background: #FFFFFF !important; border-color: #E9DFD0 !important; color: #2B1B12 !important; box-shadow: 0 4px 14px rgba(120,80,20,0.10); }
 html.light .nav-core { background: linear-gradient(180deg, #FFC65A, #F5A623) !important; border-color: #FFFFFF !important; box-shadow: 0 0 0 5px #FFFFFF, 0 8px 22px rgba(245,166,35,0.45) !important; }
 html.light .nav-core svg { color: #1A0D00 !important; }
-html.light .home-hero-box::before { display: none; }
 html.light .hc-streak .hc-flame + div span + span { color: #7A2E00 !important; text-shadow: none !important; }
