@@ -55,7 +55,7 @@ export function resolveTheme(input: {
  * route must be listed here or explicitly excused below.
  */
 export const APP_SHELL_PREFIXES: readonly string[] = [
-  '/achievements', '/banned', '/body', '/breathing', '/community', '/dashboard', '/goals', '/habits',
+  '/achievements', '/banned', '/body', '/breathing', '/community', '/dashboard', '/fasting', '/goals', '/habits',
   '/messages', '/notifications', '/nutrition', '/profile', '/progress', '/pt-test', '/quests',
   '/settings', '/support', '/training', '/verify-2fa',
   // Only the member pages under /ripz; /ripz itself is the public page.

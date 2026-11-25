@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Timer, Hourglass, Flame, X, Quote, Lock, ChevronRight } from 'lucide-react';
 import { Medallion } from '@/components/dashboard/Medallion';
 import toast from 'react-hot-toast';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFeatureAccess } from '@/lib/useFeatureAccess';
 import { startFasting, stopFasting } from '@/lib/firestore';
@@ -55,6 +56,7 @@ export function FastingWidget() {
   // always renders the compact locked tile below, dashboard-grid-sized
   // rather than PaywallGate's full-page upsell layout.
   const { loaded: accessLoaded, isLocked: fastingLocked } = useFeatureAccess('fasting');
+  const router = useRouter();
   const [now, setNow] = useState(Date.now());
   const [startModal, setStartModal] = useState(false);
   const [detailModal, setDetailModal] = useState(false);
@@ -105,7 +107,7 @@ export function FastingWidget() {
   if (!fasting) {
     return (
       <>
-        <button onClick={() => setStartModal(true)} className="w-full text-left">
+        <button onClick={() => router.push('/fasting')} className="w-full text-left">
           <Card glass className="relative wf-art p-4 flex items-center gap-3.5 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
             <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
             <div className="flex-1 min-w-0">
@@ -166,7 +168,7 @@ export function FastingWidget() {
 
   return (
     <>
-      <button onClick={() => setDetailModal(true)} className="w-full text-left">
+      <button onClick={() => router.push('/fasting')} className="w-full text-left">
         <Card glass className="relative wf-art p-4 flex items-center gap-4 card-float" style={{ '--art': "url('/home/cards/fasting.webp')" } as React.CSSProperties}>
             <ChevronRight aria-hidden className="absolute right-4 top-4 w-4 h-4 text-text-tertiary z-[2]" />
           <CircularProgress pct={pct} size={72} strokeWidth={7} color="var(--accent)">
