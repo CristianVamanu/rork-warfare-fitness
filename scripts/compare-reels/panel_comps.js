@@ -8,7 +8,7 @@ window.COMPS = {
     best: '<b>Extension</b> to finish the quads · <b>Press</b> for overall size',
   },
   pullup_pulldown: {
-    a: { name: 'Pull-Up', fr: 'fr_pullup', primary: 'Lats', secondary: 'Biceps, mid back, rear delts, core', move: 'You pull your whole body up to a fixed bar', best: 'Upper body strength once you can do several reps', short: ['Lifts your own bodyweight', 'Core and grip work hard', 'Needs only a bar'], type: 'Compound' },
+    a: { name: 'Pull-Up', fr: 'fr_pullup', n: 197, primary: 'Lats', secondary: 'Biceps, mid back, rear delts, core', move: 'You pull your whole body up to a fixed bar', best: 'Upper body strength once you can do several reps', short: ['Lifts your own bodyweight', 'Core and grip work hard', 'Needs only a bar'], type: 'Compound' },
     b: { name: 'Lat Pulldown', fr: 'fr_pulldown', primary: 'Lats', secondary: 'Biceps, mid back, rear delts', move: 'You stay seated and pull the bar down to you', best: 'Beginners building up to pull-ups, and extra back volume', short: ['Load adjusts from very light', 'Easy to learn', 'Good for higher reps'], type: 'Compound' },
     best: '<b>Pull-up</b> for strength · <b>Pulldown</b> to build up to it',
   },
@@ -66,7 +66,7 @@ window.COMPS = {
     hook: { big: ['Chin-up or', 'pull-up?'], sub: 'Your grip changes the muscle' },
     ctaQ: 'Chin-ups or', ctaQ2: 'pull-ups?',
     a: { name: 'Chin-Up', fr: 'fr_chinup', n: 196, primary: 'Lats, biceps', secondary: 'Mid back, rear delts, core', move: 'Palms face you, shoulder-width grip', best: 'More biceps work, and usually more reps', short: ['Palms facing you', 'Biceps work harder', 'Most people get more reps'], type: 'Compound' },
-    b: { name: 'Pull-Up', fr: 'fr_pullup', primary: 'Lats', secondary: 'Biceps, mid back, rear delts, core', move: 'Palms face away, wider grip', best: 'Back width and upper body strength', short: ['Palms facing away', 'Lats do more of the work', 'Usually the harder of the two'], type: 'Compound' },
+    b: { name: 'Pull-Up', fr: 'fr_pullup', n: 197, primary: 'Lats', secondary: 'Biceps, mid back, rear delts, core', move: 'Palms face away, wider grip', best: 'Back width and upper body strength', short: ['Palms facing away', 'Lats do more of the work', 'Usually the harder of the two'], type: 'Compound' },
     best: '<b>Chin-up</b> for more biceps · <b>Pull-up</b> for the lats',
   },
   front_back_squat: {
