@@ -86,7 +86,7 @@ if(L==='2'){ // ---------- top and bottom ----------
 }
 if(L==='3'){ // ---------- cinematic diagonal ----------
   h(`<div style="position:absolute;inset:0;background:linear-gradient(118deg,transparent 47%,rgba(255,122,26,.20) 49.4%,rgba(255,166,43,.55) 50%,rgba(255,122,26,.20) 50.6%,transparent 53%)"></div>`);
-  h(`<div class="streak" style="width:560px;right:-200px;top:330px"></div><div class="streak" style="width:560px;left:-240px;top:1730px"></div><div class="streak" style="width:300px;left:-60px;top:70px;height:8px"></div>`);
+  h(`<div class="streak" style="width:560px;right:-200px;top:40px"></div><div class="streak" style="width:560px;left:-240px;top:1730px"></div><div class="streak" style="width:300px;left:-60px;top:70px;height:8px"></div>`);
   h(`<img class="logo" src="logo-wf.webp" style="top:150px">`);
   h(`<div class="panel glow" style="left:50px;top:270px;width:590px;height:590px;transform:rotate(-3deg)"><img src="${A.img}"></div>`);
   h(`<div class="tag" style="left:668px;top:300px;width:362px">${two(A.name)}</div>`);
@@ -96,5 +96,21 @@ if(L==='3'){ // ---------- cinematic diagonal ----------
   h(`<div class="tag" style="left:50px;top:1060px;width:362px">${two(B.name)}</div>`);
   h(`<div style="position:absolute;left:54px;top:1212px;width:360px"><div class="lab">Primary</div><div class="val">${B.primary}</div><div class="lab" style="margin-top:14px">Secondary</div><div class="sm">${B.secondary}</div><div class="lab" style="margin-top:14px">Best for</div><div class="sm">${B.best}</div></div>`);
   h(`<div class="kan" style="position:absolute;left:0;right:0;top:1650px;text-align:center;font-size:64px;line-height:1;white-space:nowrap"><span class="wh">Know the</span> <span class="or">difference</span></div>`);
+}
+
+// ---------- video mode (?v=1): timed entrances, clips play inside the white panels ----------
+// render_panels.mjs calls window.setT(seconds) for every frame. ?fa= / ?fb= are frame folders, ?na= / ?nb= frame counts.
+const Q=new URLSearchParams(location.search);
+if(Q.get('v')){
+  const c=[...r.children], E='cubic-bezier(.2,.8,.2,1)';
+  const an=(el,d,from,dur=650)=>el.animate([{opacity:0,...from},{opacity:1,translate:'0 0',scale:'1'}],{duration:dur,delay:d*1000,fill:'both',easing:E});
+  const up=(el,d)=>an(el,d,{translate:'0 46px'}), lf=(el,d)=>an(el,d,{translate:'-90px 0'}), rt=(el,d)=>an(el,d,{translate:'90px 0'});
+  const pop=(el,d)=>an(el,d,{scale:'2.6'},450), stag=(el,d,g=.38)=>[...el.children].forEach((k,i)=>up(k,d+i*g));
+  let pa,pb;
+  if(L==='2'){ up(c[2],.1);up(c[3],.3); lf(c[4],.9);lf(c[5],.9);stag(c[6],1.4); pop(c[10],5.6); rt(c[7],6.1);rt(c[8],6.1);stag(c[9],6.6); up(c[11],11.3); pa=c[5];pb=c[8]; }
+  if(L==='3'){ up(c[4],.1); lf(c[5],.5);rt(c[6],1.0);stag(c[7],1.4,.3); pop(c[8],5.6); rt(c[9],6.1);lf(c[10],6.6);stag(c[11],7.0,.3); up(c[12],11.3); pa=c[5];pb=c[9]; }
+  const ia=pa.querySelector('img'), ib=pb.querySelector('img'), SP=+(Q.get('speed')||2.5);
+  const fr=(k,t,t0)=>{const n=+Q.get('n'+k);return Q.get('f'+k)+'/f_'+String(Math.floor(Math.max(0,t-t0)*29.97*SP)%n).padStart(4,'0')+'.jpg';};
+  window.setT=async(t)=>{document.getAnimations().forEach(a=>{a.pause();a.currentTime=t*1000;});ia.src=fr('a',t,.5);ib.src=fr('b',t,6.1);await Promise.all([ia.decode(),ib.decode()]);};
 }
 </script></body></html>
