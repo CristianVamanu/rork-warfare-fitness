@@ -3,6 +3,7 @@ import { cache } from 'react';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { MOCK_PROGRAMS } from '@/lib/programs';
 import { slugify } from '@/lib/slug';
+import { ttlCache } from '@/lib/ttlCache';
 import type { Program } from '@/types';
 
 /**
@@ -34,7 +35,12 @@ export interface PublicProgram extends Program {
  * about five round trips to render one page. React's cache() dedupes them
  * within a single render pass.
  */
-export const getPublicPrograms = cache(async (): Promise<PublicProgram[]> => {
+/** How long the catalogue is reused across requests. An admin edit shows on the public pages within this time. */
+const CATALOGUE_TTL_MS = 60_000;
+
+export const getPublicPrograms = cache((): Promise<PublicProgram[]> => ttlCache('public-programs', CATALOGUE_TTL_MS, loadPublicPrograms));
+
+async function loadPublicPrograms(): Promise<PublicProgram[]> {
   const app = getAdminApp();
   let firestorePrograms: Program[] = [];
   let deletedIds = new Set<string>();
@@ -66,7 +72,7 @@ export const getPublicPrograms = cache(async (): Promise<PublicProgram[]> => {
   return [...firestorePrograms, ...mocks]
     .map((p) => ({ ...p, slug: programSlug(p.name) }))
     .sort((a, b) => a.name.localeCompare(b.name));
-});
+}
 
 export async function getPublicProgramBySlug(slug: string): Promise<PublicProgram | null> {
   const all = await getPublicPrograms();

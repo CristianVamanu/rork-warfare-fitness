@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic';
  * minute (five at a CDN) and rate limited per IP.
  */
 
+import { ttlCache } from '@/lib/ttlCache';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminApp, getAdminDb } from '@/lib/firebase-admin';
 import { MOCK_PROGRAMS } from '@/lib/programs';
@@ -28,6 +29,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } });
     }
 
+    const programs = await ttlCache('public-programs-api', 60_000, loadCards);
+    return NextResponse.json({ programs }, { headers: { 'Cache-Control': CACHE } });
+  } catch (err) {
+    console.error('[public/programs] Error:', err);
+    return NextResponse.json({ programs: [] });
+  }
+}
+
+// The catalogue cards. Cached for a minute across requests (see ttlCache):
+// reading every public programme document per visitor capped this route at a
+// few requests a second.
+async function loadCards() {
+  {
     const app = getAdminApp();
     let firestorePrograms: Program[] = [];
     let deletedIds = new Set<string>();
@@ -71,9 +85,6 @@ export async function GET(req: NextRequest) {
 
     if (programsToShow > 0) programs = programs.slice(0, programsToShow);
 
-    return NextResponse.json({ programs }, { headers: { 'Cache-Control': CACHE } });
-  } catch (err) {
-    console.error('[public/programs] Error:', err);
-    return NextResponse.json({ programs: [] });
+    return programs;
   }
 }
