@@ -11,4 +11,5 @@ mkdir -p "$T/crop"
 ffmpeg -v error -i "$SRC" -vf "select=not(mod(n\,2)),crop=$W:$H:$X:$Y,scale=iw*0.6:-2:flags=area" -vsync 0 "$T/crop/f_%04d.png"
 "$SRV" -I "$D/upscale.py" "$PTH" "$T/crop" "$T/hi" 3.3333 >/dev/null
 "$BV" "$D/cutout.py" "$T/hi" "$OUT" --fps "$FPS"
+"$BV" "$D/dewhite.py" "$OUT"
 rm -rf "$T"

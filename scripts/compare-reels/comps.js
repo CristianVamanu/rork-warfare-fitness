@@ -81,7 +81,7 @@
       verdict: [
         ['CHOOSE FLAT FOR', 'Overall pressing strength', ['Moves the most weight', 'Mid and lower chest']],
         ['CHOOSE INCLINE FOR', 'The upper chest', ['Fills out the top of your chest', 'Keep it around 30–45°, not steeper']]],
-      both: 'Best plan? <em>Both.</em><br>Flat for strength. Incline for the top.',
+      both: 'Best plan? <em>Both.</em><br>Flat for strength.<br>Incline for the top.',
     },
 
     pushup_bench: {

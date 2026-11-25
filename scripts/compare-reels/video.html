@@ -40,7 +40,9 @@ const OV=location.search.includes('overlay');
 if(OV) document.documentElement.style.setProperty('--bg','transparent');
 if(OV){ const st=document.createElement('style'); st.textContent='.call,.sub,.tag,.meter,.eyebrow{text-shadow:0 0 10px #000,0 0 3px #000,0 1px 2px #000}'; document.head.appendChild(st); }
 const NS='http://www.w3.org/2000/svg', svg=document.getElementById('s'), ui=document.getElementById('ui');
-const DUR=26, FPS=30;
+// ?dur=15 plays the same 26-second timeline faster, for a 15-second reel.
+const OUT=Number(new URLSearchParams(location.search).get('dur'))||26, K=26/OUT;
+const DUR=OUT, FPS=30;
 const clamp=(x,a=0,b=1)=>Math.max(a,Math.min(b,x));
 const ease=(x)=>{x=clamp(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;};
 const out=(x)=>1-Math.pow(1-clamp(x),3);
@@ -70,6 +72,8 @@ mk('hA','tag',C.A.label,90,1500); mk('hB','tag',C.B.label,620,1500);
 });
 // Footage mode: callouts in one right-hand column, under the neon sign.
 if(OV) ['q','p'].forEach(k=>[1,2,3].forEach((n,i)=>{const e=D[k+n]; if(e){e.style.left='620px'; e.style.top=[820,1015,1210][i]+'px';}}));
+// Short cut: two callouts per exercise, so each can be read.
+if(K>1.2) ['q3','p3'].forEach(id=>{ if(D[id]) D[id].style.display='none'; });
 mk('vK','eyebrow','THE VERDICT',90,200);
 C.verdict.forEach((v,i)=>mk(i?'vB':'vA','card',`<div class="k">${v[0]}</div><h3>${v[1]}</h3><ul>${v[2].map(x=>`<li>${x}</li>`).join('')}</ul>`,90,i?780:300));
 mk('vC','both',C.both,0,1270);
@@ -177,6 +181,7 @@ function leader(p,a,b,o){ if(o<=0||OV)return; const g=el('g',{opacity:o},p);
 }
 
 function render(t){
+  t*=K;
   svg.innerHTML=DEFS; defs=svg.querySelector('defs'); clipN=0;
   if(!OV) el('rect',{width:1080,height:1920,fill:'url(#grid)',opacity:.6});
   const L=el('g',{});
@@ -229,10 +234,12 @@ window.poseSheet=function(names){ svg.innerHTML=DEFS; defs=svg.querySelector('de
 // Where the composited footage goes at time t (overlay mode). Boxes are the
 // area a clip is fitted into, bottom-aligned; z is the slow push-in.
 window.figLayout=function(t){
+  t*=K;
   const out=[]; const h=win(t,0,3.3,.3), q=win(t,3.2,10.7,.45), p=win(t,10.6,18.1,.45);
   if(h>0){ out.push({k:'A',x:30,y:560,w:500,h:860,op:h,z:1+0.04*ease(ramp(t,0,3.3)),t0:0}); out.push({k:'B',x:550,y:560,w:500,h:860,op:h,z:1+0.04*ease(ramp(t,0,3.3)),t0:0}); }
   if(q>0) out.push({k:'A',x:10,y:420,w:600,h:930,op:q,z:1.06-0.06*ease(ramp(t,3.2,10.7)),t0:3.2});
   if(p>0) out.push({k:'B',x:10,y:420,w:600,h:930,op:p,z:1.06-0.06*ease(ramp(t,10.6,18.1)),t0:10.6});
+  out.forEach(f=>{f.t0/=K;});
   return out;
 };
 window.render=render; window.DUR=DUR; window.FPS=FPS;

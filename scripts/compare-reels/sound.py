@@ -8,8 +8,9 @@ def lp(x, a):  # one-pole low-pass, a in (0,1)
     y = np.empty_like(x); acc = 0.0
     for i in range(len(x)): acc += a * (x[i] - acc); y[i] = acc
     return y
+KT = DUR / 26.0  # the event times below are written for the 26 s cut
 def put(sig, at, gain=1.0, pan=0.0):
-    i = int(at * SR); n = min(len(sig), N - i)
+    i = int(at * KT * SR); n = min(len(sig), N - i)
     if n <= 0: return
     mix[i:i+n, 0] += sig[:n] * gain * (1 - max(pan, 0)); mix[i:i+n, 1] += sig[:n] * gain * (1 + min(pan, 0))
 # bed: low drone (A1 + E2) with slow movement, ducked under the end card
@@ -55,9 +56,10 @@ for base in (8.8, 16.2):
         for j in range(5):
             put(tick(0.02, 3600 + 300 * j, 0.6), base + i*0.2 + j*0.1, 0.08, pan=-0.3 + 0.3*i)
 # end: soft low chord swell
-tt = t[t >= 23.6] - 23.6
+_e = 23.6 * KT
+tt = t[t >= _e] - _e
 ch = sum(np.sin(2*np.pi*f*tt) for f in (55, 82.41, 110, 164.8)) * np.clip(tt/0.8, 0, 1) * np.exp(-tt*0.9) * 0.08
-mix[t >= 23.6, 0] += ch; mix[t >= 23.6, 1] += ch
+mix[t >= _e, 0] += ch; mix[t >= _e, 1] += ch
 mix /= np.max(np.abs(mix)) / 0.89
 pcm = (mix * 32767).astype('<i2')
 with wave.open(sys.argv[1], 'wb') as w:

@@ -4,7 +4,7 @@ import fs from 'fs'; import path from 'path';
 const [dir, comp] = process.argv.slice(2);
 const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: Number(process.env.DSF || 2) });
 p.on('pageerror', (e) => console.log('ERR', e.message));
-await p.goto('file://' + path.resolve(dir, 'video.html') + '?static&overlay&c=' + comp); await p.waitForTimeout(500);
+await p.goto('file://' + path.resolve(dir, 'video.html') + '?static&overlay&c=' + comp + (process.env.DUR ? '&dur=' + process.env.DUR : '')); await p.waitForTimeout(500);
 const dur = await p.evaluate(() => window.DUR), fps = await p.evaluate(() => window.FPS);
 fs.mkdirSync(path.join(dir, 'ov'), { recursive: true });
 const layout = [];
