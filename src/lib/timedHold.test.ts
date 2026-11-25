@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isTimedHoldName, holdSecondsFromReps, explicitSeconds, isTimedHold, formatHoldSeconds } from './timedHold';
+import { isCardioName, cardioSecondsFromReps, isTimedHoldName, holdSecondsFromReps, explicitSeconds, isTimedHold, formatHoldSeconds } from './timedHold';
 
 describe('timedHold', () => {
   it('recognises holds by name', () => {
@@ -30,4 +30,15 @@ describe('timedHold', () => {
     expect(isTimedHold({ name: 'Run', reps: '400m' })).toBe(false);
   });
   it('formats', () => { expect(formatHoldSeconds(30)).toBe('30s'); expect(formatHoldSeconds(60)).toBe('1 min'); expect(formatHoldSeconds(90)).toBe('1 min 30s'); });
+  it('recognises cardio by name, not rows or lunges', () => {
+    for (const n of ['Stationary Bike', 'Easy Run', 'Treadmill Running', 'Rowing Machine', 'Jump Rope', 'Assault Bike Sprints']) expect(isCardioName(n)).toBe(true);
+    for (const n of ['Barbell Row', 'Dumbbell Row', 'Walking Lunge', 'Cable Row', 'Squat']) expect(isCardioName(n)).toBe(false);
+  });
+  it('reads a cardio duration', () => {
+    expect(cardioSecondsFromReps('20 min', 1)).toBe(1200);
+    expect(cardioSecondsFromReps('20', 1)).toBe(1200);
+    expect(cardioSecondsFromReps(30, 8)).toBe(30);
+    expect(cardioSecondsFromReps('45s', 6)).toBe(45);
+    expect(cardioSecondsFromReps('', 1)).toBe(600);
+  });
 });

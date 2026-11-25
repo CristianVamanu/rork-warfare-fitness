@@ -42,3 +42,25 @@ export function formatHoldSeconds(sec: number): string {
   const m = Math.floor(sec / 60), s = sec % 60;
   return s ? `${m} min ${s}s` : `${m} min`;
 }
+
+// Cardio by name, for programs (mostly AI-written) that did not flag it. Whole
+// words only, so "Barbell Row" and "Walking Lunge" are not cardio.
+const CARDIO_NAME = /\b(run|running|jog|jogging|sprint|sprints|bike|biking|cycling|cycle|rowing|rower|row erg|swim|swimming|elliptical|treadmill|stairmaster|stair climber|jump rope|skipping|ruck|rucking|hike|hiking|air bike|assault bike|ski erg|cardio)\b/i;
+export function isCardioName(name: string | undefined): boolean {
+  return !!name && CARDIO_NAME.test(name) && !/\b(barbell|dumbbell|kettlebell|cable|bent[- ]over|t-bar|seated cable|inverted)\b.*\brow/i.test(name);
+}
+
+/**
+ * Seconds per set for a cardio exercise, from whatever the program holds.
+ * An explicit duration wins. Otherwise "20 min" / "45s" in reps is read as
+ * written, and a bare number means minutes for one continuous set and
+ * seconds for intervals (several sets), which is how such numbers are meant.
+ */
+export function cardioSecondsFromReps(reps: string | number | undefined, sets: number, fallback = 600): number {
+  const explicit = explicitSeconds(reps);
+  if (explicit) return Math.min(explicit, 4 * 3600);
+  const m = String(reps ?? '').match(/\d+(?:\.\d+)?/);
+  const n = m ? Number(m[0]) : NaN;
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.round(sets > 1 ? Math.min(n, 600) : Math.min(n * 60, 4 * 3600));
+}

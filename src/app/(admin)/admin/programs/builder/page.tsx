@@ -29,7 +29,7 @@ import { AdminShell } from '@/components/admin/AdminShell';
 import { adminGroups } from '@/components/admin/nav';
 import type { Program, ExerciseVideo } from '@/types';
 import { stripUndefinedDeep } from '@/lib/utils';
-import { isTimedHold, holdSecondsFromReps, formatHoldSeconds } from '@/lib/timedHold';
+import { isTimedHold, holdSecondsFromReps, formatHoldSeconds, isCardioName, cardioSecondsFromReps } from '@/lib/timedHold';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -160,11 +160,21 @@ function blankPhase(label: string, startWeek: number, endWeek: number, schedule:
 // and older programs often save one as plain sets x reps ("Plank, 30"), which
 // the workout then shows as 30 reps. Normalise on the way in: timer on, and
 // the duration taken from the hold seconds or the reps number.
-function timedFields(e: { name?: string; reps?: string | number; isCardio?: boolean; cardioDurationSeconds?: number; holdSeconds?: number }): { isCardio: boolean; cardioDurationSeconds?: number } {
+function timedFields(e: { name?: string; reps?: string | number; sets?: number; isCardio?: boolean; cardioDurationSeconds?: number; holdSeconds?: number; durationSeconds?: number; detectByName?: boolean }): { isCardio: boolean; cardioDurationSeconds?: number } {
   const hold = Number(e.holdSeconds) > 0 || isTimedHold({ name: e.name, reps: e.reps });
-  if (!hold) return { isCardio: !!e.isCardio, cardioDurationSeconds: e.cardioDurationSeconds };
-  const sec = e.cardioDurationSeconds ?? (Number(e.holdSeconds) > 0 ? Math.min(900, Math.round(Number(e.holdSeconds))) : holdSecondsFromReps(e.reps));
-  return { isCardio: true, cardioDurationSeconds: sec };
+  if (hold) {
+    const sec = e.cardioDurationSeconds ?? (Number(e.holdSeconds) > 0 ? Math.min(900, Math.round(Number(e.holdSeconds))) : holdSecondsFromReps(e.reps));
+    return { isCardio: true, cardioDurationSeconds: sec };
+  }
+  // Cardio: flagged by the program, or recognisable by name (the AI does not
+  // always flag a bike or a run). It always gets a duration, so the editor
+  // never shows a ride as plain sets x reps that has to be fixed by hand.
+  // A distance target ("5km") is left alone: the workout tracks distance.
+  const cardio = !!e.isCardio || (!!e.detectByName && isCardioName(e.name));
+  if (!cardio) return { isCardio: false, cardioDurationSeconds: e.cardioDurationSeconds };
+  if (parseDistance(String(e.reps ?? ''))) return { isCardio: true, cardioDurationSeconds: e.cardioDurationSeconds };
+  const given = Number(e.durationSeconds) > 0 ? Math.min(4 * 3600, Math.round(Number(e.durationSeconds))) : undefined;
+  return { isCardio: true, cardioDurationSeconds: e.cardioDurationSeconds ?? given ?? cardioSecondsFromReps(e.reps, Number(e.sets) || 1) };
 }
 
 // Number box that can be emptied and retyped. A controlled type="number"
@@ -448,7 +458,7 @@ function BuilderInner() {
                 rpe: (e as BEx).rpe || 8,
                 restSeconds: e.restSeconds,
                 notes: e.notes || '',
-                ...timedFields({ name: e.name, reps: e.reps, isCardio: (e as BEx).isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds }),
+                ...timedFields({ name: e.name, reps: e.reps, sets: Number(e.sets) || 1, isCardio: (e as BEx).isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds }),
                 isHiit: (e as BEx).isHiit,
                 hiitWorkSeconds: (e as BEx).hiitWorkSeconds,
                 hiitRestSeconds: (e as BEx).hiitRestSeconds,
@@ -630,7 +640,7 @@ function BuilderInner() {
           rpe: Number(e.rpe) || 8,
           restSeconds: Number(e.restSeconds) || 90,
           notes: e.notes || '',
-          ...timedFields({ name: e.name, reps: e.reps, isCardio: e.isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds, holdSeconds: (e as { holdSeconds?: number }).holdSeconds }),
+          ...timedFields({ name: e.name, reps: e.reps, sets: Number(e.sets) || 1, isCardio: e.isCardio, cardioDurationSeconds: (e as BEx).cardioDurationSeconds, holdSeconds: (e as { holdSeconds?: number }).holdSeconds, durationSeconds: (e as { durationSeconds?: number }).durationSeconds, detectByName: true }),
           videoUrl: (videoMap as Record<string, string>)[e.name] ?? '',
         })),
       }));

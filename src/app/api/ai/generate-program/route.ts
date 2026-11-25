@@ -52,6 +52,7 @@ Return ONLY valid JSON with this exact structure (no markdown, no extra text):
           "restSeconds": <number 30-300>,
           "notes": "How-to-perform tip, max 12 words, e.g. 'Keep chest up, drive through heels'",
           "isCardio": <true only for running/cycling/rowing/elliptical/similar steady-state or interval cardio work, false for everything else>,
+          "durationSeconds": <REQUIRED when isCardio is true: seconds of work per set. One continuous block = total seconds with sets 1 (a 20 minute bike ride is 1200). Intervals = seconds per round with sets = number of rounds (8 x 30 s sprints is 30 with sets 8). Omit when isCardio is false>,
           "holdSeconds": <ONLY for exercises held for time instead of counted (plank, side plank, wall sit, dead hang, hollow hold, L-sit): seconds per set, e.g. 30. Omit for every other exercise>
         }
       ]
@@ -69,6 +70,7 @@ RULES:
 - Rest 60-90s for hypertrophy, 120-180s for strength, 30-60s for metabolic
 - Vary rep schemes based on goal (strength: 1-6 reps, hypertrophy: 8-15 reps, endurance: 15-25 reps)
 - For isCardio exercises done as INTERVALS (sets > 1, e.g. "8 rounds of sprints"): "reps" is a duration in SECONDS per round, written as a plain number (e.g. "30" or "45") — never minutes. Real intervals are 15-60 seconds of work per round; multiple rounds of several minutes each is physiologically unrealistic. Reserve minute-based durations (e.g. "20 min", "3 miles") for a single set (sets: 1) of genuine steady-state cardio only.
+- CARDIO IS TIMED, NEVER COUNTED IN REPS: every bike, run, row, swim, elliptical, treadmill, stair, jump rope, ruck or hike exercise MUST have "isCardio": true and a "durationSeconds". Steady-state cardio is ONE set (sets: 1) with the whole duration, e.g. 20 minutes = 1200; do not split a continuous ride or run into 3 sets. Use several sets only for real intervals, with durationSeconds as the work time of one round. Write the same duration in "reps" with its unit ("20 min", "30s"). If the target is a distance instead ("5km", "400m"), put the distance in "reps" and still set isCardio true.
 - TIMED HOLDS: a plank, side plank, wall sit, dead hang, hollow hold or L-sit is held for time, never counted in reps. Give it "holdSeconds" (10-120, scaled to the athlete's level) and write the same duration in "reps" with the unit, e.g. "30s" ("30s each side" for a side plank). Never write a bare number such as "30" for these.
 - Every exercise MUST include a short "notes" tip (max 12 words) on how to perform it correctly — this is shown to the user as an in-workout info tip, so keep it punchy and actionable, not generic
 - This phase must reflect its stated focus and show real progression from whatever came before it (more sets/working volume, less rest, heavier target loads implied by lower rep ranges, more advanced exercise variations or unilateral/single-limb work, and/or added complexity) — unless its focus is explicitly a deload, which does the opposite: same or similar movements, meaningfully reduced volume.
