@@ -91,4 +91,12 @@ describe('referral reward', () => {
     expect(playMonthlyCents(119.99, 1, 365 * d)).toBe(1000);
     expect(playMonthlyCents(0, 1, 30 * d)).toBeNull();
   });
+  it('pays no free months on a member a partner brought in', async () => {
+    const db = makeAdminDb(); const { stripe, calls } = fakeStripe();
+    await db.collection('users').doc('ref').set({ stripeCustomerId: 'cus_ref' });
+    await db.collection('users').doc('new').set({ stripeCustomerId: 'cus_new', attribution: { pendingPartnerId: 'p1', pendingCode: 'MIKE' } });
+    await recordReferrer(db as never, 'new', 'ref');
+    for (const n of [1, 2, 3]) expect(await grantReferralReward(db as never, stripe, pay(n))).toBe('skipped');
+    expect(calls).not.toHaveBeenCalled();
+  });
 });

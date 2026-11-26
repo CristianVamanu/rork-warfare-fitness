@@ -328,3 +328,35 @@ export async function setPartnerMembership(db: Firestore, uid: string, grant: bo
     await db.collection('partners').doc(uid).set({ membershipGranted: false }, { merge: true });
   }
 }
+
+/** Google's service fee on subscriptions, as a fraction. Google Play takes
+ *  15% on subscriptions; RevenueCat does not send the fee itself. */
+export const PLAY_FEE_RATE = 0.15;
+
+/**
+ * Commission for a Google Play payment (RevenueCat webhook). Card payments
+ * carry the partner in Stripe metadata; Play payments do not, so the partner
+ * is read from the member's attribution, locked on the first paid payment as
+ * Stripe does, and the payment is written to the same ledger, keyed
+ * `play-<transaction>` so a redelivered event cannot pay twice.
+ */
+export async function recordPlayCommission(db: Firestore, opts: {
+  memberUid: string; transactionId: string; amountPaidCents: number; currency: string; productId?: string | null; now?: Date;
+}): Promise<LedgerRow | null> {
+  if (!opts.transactionId || opts.amountPaidCents <= 0) return null;
+  const userSnap = await db.collection('users').doc(opts.memberUid).get();
+  const a = (userSnap.data()?.attribution ?? null) as Attribution | null;
+  let partnerId = a?.partnerId ?? null, partnerCode = a?.partnerCode ?? null;
+  if (!partnerId) {
+    const pending = await pendingPartnerFor(db, userSnap.data());
+    if (!pending) return null;
+    await lockAttribution(db, { uid: opts.memberUid, partnerId: pending.uid, partnerCode: pending.code, now: opts.now });
+    partnerId = pending.uid; partnerCode = pending.code;
+  }
+  if (!partnerId || !partnerCode) return null;
+  return recordInvoiceCommission(db, {
+    invoiceId: `play-${opts.transactionId}`, memberUid: opts.memberUid, partnerId, partnerCode,
+    amountPaidCents: opts.amountPaidCents, currency: opts.currency,
+    feeCents: Math.round(opts.amountPaidCents * PLAY_FEE_RATE), planName: opts.productId ? `Google Play: ${opts.productId}` : 'Google Play', now: opts.now,
+  });
+}

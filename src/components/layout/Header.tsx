@@ -106,13 +106,13 @@ export function Header({ title, showActions = true, rightElement, showBack = fal
                   support request, and permanently for staff (who always have
                   an inbox to check). Separate from the message icon above so
                   each one goes somewhere unambiguous. */}
-              {hasSupportTicket && !overlay && (
+              {hasSupportTicket && (
                 <Link
                   href={isAdmin ? '/admin?tab=support' : '/support'}
                   aria-label={unreadSupport > 0 ? `Support, ${unreadSupport} unread` : 'Support'}
                   className="wf-icon-tile"
                 >
-                  <LifeBuoy className="w-[19px] h-[19px]" strokeWidth={1.75} />
+                  <LifeBuoy className={overlay ? 'w-[17px] h-[17px]' : 'w-[19px] h-[19px]'} strokeWidth={1.75} />
                   {unreadSupport > 0 && (
                     <span className="wf-icon-badge tabular-nums">
                       {unreadSupport > 9 ? '9+' : unreadSupport}

@@ -131,6 +131,12 @@ export async function grantReferralReward(db: Firestore, stripe: Stripe, a: {
   const refRef = db.collection('referredBy').doc(a.memberUid);
   const referrerUid = (await refRef.get()).data()?.referrerUid as string | undefined;
   if (!referrerUid || referrerUid === a.memberUid) return 'skipped';
+  // One reward per member, not two: a member a partner brought in earns that
+  // partner a cash commission, so the member-referral free months do not
+  // also pay out on them. Partner attribution wins because it is the paid
+  // relationship.
+  const attribution = (await db.collection('users').doc(a.memberUid).get()).data()?.attribution as { partnerId?: string; pendingPartnerId?: string } | undefined;
+  if (attribution?.partnerId || attribution?.pendingPartnerId) return 'skipped';
 
   try { await refRef.collection('payments').doc(a.paymentId).create({ at: FieldValue.serverTimestamp(), cents: a.cents }); }
   catch { return 'skipped'; } // this payment was already counted

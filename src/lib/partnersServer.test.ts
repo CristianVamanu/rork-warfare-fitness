@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { Firestore } from 'firebase-admin/firestore';
-import { recordPartnerClick, attachPendingCode, lockAttribution, recordInvoiceCommission, recordClawback, setPartnerMembership } from './partnersServer';
+import { recordPartnerClick, attachPendingCode, lockAttribution, recordInvoiceCommission, recordClawback, setPartnerMembership, recordPlayCommission } from './partnersServer';
 
 /**
  * An in-memory Firestore with just enough surface for partnersServer: doc
@@ -190,5 +190,21 @@ describe('free membership perk', () => {
     await setPartnerMembership(F(), 'p2', true);
     await setPartnerMembership(F(), 'p2', false);
     expect((db.docs.get('users/p2')!.membership as { status: string }).status).toBe('active');
+  });
+});
+
+describe('google play', () => {
+  it('pays commission on a Play payment, locks the partner, never twice, net of the store fee', async () => {
+    await attachPendingCode(F(), { uid: 'm1', code: 'MIKE', source: 'link' });
+    const row = await recordPlayCommission(F(), { memberUid: 'm1', transactionId: 'GPA.1', amountPaidCents: 1000, currency: 'usd', now: T0 });
+    expect(row).toMatchObject({ partnerId: 'p1', netCents: 850, commissionCents: 255 });
+    expect((db.docs.get('users/m1')!.attribution as { partnerId: string }).partnerId).toBe('p1');
+    expect(await recordPlayCommission(F(), { memberUid: 'm1', transactionId: 'GPA.1', amountPaidCents: 1000, currency: 'usd', now: T0 })).toBeNull();
+    // a refund takes it back
+    const back = await recordClawback(F(), { invoiceId: 'play-GPA.1', refundedCents: 1000, eventId: 'ev1', reason: 'refund', now: T0 });
+    expect(back?.commissionCents).toBe(-255);
+  });
+  it('pays nothing for a member no partner brought in', async () => {
+    expect(await recordPlayCommission(F(), { memberUid: 'm1', transactionId: 'GPA.2', amountPaidCents: 1000, currency: 'usd', now: T0 })).toBeNull();
   });
 });

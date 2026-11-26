@@ -19,6 +19,8 @@ import { membershipChangeFor, type RevenueCatEvent } from '@/lib/revenuecat';
 import { recordStoreEvent, type RcMoneyEvent } from '@/lib/finance/sync';
 import { grantReferralReward, applyPendingPlayDays, revenueCatDeferrer, playMonthlyCents } from '@/lib/referralReward';
 import { getStripe } from '@/lib/stripe';
+import { recordPlayCommission, recordClawback } from '@/lib/partnersServer';
+import { toMinor } from '@/lib/finance/money';
 
 function authorized(header: string | null): boolean {
   const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
@@ -91,6 +93,25 @@ export async function POST(req: NextRequest) {
       }
       await applyPendingPlayDays(db, play, change.uid, change.productId);
     } catch (err) { console.error('[RevenueCat webhook] referral reward failed', err); }
+  }
+  // Partner commission on Google Play payments, like card payments get in the
+  // Stripe webhook. Never fails the webhook.
+  {
+    const e = event as RcMoneyEvent & { cancel_reason?: string | null };
+    const txn = e.transaction_id || '';
+    const cur = (e.currency || 'usd').toLowerCase();
+    try {
+      if (change.kind === 'grant' && (event.type === 'INITIAL_PURCHASE' || event.type === 'RENEWAL') && e.period_type !== 'TRIAL'
+          && (e.price_in_purchased_currency ?? 0) > 0 && txn) {
+        await recordPlayCommission(db, { memberUid: change.uid, transactionId: txn, amountPaidCents: toMinor(e.price_in_purchased_currency as number, cur), currency: cur, productId: change.productId });
+      }
+      // RevenueCat reports a Google Play refund as a cancellation with reason
+      // CUSTOMER_SUPPORT. Take the commission back, as a card refund does.
+      if (event.type === 'CANCELLATION' && e.cancel_reason === 'CUSTOMER_SUPPORT' && txn && event.id) {
+        const price = Math.abs(e.price_in_purchased_currency ?? 0);
+        await recordClawback(db, { invoiceId: `play-${txn}`, refundedCents: price > 0 ? toMinor(price, cur) : Number.MAX_SAFE_INTEGER, eventId: event.id, reason: 'refund' });
+      }
+    } catch (err) { console.error('[RevenueCat webhook] partner commission failed', err); }
   }
   return NextResponse.json({ ok: true });
 }
