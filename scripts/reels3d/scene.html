@@ -1,0 +1,243 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- Warfare Fitness 3D reel: two mannequins, one standard.
+     "The minimum" against "what gets picked", from the app's own published
+     test standards (src/lib/ptStandards.ts). Both start together; one stops
+     at the minimum, the other keeps going. Real-time 3D (three.js) with an
+     HTML HUD on top, rendered frame by frame: render3d.mjs calls
+     window.setT(seconds). Serve this folder over http (ES modules). -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;background:#050506;overflow:hidden;color:#fff;font-family:Inter,system-ui,sans-serif}
+canvas{position:absolute;inset:0;width:1080px;height:1920px}
+#hud{position:absolute;inset:0}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.94}
+.bar{font-family:Barlow;font-weight:700;text-transform:uppercase}
+.or{background:linear-gradient(180deg,#FFB347,#FF7A1A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.wh{background:linear-gradient(180deg,#fff,#BFC3CC);-webkit-background-clip:text;background-clip:text;color:transparent}
+.abs{position:absolute}
+.tick{font:600 20px Inter;letter-spacing:.34em;text-transform:uppercase;color:#8d919b}
+.col{position:absolute;top:470px;width:440px;text-align:center}
+.num{font-family:Kanit;font-style:italic;font-weight:800;font-size:210px;line-height:.9;font-variant-numeric:tabular-nums}
+.tag{display:inline-block;margin-top:14px;padding:8px 20px;border-radius:10px;font:800 28px Barlow;letter-spacing:.08em;text-transform:uppercase}
+.full{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 80px}
+.vig{position:absolute;inset:0;background:radial-gradient(1100px 1500px at 50% 55%,transparent 55%,rgba(0,0,0,.72));pointer-events:none}
+.frame i{position:absolute;width:44px;height:44px;border:3px solid rgba(255,122,26,.75)}
+</style></head><body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<div class="vig"></div>
+<div id="hud"></div>
+<script type="importmap">{"imports":{"three":"./node_modules/three/build/three.module.js","three/addons/":"./node_modules/three/examples/jsm/"}}</script>
+<script src="reels.js"></script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+const Q=new URLSearchParams(location.search), R=window.REELS3D[Q.get('c')||'seal_pushups'];
+const DSF=+(Q.get('dsf')||1);
+// ── timeline ────────────────────────────────────────────────────────────
+const HOOK=1.5, RUN0=HOOK, RUN=8.6, RUN1=RUN0+RUN, RESULT=RUN1+.35, CTA=RESULT+2.3, DUR=CTA+2.2; window.DUR=DUR;
+const A_MAX=R.a.value, B_MAX=R.b.value;
+// counter pace: both climb together, eased so the last reps land with weight
+const countAt=(t)=>{const x=Math.min(1,Math.max(0,(t-RUN0)/RUN));return B_MAX*(x<.9?x/.9*.94:.94+(x-.9)/.1*.06);};
+const tStop=(()=>{let lo=RUN0,hi=RUN1;for(let i=0;i<40;i++){const m=(lo+hi)/2;countAt(m)<A_MAX?lo=m:hi=m;}return hi;})();
+
+// ── renderer ────────────────────────────────────────────────────────────
+const canvas=document.getElementById('c');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(DSF); renderer.setSize(1080,1920,false);
+renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x050506); scene.fog=new THREE.Fog(0x050506,7,17);
+const cam=new THREE.PerspectiveCamera(30,1080/1920,.1,60);
+
+// ── materials ───────────────────────────────────────────────────────────
+const bodyMat=()=>new THREE.MeshStandardMaterial({color:0xd9d4cc,roughness:.42,metalness:.05});
+const jointMat=new THREE.MeshStandardMaterial({color:0x8f8a83,roughness:.5,metalness:.1});
+const UP=new THREE.Vector3(0,1,0), _d=new THREE.Vector3();
+
+// A mannequin drawn from joint positions: every limb is a cylinder laid
+// between two points, with balls at the joints, and a mirrored copy below the
+// floor for the reflection. Posing is then just "where is each joint".
+function makeFigure(){
+  const g=new THREE.Group(), parts=[], mat=bodyMat();
+  const headMat=new THREE.MeshStandardMaterial({color:0xf2efe9,roughness:.3,emissive:0xfff2dc,emissiveIntensity:0});
+  const mk=(geo,m)=>{const a=new THREE.Mesh(geo,m),b=new THREE.Mesh(geo,m);a.castShadow=true;g.add(a,b);return [a,b];};
+  const seg=(r,m=mat)=>{const p=mk(new THREE.CylinderGeometry(r,r*.86,1,20,1),m);parts.push(p);return p;};
+  const ball=(r,m=jointMat)=>mk(new THREE.SphereGeometry(r,24,18),m);
+  const f={g,mat,headMat,
+    torso:seg(.135),neck:seg(.045,jointMat),head:ball(.125,headMat),pelvis:ball(.13,mat),chest:ball(.15,mat),
+    L:{ua:seg(.052),fa:seg(.045),th:seg(.07),sh:seg(.055),sho:ball(.066),elb:ball(.05),hip:ball(.075),knee:ball(.058),hand:ball(.05,mat),foot:mk(new THREE.BoxGeometry(.2,.07,.1),mat)},
+    Rt:{ua:seg(.052),fa:seg(.045),th:seg(.07),sh:seg(.055),sho:ball(.066),elb:ball(.05),hip:ball(.075),knee:ball(.058),hand:ball(.05,mat),foot:mk(new THREE.BoxGeometry(.2,.07,.1),mat)}};
+  return f;
+}
+function put(pair,p){pair[0].position.copy(p);pair[1].position.set(p.x,-p.y,p.z);}
+function lay(pair,a,b){
+  _d.subVectors(b,a);const len=_d.length()||1e-6;
+  pair[0].position.addVectors(a,b).multiplyScalar(.5);pair[0].quaternion.setFromUnitVectors(UP,_d.clone().divideScalar(len));pair[0].scale.set(1,len,1);
+  const a2=new THREE.Vector3(a.x,-a.y,a.z),b2=new THREE.Vector3(b.x,-b.y,b.z);_d.subVectors(b2,a2);
+  pair[1].position.addVectors(a2,b2).multiplyScalar(.5);pair[1].quaternion.setFromUnitVectors(UP,_d.divideScalar(len));pair[1].scale.set(1,len,1);
+}
+const V=(x,y,z)=>new THREE.Vector3(x,y,z);
+// two-bone IK in the vertical plane through a and b; bend picks the elbow/knee side
+function ik(a,b,l1,l2,bend){
+  const d=b.clone().sub(a);let L=d.length();L=Math.min(L,l1+l2-1e-4);
+  const x=(l1*l1-l2*l2+L*L)/(2*L),hh=Math.sqrt(Math.max(0,l1*l1-x*x));
+  const u=d.clone().normalize(),n=bend.clone().sub(u.clone().multiplyScalar(bend.dot(u))).normalize();
+  return a.clone().add(u.multiplyScalar(x)).add(n.multiplyScalar(hh));
+}
+
+// ── poses ───────────────────────────────────────────────────────────────
+// Each pose returns the joints of a figure facing +x, feet around the origin.
+// d = 0 (top of the rep) … 1 (bottom).
+const POSES={
+  pushup(d){
+    const sh=.60-.37*d;                             // shoulder height
+    const ank=V(-.86,.09,0),S=V(.42,sh,0),H=ank.clone().lerp(S,.56).add(V(0,.01,0));
+    const J={hip:H,chest:S,neck:V(.50,sh+.035,0),head:V(.62,sh+.075,0),L:{},Rt:{}};
+    for(const [k,z] of [['L',.2],['Rt',-.2]]){
+      const sho=V(.42,sh,z*.9),hand=V(.44,.035,z*1.15);
+      J[k]={sho,hand,elb:ik(sho,hand,.31,.29,V(-1,.25,z*2.2)),hip:V(H.x,H.y,z*.45),foot:V(-.92,.045,z*.45),knee:null};
+      J[k].knee=J[k].hip.clone().lerp(V(-.86,.09,z*.45),.52);J[k].ank=V(-.86,.09,z*.45);
+    }
+    return J;
+  },
+  pullup(d){                                         // d: 0 hanging, 1 chin over the bar
+    const bar=2.25, y=bar-.68+.47*d;                 // shoulder height
+    const S=V(0,y,0),H=V(-.03,y-.52,0);
+    const J={hip:H,chest:S,neck:V(.01,y+.07,0),head:V(.03,y+.19,0),L:{},Rt:{}};
+    for(const [k,z] of [['L',.2],['Rt',-.2]]){
+      const sho=V(0,y,z),hand=V(.02,bar,z*1.25);
+      const hip=V(H.x,H.y,z*.45),ank=V(-.16-.1*d,H.y-.84,z*.45);
+      J[k]={sho,hand,elb:ik(sho,hand,.31,.29,V(.25,-1,z*3)),hip,ank,knee:ik(hip,ank,.44,.42,V(1,0,0)),foot:V(ank.x+.03,ank.y-.05,ank.z)};
+    }
+    return J;
+  },
+  situp(d){                                          // d: 0 lying, 1 up
+    const a=d*1.25,H=V(0,.12,0),S=V(-.52*Math.cos(a),.12+.52*Math.sin(a),0);
+    const dir=S.clone().sub(H).normalize();
+    const J={hip:H,chest:S,neck:S.clone().add(dir.clone().multiplyScalar(.08)),head:S.clone().add(dir.clone().multiplyScalar(.2)),L:{},Rt:{}};
+    for(const [k,z] of [['L',.19],['Rt',-.19]]){
+      const sho=V(S.x,S.y,z),hand=S.clone().add(dir.clone().multiplyScalar(.2)).add(V(0,0,z*1.1));
+      const hip=V(0,.12,z*.5),ank=V(.62,.08,z*.5);
+      J[k]={sho,hand,elb:ik(sho,hand,.27,.25,V(-dir.y,dir.x,z*4)),hip,ank,knee:ik(hip,ank,.44,.42,V(0,1,0)),foot:V(.70,.04,z*.5)};
+    }
+    return J;
+  },
+};
+function pose(f,J,yaw){
+  const m=new THREE.Matrix4().makeRotationY(yaw), T=(p)=>p.clone().applyMatrix4(m);
+  lay(f.torso,T(J.hip),T(J.chest));put(f.pelvis,T(J.hip));put(f.chest,T(J.chest));lay(f.neck,T(J.chest),T(J.neck));put(f.head,T(J.head));
+  for(const k of ['L','Rt']){const s=f[k],j=J[k];
+    put(s.sho,T(j.sho));put(s.elb,T(j.elb));put(s.hand,T(j.hand));lay(s.ua,T(j.sho),T(j.elb));lay(s.fa,T(j.elb),T(j.hand));
+    put(s.hip,T(j.hip));put(s.knee,T(j.knee));lay(s.th,T(j.hip),T(j.knee));lay(s.sh,T(j.knee),T(j.ank));
+    const ft=T(j.foot);s.foot[0].position.copy(ft);s.foot[0].rotation.y=yaw;s.foot[1].position.set(ft.x,-ft.y,ft.z);s.foot[1].rotation.y=yaw;}
+}
+
+// ── stage ───────────────────────────────────────────────────────────────
+// Per-pose staging. Floor moves are long, so the figures point toward the
+// camera in a shallow V (foreshortened) to fit a portrait frame side by side.
+const CFG={
+  pushup:{x:.75,yaw:[-1.224,-1.918],fwd:.16,cam:[0,4.1,7.3],look:[0,.98,0],plat:[1.0,1.8]},
+  situp:{x:.75,yaw:[-1.224,-1.918],fwd:-.1,cam:[0,4.1,7.3],look:[0,.98,0],plat:[1.15,1.95]},
+  pullup:{x:.72,yaw:[.45,-.45+Math.PI],fwd:0,cam:[0,2.0,8.4],look:[0,1.72,0],plat:[1.3,1.5]},
+}[R.pose];
+const X=[-CFG.x,CFG.x], figs=[makeFigure(),makeFigure()], plats=[], spots=[], rings=[];
+const POSE=POSES[R.pose], YAW=CFG.yaw;
+figs.forEach((f,i)=>{
+  f.g.position.set(X[i]+Math.cos(YAW[i])*-CFG.fwd*-1*0+0,0,0);f.g.position.x=X[i]-Math.cos(YAW[i])*CFG.fwd*-1;f.g.position.z=-Math.sin(YAW[i])*CFG.fwd;scene.add(f.g);
+  // lit platform under each figure
+  const pm=new THREE.MeshStandardMaterial({color:0x1a1410,roughness:.35,metalness:.6,emissive:0xff8a2a,emissiveIntensity:0});
+  const p=new THREE.Mesh(new THREE.BoxGeometry(CFG.plat[0],.035,CFG.plat[1]),pm);p.position.set(X[i],-.02,0);p.rotation.y=YAW[i]+Math.PI/2;p.receiveShadow=true;scene.add(p);plats.push(pm);
+  const edge=new THREE.Mesh(new THREE.RingGeometry(.99,1.0,4,1),new THREE.MeshBasicMaterial({color:0xff7a1a,transparent:true,opacity:0,side:THREE.DoubleSide}));
+  edge.rotation.order='YXZ';edge.rotation.y=YAW[i]+Math.PI/2;edge.rotation.x=-Math.PI/2;edge.rotation.z=Math.PI/4;edge.scale.set(CFG.plat[0]*.71,CFG.plat[1]*.71,1);edge.position.set(X[i],.004,0);scene.add(edge);rings.push(edge.material);
+  const s=new THREE.SpotLight(0xfff0dc,0,11,.38,.6,1.0);s.position.set(X[i]*1.6,4.4,2.6);s.target.position.set(X[i],.4,0);s.castShadow=true;s.shadow.mapSize.set(1024,1024);s.shadow.bias=-.0005;scene.add(s,s.target);spots.push(s);
+  if(R.pose==='pullup'){const bm=new THREE.MeshStandardMaterial({color:0x2a2a2e,roughness:.3,metalness:.9});
+    const bar=new THREE.Mesh(new THREE.CylinderGeometry(.025,.025,1.5,16),bm);bar.rotation.x=Math.PI/2;bar.rotation.y=0;bar.position.set(X[i],2.25,0);bar.rotation.z=0;scene.add(bar);
+    for(const z of [-.72,.72]){const post=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,2.25,12),bm);post.position.set(X[i],1.125,z);scene.add(post);}}
+});
+// glossy floor: a dark sheet over the mirrored figures, fading to black
+const fl=new THREE.Mesh(new THREE.PlaneGeometry(40,40),new THREE.MeshStandardMaterial({color:0x07070a,roughness:.25,metalness:.2,transparent:true,opacity:.9}));
+fl.rotation.x=-Math.PI/2;fl.position.y=-.045;scene.add(fl);
+const grid=new THREE.GridHelper(40,80,0x2b1a0c,0x15110d);grid.position.y=-.04;grid.material.transparent=true;grid.material.opacity=.55;scene.add(grid);
+scene.add(new THREE.HemisphereLight(0x8fa0c0,0x120c08,.22));
+const rim=new THREE.DirectionalLight(0xff7a1a,1.1);rim.position.set(-3,2.2,-4);scene.add(rim);
+const rim2=new THREE.DirectionalLight(0x6ea0ff,.4);rim2.position.set(4,3,-3);scene.add(rim2);
+// drifting dust for depth
+const dustN=260,dp=new Float32Array(dustN*3);for(let i=0;i<dustN;i++){dp[i*3]=(Math.random()-.5)*9;dp[i*3+1]=Math.random()*4.5;dp[i*3+2]=(Math.random()-.5)*8-1;}
+const dust=new THREE.Points(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(dp,3)),new THREE.PointsMaterial({color:0xffb070,size:.018,transparent:true,opacity:.5,depthWrite:false}));scene.add(dust);
+
+const composer=new EffectComposer(renderer);composer.setPixelRatio(DSF);composer.setSize(1080,1920);
+composer.addPass(new RenderPass(scene,cam));
+const bloom=new UnrealBloomPass(new THREE.Vector2(1080,1920),.35,.6,.9);composer.addPass(bloom);composer.addPass(new OutputPass());
+
+// ── HUD ─────────────────────────────────────────────────────────────────
+const hud=document.getElementById('hud'),h=(s)=>{hud.insertAdjacentHTML('beforeend',s);return hud.lastElementChild;};
+const top=h(`<div class="abs" style="left:0;right:0;top:262px;text-align:center">
+  <img src="logo-wf.webp" style="height:46px"><div class="tick" style="margin-top:22px">${R.kicker}</div>
+  <div class="kan wh" style="font-size:64px;margin-top:10px">${R.title}</div></div>`);
+const cols=[R.a,R.b].map((s,i)=>h(`<div class="col" style="left:${i?590:50}px">
+  <div class="tick" style="color:${i?'#FF9A3D':'#8d919b'}">${s.label}</div>
+  <div class="num ${i?'or':'wh'}">0</div><div class="tag" style="opacity:0"></div></div>`));
+const clock=h(`<div class="abs bar" style="left:0;right:0;top:806px;text-align:center;font-size:34px;letter-spacing:.2em;color:#8d919b"></div>`);
+const track=h(`<div class="abs" style="left:140px;right:140px;top:862px;height:6px;border-radius:3px;background:#1d1d22"><div style="height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#FF7A1A,#FFB347);box-shadow:0 0 14px rgba(255,122,26,.8)"></div></div>`).firstChild;
+h(`<div class="frame">${[[60,236,'3px 0 0 3px'],[976,236,'3px 3px 0 0'],[60,1620,'0 0 3px 3px'],[976,1620,'0 3px 3px 0']].map(([x,y,bw])=>`<i style="left:${x}px;top:${y}px;border-width:${bw}"></i>`).join('')}</div>`);
+const result=h(`<div class="abs" style="left:70px;right:70px;top:786px;text-align:center;opacity:0">
+  <div class="kan" style="font-size:112px;filter:drop-shadow(0 0 26px rgba(255,122,26,.55))"><span class="or">${R.gap[0]}</span></div>
+  <div class="kan wh" style="font-size:50px;margin-top:6px">${R.gap[1]}</div>
+  <div style="font:600 27px/1.35 Inter;color:#D5D8DE;margin-top:14px">${R.gap[2]}</div></div>`);
+const hook=h(`<div class="full" style="background:radial-gradient(900px 800px at 50% 46%,rgba(255,122,26,.20),transparent 65%),#050506">
+  <img src="logo-wf.webp" style="height:54px;position:absolute;top:262px">
+  <div class="tick" style="font-size:26px;color:#FF9A3D;margin-bottom:26px">${R.kicker}</div>
+  <div class="kan" style="font-size:${R.hook.join('').length>26?104:128}px"><span class="wh">${R.hook[0]}</span><br><span class="or">${R.hook[1]}</span></div>
+  <div class="bar" style="margin-top:40px;font-size:48px;letter-spacing:.03em;color:#E6E6EA">${R.hook[2]}</div></div>`);
+const cta=h(`<div class="full" style="background:rgba(5,5,6,.93);opacity:0">
+  <img src="logo-wf.webp" style="height:70px;margin-bottom:54px">
+  <div class="kan" style="font-size:104px"><span class="wh">${R.cta[0]}</span><br><span class="or">${R.cta[1]}</span></div>
+  <div style="margin-top:56px;padding:26px 44px;border:2px solid #FF7A1A;border-radius:26px;background:#101013;box-shadow:0 0 44px rgba(255,122,26,.4)">
+    <div class="tick" style="color:#FF9A3D;font-size:24px">${R.cta[2]}</div>
+    <div class="kan wh" style="font-size:54px;margin-top:10px;text-transform:none">${R.cta[3]}</div></div>
+  <div class="bar" style="margin-top:44px;font-size:36px;color:#B9BDC6;letter-spacing:.06em">Follow @warfarefitnessapp</div></div>`);
+
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);};
+const REPHZ=1.9;                                   // visible reps per second
+window.setT=(t)=>{
+  // counters
+  const c=countAt(t), nA=Math.min(A_MAX,Math.floor(c)), nB=Math.min(B_MAX,Math.floor(c+1e-6)), doneA=t>=tStop, doneB=t>=RUN1;
+  const vals=[t<RUN0?0:nA, t<RUN0?0:(doneB?B_MAX:nB)];
+  // motion: both pump together; A stops at its number and holds the top
+  const ph=Math.max(0,t-RUN0)*REPHZ*Math.PI*2, d=(1-Math.cos(ph))/2;
+  const settle=(tEnd)=>d*(1-ease((t-tEnd)/.35));
+  pose(figs[0],POSE(doneA?settle(tStop):(t<RUN0?0:d)),YAW[0]);
+  pose(figs[1],POSE(doneB?settle(RUN1):(t<RUN0?0:d)),YAW[1]);
+  // light: A dims when it stops, B burns hotter toward the end
+  const intro=ease((t-(HOOK-.5))/.8), aOn=1-.78*ease((t-tStop)/.6), heat=cl((c-A_MAX)/(B_MAX-A_MAX)), fin=ease((t-RUN1)/.3);
+  spots[0].intensity=9*intro*aOn; spots[1].intensity=9*intro*(1+.35*heat);
+  figs[0].headMat.emissiveIntensity=.9*intro*aOn; figs[1].headMat.emissiveIntensity=intro*(.9+.9*heat+.5*fin);
+  figs[0].mat.color.setScalar(1).multiply(new THREE.Color(0xd9d4cc)).multiplyScalar(.45+.55*aOn);
+  plats[0].emissiveIntensity=.035*intro*aOn; plats[1].emissiveIntensity=intro*(.035+.13*heat);
+  rings[0].opacity=0; rings[1].opacity=0;
+  bloom.strength=.32+.2*heat+.35*fin*(1-cl((t-RUN1-.3)/.8));
+  // camera: slow push-in and drift; settles toward the winner at the end
+  const k=cl(t/DUR), toB=ease((t-tStop)/2.2)*.1;
+  cam.position.set(CFG.cam[0]+Math.sin(k*1.2-.5)*.55+toB*.9, CFG.cam[1]-.25*k, CFG.cam[2]-.7*k); cam.lookAt(CFG.look[0]+toB*.5, CFG.look[1], CFG.look[2]);
+  dust.rotation.y=t*.03; dust.position.y=(t*.05)%.4;
+  composer.render();
+  // HUD
+  { const a=cl((t-(HOOK-.3))/.3); hook.style.opacity=1-a; hook.style.transform=`scale(${1+.08*a})`; hook.style.visibility=a>=1?'hidden':'visible'; }
+  cols.forEach((col,i)=>{ const n=col.children[1], tag=col.children[2], done=i?doneB:doneA, at=i?RUN1:tStop;
+    n.textContent=R.fmt?R.fmt(vals[i]):vals[i]; const pop=done?Math.max(0,1-(t-at)/.4):0; n.style.scale=1+.22*pop;
+    n.style.opacity=i===0&&doneA?.55+.45*(1-ease((t-tStop)/.6)):1;
+    tag.textContent=(i?R.b:R.a).done; tag.style.opacity=done?cl((t-at)/.2):0;
+    tag.style.background=i?'#FF7A1A':'#2a2a30'; tag.style.color=i?'#140800':'#C9CCD3'; });
+  const x=cl((t-RUN0)/RUN); clock.textContent=R.clock(x); track.style.width=(x*100)+'%';
+  const hudOn=1-ease((t-RESULT+.1)/.3); clock.style.opacity=hudOn; track.parentNode.style.opacity=hudOn;
+  { const a=ease((t-RESULT)/.4); result.style.opacity=a; result.style.translate=`0 ${(1-a)*40}px`; }
+  { const a=ease((t-CTA)/.35); cta.style.opacity=a; cta.style.translate=`0 ${(1-a)*40}px`; }
+};
+window.READY=true; setT(+(Q.get('t')||0));
+</script></body></html>
