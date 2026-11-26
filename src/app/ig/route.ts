@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
 /**
  * warfarefitness.com/ig — the link for the Instagram bio.
@@ -9,9 +9,9 @@ import { NextRequest, NextResponse } from 'next/server';
  */
 export const dynamic = 'force-dynamic';
 
-export function GET(req: NextRequest) {
-  const to = new URL('/', req.nextUrl.origin);
-  to.searchParams.set('utm_campaign', 'instagram');
-  to.searchParams.set('utm_source', 'instagram');
-  return NextResponse.redirect(to, 302);
+// A relative Location, on purpose: behind the reverse proxy the request's own
+// origin is the internal address (localhost:3000), and an absolute redirect
+// built from it sent visitors there.
+export function GET() {
+  return new NextResponse(null, { status: 302, headers: { Location: '/?utm_campaign=instagram&utm_source=instagram', 'Cache-Control': 'no-store' } });
 }
