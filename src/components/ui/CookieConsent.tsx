@@ -56,25 +56,27 @@ export function CookieConsent() {
     setVisible(false);
   }
 
+  // A thin bar, not a card. The old card covered the bottom third of a phone
+  // screen on the landing page and on the first sign-up question, over the
+  // content a new visitor came to see. Reject and Accept stay side by side at
+  // the same size, so declining is exactly as easy as accepting.
   return (
-    <div className="fixed bottom-0 inset-x-0 z-[100] p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-      <div className="max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto bg-surface-elevated border border-white/10 rounded-2xl shadow-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-        <p className="text-xs text-text-secondary leading-relaxed flex-1">
-          We use essential cookies to keep you signed in. With your consent, we also load a
-          third-party chat widget that sets its own cookies. See our{' '}
-          <Link href="/privacy" className="text-accent underline">Privacy Policy</Link> for details.
-          You can change this anytime in Settings.
+    <div className="fixed bottom-0 inset-x-0 z-[100] px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+      <div className="max-w-lg md:max-w-2xl mx-auto bg-surface-elevated/95 backdrop-blur-md border border-white/10 rounded-xl shadow-xl pl-3 pr-2 py-2 flex items-center gap-2">
+        <p className="text-[11px] leading-snug text-text-secondary flex-1 min-w-0">
+          Essential cookies only, plus an optional chat widget.{' '}
+          <Link href="/privacy" className="text-accent underline whitespace-nowrap">Privacy</Link>
         </p>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-1.5 flex-shrink-0">
           <button
             onClick={() => choose('rejected')}
-            className="bg-surface border border-white/10 text-text-secondary font-semibold text-sm px-4 py-2 rounded-xl hover:text-white hover:border-white/20 transition-colors"
+            className="bg-surface border border-white/10 text-text-secondary font-semibold text-xs px-3 py-1.5 rounded-lg hover:text-white hover:border-white/20 transition-colors"
           >
             Reject
           </button>
           <button
             onClick={() => choose('accepted')}
-            className="bg-accent text-black font-semibold text-sm px-5 py-2 rounded-xl hover:opacity-90 transition-opacity"
+            className="bg-accent text-black font-semibold text-xs px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity"
           >
             Accept
           </button>
