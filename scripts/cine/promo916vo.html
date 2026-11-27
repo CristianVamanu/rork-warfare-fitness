@@ -1,0 +1,156 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- "Two worlds. One fitness experience." 9:16 vertical cut timed to the voiceover (60 s). Scene times in T and the
+     B2/B5/B6 tables follow the spoken phrases; see mix_vo.sh for the audio.
+     Real app screens only; each fills its phone display (screen aspect 0.49,
+     the app's own). Designed at 1080x1920, rendered at 2x = 2160x3840. Text sits inside
+     the Reels/TikTok safe area (top 250, bottom 1540). render169.mjs drives setT(t)
+     (env PAGE=promo916.html VW=1080 VH=1920). Scene times are in the T table. -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#000;font-family:"Helvetica Neue",Inter,"SF Pro Display",system-ui,sans-serif;color:#fff}
+.w{position:absolute;inset:0}
+#dk{background:radial-gradient(1200px 820px at 76% 28%,rgba(255,122,26,.17),transparent 62%),radial-gradient(900px 700px at 10% 92%,rgba(255,122,26,.10),transparent 62%),linear-gradient(180deg,#0B0B0E,#040405)}
+#lt{background:radial-gradient(1200px 820px at 76% 28%,rgba(245,166,35,.26),transparent 62%),radial-gradient(900px 700px at 10% 92%,rgba(245,166,35,.16),transparent 62%),linear-gradient(180deg,#FFFEFA,#F6EEDF)}
+.floor{position:absolute;left:0;right:0;bottom:0;height:260px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.35))}
+.vig{position:absolute;inset:0;background:radial-gradient(1000px 1500px at 50% 50%,transparent 56%,rgba(0,0,0,.6));pointer-events:none}
+.abs{position:absolute}
+.tr{font-weight:300;letter-spacing:.4em;text-transform:uppercase}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.95}
+.gold{background:linear-gradient(180deg,#FFB347,#E8730C);-webkit-background-clip:text;background-clip:text;color:transparent}
+#stage{position:absolute;inset:0;perspective:2600px;transform-origin:50% 50%}
+.ph{position:absolute;width:400px;height:858px;margin:-429px 0 0 -200px;border-radius:60px;padding:10px;background:linear-gradient(135deg,#4a4540,#11100f 30%,#35302c 62%,#0c0b0a);box-shadow:0 60px 120px rgba(0,0,0,.55),0 0 0 1.5px rgba(255,255,255,.10),inset 0 0 0 2px rgba(0,0,0,.85);opacity:0;will-change:transform}
+.ph::before{content:'';position:absolute;right:-4px;top:210px;width:4px;height:96px;border-radius:2px;background:linear-gradient(90deg,#2a2623,#55504a)}
+.ph::after{content:'';position:absolute;left:-4px;top:170px;width:4px;height:54px;border-radius:2px;background:linear-gradient(270deg,#2a2623,#55504a);box-shadow:0 74px 0 #3a3531}
+.sc{position:relative;width:100%;height:100%;border-radius:51px;overflow:hidden;background:#0B0B0D}
+.scr{position:absolute;inset:0}
+/* The app sits below the status bar, as on a real phone, so the island never covers it. */
+.scr img{position:absolute;left:0;top:46px;width:100%;height:calc(100% - 46px);object-fit:cover;object-position:50% 0}
+.sb{position:absolute;left:0;right:0;top:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 34px;font:600 15px "Helvetica Neue",Inter,sans-serif;letter-spacing:.01em}
+.sb svg{height:12px;display:block}
+.isl{position:absolute;left:50%;top:12px;width:104px;height:28px;margin-left:-52px;border-radius:16px;background:#040404;z-index:6}
+.gl{position:absolute;inset:0;z-index:5;background:linear-gradient(112deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,0) 26%,rgba(255,255,255,0) 74%,rgba(255,255,255,.05) 100%);pointer-events:none}
+.cap{position:absolute;top:250px;width:900px;text-align:center}
+.cap .n{font-weight:300;font-size:21px;letter-spacing:.42em;text-transform:uppercase;color:#FF9A3D}
+.cap .t{font-weight:600;font-size:84px;line-height:1.02;letter-spacing:-.02em;margin-top:22px}
+.cap .d{font-weight:300;font-size:34px;line-height:1.3;margin-top:18px;opacity:.85}
+.rule{height:2px;width:110px;background:#FF7A1A;box-shadow:0 0 14px rgba(255,122,26,.8);margin:26px auto 0}
+.big{font-weight:600;letter-spacing:-.02em;line-height:1.0}
+</style></head><body>
+<div class="w" id="dk"><div class="floor"></div></div><div class="w" id="lt" style="clip-path:inset(0 100% 0 0)"></div>
+<div class="abs" id="beam" style="top:0;bottom:0;width:900px;opacity:0;background:linear-gradient(98deg,transparent 0,rgba(255,224,170,0) 40%,rgba(255,240,210,.95) 50%,rgba(255,224,170,0) 60%,transparent 100%);mix-blend-mode:screen"></div>
+<div id="stage"></div><div id="ui" class="w"></div><div class="vig" id="vig"></div>
+<script>
+const Q=new URLSearchParams(location.search), $=(s)=>document.querySelector(s), stage=$('#stage'), ui=$('#ui');
+const h=(s,root=ui)=>{root.insertAdjacentHTML('beforeend',s);return root.lastElementChild;};
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, io=(x)=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}, lerp=(a,b,k)=>a+(b-a)*k;
+const win=(t,a,b,fi=.6,fo=.6)=>cl((t-a)/fi)*(1-cl((t-(b-fo))/fo));
+const T={s2:5.0,s3:17.5,s4:31.4,w0:33.5,w1:35.5,s5:39.3,s6:45.1,s7:51.3,end:59.9}; window.DUR=T.end;
+// Screen changes inside a scene land on the narrator's phrases, so they are uneven.
+const B2=[5.0,6.9,9.4,12.4,15.0,17.5], B5=[39.3,42.2,45.1], B6=[45.2,46.7,48.4,49.7,51.3], K3=[24.4,27.0];
+const seg=(t,B)=>{let i=0;while(i<B.length-2&&t>=B[i+1])i++;return {i,loc:cl((t-B[i])/(B[i+1]-B[i]))};};
+const TOPS={"app-home.png": "#010202", "app-training.png": "#3e2d0e", "app-set.png": "#000000", "app-nutrition.png": "#3e2d0e", "app-quests.png": "#3e2d0f", "app-coach.png": "#080808", "food_dark_c.png": "#1b110f", "fast_dark.png": "#0c0b0a", "habits_dark.png": "#120e08", "home_light.jpg": "#f9f5ea", "set_light.jpg": "#f4f4f3", "progress_light.jpg": "#fdeaca", "fast_light.png": "#fff9ee", "habits_light.png": "#fff9ee", "ripz_light.png": "#fef0d9", "training_light.jpg": "#fdeaca"};
+const SBI=`<svg viewBox="0 0 66 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><path d="M31 3.2a8 8 0 0 0-6.2 2.6l1.3 1.3a6.4 6.4 0 0 1 9.8 0l1.3-1.3A8 8 0 0 0 31 3.2zm0 3.4a4.8 4.8 0 0 0-3.7 1.7l1.3 1.3a3 3 0 0 1 4.8 0l1.3-1.3A4.8 4.8 0 0 0 31 6.6zm0 3.2a1.4 1.4 0 1 0 0 2.2 1.4 1.4 0 0 0 0-2.2z"/><rect x="42.5" y=".5" width="20" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="44" y="2" width="15" height="8" rx="2"/><rect x="63.5" y="4" width="2" height="4" rx="1" opacity=".5"/></svg>`;
+const phone=(imgs)=>{const p=h(`<div class="ph"><div class="sc">${imgs.map(s=>{const light=/light/.test(s);return `<div class="scr" style="background:${TOPS[s]||(light?'#fff9ee':'#0a0a0a')};color:${light?'#1E1410':'#fff'}"><div class="sb"><span>9:41</span>${SBI}</div><img src="${s}"></div>`;}).join('')}<div class="isl"></div><div class="gl"></div></div></div>`,stage);p.imgs=[...p.querySelectorAll('.scr')];return p;};
+const place=(p,x,y,ry,rx,sc,op,blur=0,z=1)=>{p.style.opacity=op;p.style.visibility=op>0.002?'visible':'hidden';p.style.left=x+'px';p.style.top=y+'px';p.style.zIndex=z;p.style.filter=blur>0.05?`blur(${blur}px)`:'none';p.style.transform=`rotateY(${ry}deg) rotateX(${rx}deg) scale(${sc})`;};
+const show=(p,f)=>p.imgs.forEach((im,i)=>im.style.opacity=i===0?1:cl(f-(i-1)));
+const cap=(x,ink)=>h(`<div class="cap" style="left:${x}px;color:${ink}"><div class="n"></div><div class="t"></div><div class="d"></div><div class="rule"></div></div>`);
+const setCap=(c,n,t,d)=>{c.children[0].textContent=n;c.children[1].textContent=t;c.children[2].textContent=d;};
+
+// Scene 2 · dark
+const D=[['app-home.png','Dashboard','Your streak, your week and your next session.'],
+         ['app-training.png','Training plan','A full program matched to your goal, day by day.'],
+         ['app-set.png','Workout','Every set tracked: weight, reps and rest.'],
+         ['app-nutrition.png','Nutrition','Calories, macros and water in one place.'],
+         ['app-quests.png','Quests','Missions that reward showing up.']];
+const pD=phone(D.map(d=>d[0])), capD=cap(90,'#fff');
+// Scene 3 · four phones in depth
+const S3=['food_dark_c.png','app-coach.png','fast_dark.png','habits_dark.png'].map(s=>phone([s]));
+const h3=h(`<div class="abs tr" style="left:0;right:0;top:262px;text-align:center;font-size:26px;color:#FF9A3D">More than workouts</div>`);
+const l3=h(`<div class="abs" style="left:0;right:0;top:322px;text-align:center;font-weight:600;font-size:58px;letter-spacing:-.01em;line-height:1.1;opacity:.85"></div>`);
+// Scene 4 · dark to light
+const p4=phone(['app-home.png','home_light.jpg']);
+const t4a=h(`<div class="abs" style="left:90px;top:262px;width:900px;text-align:center"><div class="tr" style="font-size:24px;color:#FF9A3D">Dark mode</div><div class="big" style="font-size:92px;margin-top:22px">For the late<br>sessions.</div></div>`);
+const t4b=h(`<div class="abs" style="left:90px;top:262px;width:900px;text-align:center;color:#1E1410"><div class="tr" style="font-size:24px;color:#C9760A">Light mode</div><div class="big" style="font-size:92px;margin-top:22px">One experience.<br><span style="color:#D9820F">Your way.</span></div></div>`);
+// Scene 5 · light, two phones
+const LA=['home_light.jpg','set_light.jpg','ripz_light.png'], LB=['training_light.jpg','progress_light.jpg','fast_light.png'];
+const LC=[['Same plan. Same progress.','The same app, in a theme made for daylight.'],['Log the set','Watch your numbers climb.']];
+const pA=phone(LA), pB=phone(LB), capL=cap(90,'#1E1410');
+// Scene 6 · five phones
+const S6=['app-quests.png','app-training.png','app-home.png','progress_light.jpg','habits_light.png'].map(s=>phone([s]));
+const WORDS=['Train smarter.','Train with purpose.','Track your progress.','Build your next level.'];
+const w6=h(`<div class="abs big" style="left:40px;right:40px;top:290px;text-align:center;font-size:58px;font-weight:300;letter-spacing:.2em;line-height:1.25;text-transform:uppercase"></div>`);
+// Scene 7 · close
+const p7a=phone(['app-home.png']), p7b=phone(['home_light.jpg']);
+const end=h(`<div class="abs" style="left:0;right:0;top:280px;text-align:center">
+  <div class="tr" id="e1" style="font-size:19px;letter-spacing:.26em;color:#FF9A3D">Built for progress · Designed for results</div>
+  <div class="big" id="e2" style="font-size:90px;margin-top:34px">Your next level<br>starts here.</div>
+  <img id="e3" src="logo-wf.webp" style="height:78px;margin-top:56px">
+  <div class="tr" id="e4" style="font-size:26px;margin-top:34px;letter-spacing:.32em">warfarefitness.com</div>
+  <div id="e5" style="font-weight:300;font-size:21px;letter-spacing:.22em;margin-top:16px;opacity:.6;text-transform:uppercase">7 days free · iPhone · Android · Web</div></div>`);
+// Scene 1 · opening
+const s1=h(`<div class="w" style="background:#000;overflow:hidden">
+  <div class="abs" id="g1" style="left:50%;top:50%;width:1500px;height:1500px;margin:-750px 0 0 -750px;background:radial-gradient(closest-side,rgba(255,140,40,.20),transparent)"></div>
+  <div class="abs" id="k1" style="left:-420px;top:520px;width:1100px;height:10px;border-radius:5px;background:linear-gradient(90deg,transparent,#FF7A1A,#FFB347);transform:rotate(-38deg);filter:blur(1.5px) drop-shadow(0 0 22px rgba(255,122,26,.8))"></div>
+  <div class="abs" id="k2" style="right:-460px;top:1380px;width:1100px;height:6px;border-radius:3px;background:linear-gradient(90deg,transparent,#FF7A1A,#FFB347);transform:rotate(-38deg);filter:blur(2px) drop-shadow(0 0 18px rgba(255,122,26,.7))"></div>
+  <div class="abs" id="hl" style="left:0;right:0;top:800px;text-align:center"><div class="big" id="a1" style="font-size:92px;font-weight:300;letter-spacing:.14em;text-transform:uppercase">Your body.</div><div class="big" id="a2" style="font-size:92px;font-weight:300;letter-spacing:.14em;text-transform:uppercase;margin-top:18px;color:#FF9A3D">Your rules.</div></div>
+  <div class="abs" style="left:0;right:0;top:900px;text-align:center"><img id="lg" src="logo-wf.webp" style="height:104px;opacity:0"></div></div>`);
+
+window.setT=(t)=>{
+  // world
+  const W=io((t-T.w0)/(T.w1-T.w0)), split=io((t-T.s6)/1.4), close=ease((t-T.s7)/1.0);
+  const lt=$('#lt'); lt.style.opacity=1-close;
+  lt.style.clipPath=t<T.s6?`inset(0 ${(1-W)*100}% 0 0)`:`polygon(${lerp(0,56,split)}% 0,100% 0,100% 100%,${lerp(0,44,split)}% 100%)`;
+  const beam=$('#beam'); beam.style.opacity=win(t,T.w0,T.w1,.5,.5); beam.style.left=(W*1080-450)+'px';
+  $('#vig').style.opacity=lerp(1,.2,W*(1-close)*(1-.4*split));
+  // scene 1
+  { const o=1-cl((t-4.8)/.6); s1.style.opacity=o; s1.style.visibility=o>0?'visible':'hidden'; s1.style.transform=`scale(${1+.06*cl(t/5.4)})`;
+    $('#g1').style.opacity=ease((t-.1)/1.4); $('#k1').style.opacity=.55*ease((t-.2)/1.4); $('#k2').style.opacity=.4*ease((t-.5)/1.4);
+    $('#k1').style.translate=`${t*14}px ${-t*10}px`; $('#k2').style.translate=`${-t*10}px ${t*7}px`;
+    const out=1-cl((t-2.75)/.4);
+    [['#a1',.4],['#a2',1.5]].forEach(([id,a])=>{const k=ease((t-a)/.8),e=$(id);e.style.opacity=k*out;e.style.transform=`translateY(${(1-k)*22}px)`;e.style.letterSpacing=lerp(.24,.12,k)+'em';});
+    const k=ease((t-3.1)/.7); $('#lg').style.opacity=k; $('#lg').style.transform=`scale(${lerp(1.1,1,k)})`; }
+  // scene 2
+  { const o=win(t,T.s2-.2,T.s3,.7,.5), u=cl((t-T.s2)/(T.s3-T.s2)), {i,loc}=seg(t,B2), kin=ease((t-T.s2+.2)/1.2);
+    place(pD, 540, 1130+(1-kin)*70, lerp(22,8,kin)+Math.sin(t*.45)*1.5, 4, lerp(.98,1.2,kin), o);
+    show(pD, i+ease((loc-.86)/.14)); const a=win(loc,0,1,.14,.12)*o;
+    capD.style.opacity=a; capD.style.transform=`translateY(${(1-ease(loc/.2))*24}px)`; setCap(capD,`0${i+1} / 05`,D[i][1],D[i][2]); }
+  // scene 3
+  { const o=win(t,T.s3,T.s4,.7,.6), u=cl((t-T.s3)/(T.s4-T.s3)), k1=io((t-K3[0]+.5)/1.2), k2=io((t-K3[1]+.5)/1.2);
+    h3.style.opacity=o; l3.innerHTML=k2>.5?'Fasting timer<br>Habit quitting':k1>.5?'Your week,<br>read by an AI coach':'Scan a meal.<br>AI counts it.';
+    l3.style.opacity=o*.85*(1-Math.sin(Math.PI*k1)*(k1<1?1:0))*(1-Math.sin(Math.PI*k2)*(k2<1?1:0));
+    // Slots: front, second, far right, far left. [x, scale, rotateY, blur, z]
+    const F=[390,1.06,10,0,3], N=[760,.84,-14,1.4,2], R=[1130,.7,-26,2.2,1], L=[-50,.7,26,2.2,1];
+    // food, coach, fast, habits: food leads, then the coach report, then fasting with habits beside it.
+    const ST=[[F,N,R,L],[N,F,R,L],[R,L,F,N]];
+    S3.forEach((p,j)=>{ const kin=ease((t-T.s3-.1-j*.2)/1.0), a=ST[0][j], b=ST[1][j], c=ST[2][j];
+      const v=a.map((x,n)=>lerp(lerp(x,b[n],k1),c[n],k2));
+      place(p, v[0]+lerp(30,-30,u), 1150+(1-kin)*180+(v[1]<.8?10:0), v[2]+Math.sin(t*.4+j)*1.5, 4, v[1]*lerp(.93,1,kin), o*kin*(v[1]<.8?.8:1), v[3], Math.round(v[4])); }); }
+  // scene 4
+  { const o=win(t,T.s4,T.s5+.2,.8,.6), u=cl((t-T.s4)/(T.s5-T.s4));
+    place(p4, 540, 1140, lerp(-9,9,io(u)), 4, lerp(1.08,1.2,u), o);
+    const k=cl((W*1080-310)/460); p4.imgs[1].style.opacity=1; p4.imgs[1].style.clipPath=`inset(0 ${(1-k)*100}% 0 0)`;
+    t4a.style.opacity=win(t,T.s4+.15,T.w0+.6,.5,.5); t4a.style.transform=`translateY(${22*(1-ease((t-T.s4-.15)/.8))}px)`;
+    t4b.style.opacity=win(t,T.w1,T.s5,.6,.4); t4b.style.transform=`translateY(${22*(1-ease((t-T.w1)/.8))}px)`; }
+  // scene 5
+  { const o=win(t,T.s5,T.s6+.1,.7,.6), u=cl((t-T.s5)/(T.s6-T.s5)), {i,loc}=seg(t,B5), kin=ease((t-T.s5)/1.0), x=i+ease((loc-.88)/.12);
+    place(pA, lerp(400,380,u), 1110+(1-kin)*120, 12+Math.sin(t*.4)*1.5, 3, 1.04, o*kin, 0, 2);
+    place(pB, lerp(790,770,u), 1200+(1-kin)*200, -14+Math.sin(t*.4+1)*1.5, 3, .9, o*ease((t-T.s5-.35)/1.4), 0, 1);
+    show(pA,x); show(pB,x); const a=win(loc,0,1,.14,.12)*o;
+    capL.style.opacity=a; capL.style.transform=`translateY(${(1-ease(loc/.2))*24}px)`; setCap(capL,'Light mode',LC[i][0],LC[i][1]); }
+  // scene 6
+  { const o=win(t,T.s6,T.s7+.2,.8,.7), u=cl((t-T.s6)/(T.s7-T.s6)), xs=[-70,220,540,860,1150], sc=[.7,.86,1.08,.86,.7], ry=[30,18,0,-18,-30], bl=[1.6,.5,0,.5,1.6], z=[1,2,3,2,1];
+    S6.forEach((p,j)=>{ const kin=ease((t-T.s6-.1-Math.abs(j-2)*.18)/.9);
+      place(p, xs[j]+lerp(40,-40,u), 1170+(1-kin)*200, ry[j], 4, sc[j]*lerp(.92,1,kin)*(1+.04*u), o*kin, bl[j], z[j]); });
+    const {i,loc}=seg(t,B6);
+    w6.textContent=WORDS[i]; w6.style.opacity=win(loc,0,1,.16,.14)*o; w6.style.letterSpacing=lerp(.3,.2,ease(loc/.4))+'em';
+    // the headline sits over the dark/light split: white with a soft dark edge reads on both
+    w6.style.mixBlendMode='difference'; }
+  // scene 7
+  { const o=ease((t-T.s7-.2)/1.0), k=ease((t-T.s7-.2)/2.0), push=1+.035*cl((t-T.s7)/(T.end-T.s7));
+    place(p7a, lerp(180,320,k), 1290, 22, 4, .78*push, o); place(p7b, lerp(900,760,k), 1290, -22, 4, .78*push, o);
+    end.style.transform=`scale(${push})`;
+    [['#e3',.2],['#e1',.9],['#e5',1.3],['#e4',2.0],['#e2',3.5]].forEach(([id,a])=>{const q=ease((t-T.s7-a)/1.1),e=$(id);e.style.opacity=(id==='#e5'?.6:1)*q;e.style.translate=`0 ${(1-q)*18}px`;}); }
+};
+window.addEventListener('load',()=>{window.READY=true;setT(+(Q.get('t')||0));});
+</script></body></html>
