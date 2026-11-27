@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 /**
  * The breathing circle from the Reset reels, as a component.
@@ -47,8 +47,15 @@ export function BreathCircle({ size, word, hint, sessionProgress, phaseProgress,
   const k = Math.max(0, Math.min(1, (p - 0.3) / 0.7)); // 0 at the bottom of a breath, 1 at the top
   const vis = Math.max(0, Math.min(1, visible));
   const gold = tone === 'ice';
-  const line = gold ? '#BFE3FF' : '#FFD9A0';
-  const glow = gold ? '#38BDF8' : '#F5A623';
+  // Light theme: darker amber / blue lines so the instrument reads on cream.
+  const [light, setLight] = useState(false);
+  useEffect(() => {
+    const el = document.documentElement; const sync = () => setLight(el.classList.contains('light'));
+    sync(); const mo = new MutationObserver(sync); mo.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  }, []);
+  const line = light ? (gold ? '#1F6FA8' : '#B26A00') : gold ? '#BFE3FF' : '#FFD9A0';
+  const glow = light ? (gold ? '#0E8FD6' : '#F08A00') : gold ? '#38BDF8' : '#F5A623';
   const glowRgb = gold ? '56,189,248' : '245,166,35';
 
   const ticks = useMemo(() => Array.from({ length: 72 }, (_, i) => {
@@ -89,14 +96,14 @@ export function BreathCircle({ size, word, hint, sessionProgress, phaseProgress,
         <g>
           {specks.map((d, i) => {
             const y = ((d.y - t * d.v) % 600 + 600) % 600; const x = d.x + Math.sin(t * 0.2 + d.ph) * 10;
-            return <circle key={i} cx={x} cy={y} r={d.s} fill={line} opacity={(0.08 + 0.14 * k) * (0.5 + 0.5 * Math.sin(t * 0.4 + d.ph))} />;
+            return <circle key={i} cx={x} cy={y} r={d.s} fill={line} opacity={(light ? 2 : 1) * (0.08 + 0.14 * k) * (0.5 + 0.5 * Math.sin(t * 0.4 + d.ph))} />;
           })}
         </g>
         {/* dial + ticks, turning once every ten minutes */}
         <g transform={`rotate(${t * 0.6} ${CX} ${CY})`} stroke={line} strokeLinecap="round" opacity={0.6 + 0.4 * k}>
-          {ticks.map((tk, i) => <line key={i} x1={tk.x1} y1={tk.y1} x2={tk.x2} y2={tk.y2} strokeWidth={tk.L ? 1.6 : 1} opacity={tk.L ? 0.35 : 0.18} />)}
+          {ticks.map((tk, i) => <line key={i} x1={tk.x1} y1={tk.y1} x2={tk.x2} y2={tk.y2} strokeWidth={tk.L ? 1.6 : 1} opacity={(tk.L ? 0.35 : 0.18) * (light ? 1.7 : 1)} />)}
         </g>
-        <circle cx={CX} cy={CY} r={DIAL} fill="none" stroke="rgba(255,255,255,.09)" strokeWidth="1" />
+        <circle cx={CX} cy={CY} r={DIAL} fill="none" stroke={light ? 'rgba(20,16,12,.12)' : 'rgba(255,255,255,.09)'} strokeWidth="1" />
         {/* session arc, then the phase arc inside it */}
         <circle cx={CX} cy={CY} r={DIAL} fill="none" stroke={line} strokeOpacity=".75" strokeWidth="2" strokeLinecap="round" transform={`rotate(-90 ${CX} ${CY})`} strokeDasharray={`${C_DIAL * Math.max(0, Math.min(1, sessionProgress))} ${C_DIAL}`} />
         <circle cx={CX} cy={CY} r={PHASE} fill="none" stroke={glow} strokeOpacity=".55" strokeWidth="3" strokeLinecap="round" transform={`rotate(-90 ${CX} ${CY})`} strokeDasharray={`${C_PHASE * Math.max(0, Math.min(1, phaseProgress))} ${C_PHASE}`} />
@@ -110,19 +117,19 @@ export function BreathCircle({ size, word, hint, sessionProgress, phaseProgress,
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-6 pointer-events-none">
         <p
           className="font-medium tracking-[0.55em] pl-[0.55em] text-[clamp(18px,5.2vw,26px)] transition-opacity duration-500"
-          style={{ color: gold ? 'rgba(220,240,255,.9)' : 'rgba(255,240,220,.88)', opacity: word ? 1 : 0 }}
+          style={{ color: light ? (gold ? '#124E78' : '#2A1C08') : gold ? 'rgba(220,240,255,.9)' : 'rgba(255,240,220,.88)', opacity: word ? 1 : 0 }}
         >
           {shownWord}
         </p>
         <p
           className="mt-3 font-medium tracking-[0.4em] pl-[0.4em] text-[clamp(10px,2.6vw,13px)] transition-opacity duration-500"
-          style={{ color: gold ? 'rgba(191,227,255,.55)' : 'rgba(255,226,180,.55)', opacity: word && hint ? 1 : 0 }}
+          style={{ color: light ? (gold ? 'rgba(18,78,120,.75)' : 'rgba(110,66,0,.8)') : gold ? 'rgba(191,227,255,.55)' : 'rgba(255,226,180,.55)', opacity: word && hint ? 1 : 0 }}
         >
           {hint}
         </p>
       </div>
       {/* readouts */}
-      <div className="absolute inset-x-0 -top-2 flex items-center justify-between font-medium text-[11px] tracking-[0.34em] tabular-nums" style={{ color: 'rgba(255,226,180,.55)' }}>
+      <div className="absolute inset-x-0 -top-2 flex items-center justify-between font-medium text-[11px] tracking-[0.34em] tabular-nums" style={{ color: light ? 'rgba(110,66,0,.8)' : 'rgba(255,226,180,.55)' }}>
         <span>{topLeft}</span><span>{topRight}</span>
       </div>
     </div>

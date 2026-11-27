@@ -54,21 +54,24 @@ export function CosmicBackdrop({ drive = 0.4, className = '' }: { drive?: number
       t += dt;
       const k = Math.max(0, Math.min(1, (driveRef.current - 0.3) / 0.7));
       const speed = (0.035 + k * 0.07) * dt;
+      // Light theme: warm cream sky with amber lines instead of space.
+      const L = document.documentElement.classList.contains('light');
+      const ink = L ? '170,98,0' : '255,217,160', dot = L ? '190,112,0' : '255,228,190';
       // space
-      ctx.fillStyle = '#040302'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = L ? '#FFF9EE' : '#040302'; ctx.fillRect(0, 0, w, h);
       const neb = ctx.createRadialGradient(cx + Math.sin(t * 0.05) * w * 0.08, cy + Math.cos(t * 0.04) * h * 0.05, 0, cx, cy, Math.max(w, h) * 0.75);
-      neb.addColorStop(0, `rgba(214,140,50,${0.10 + k * 0.08})`); neb.addColorStop(0.45, 'rgba(120,70,30,0.08)'); neb.addColorStop(1, 'rgba(4,3,2,0)');
+      neb.addColorStop(0, `rgba(${L ? '255,176,60' : '214,140,50'},${(L ? 0.16 : 0.10) + k * 0.08})`); neb.addColorStop(0.45, L ? 'rgba(255,196,110,0.10)' : 'rgba(120,70,30,0.08)'); neb.addColorStop(1, L ? 'rgba(255,249,238,0)' : 'rgba(4,3,2,0)');
       ctx.fillStyle = neb; ctx.fillRect(0, 0, w, h);
       // horizon grid, perspective lines fading up to the vanishing point
       const hy = h * 0.78; ctx.lineWidth = 1 * dpr;
       for (let i = -6; i <= 6; i++) {
         const g = ctx.createLinearGradient(cx, cy, cx + i * w * 0.4, h);
-        g.addColorStop(0, 'rgba(255,217,160,0)'); g.addColorStop(1, 'rgba(255,217,160,0.10)');
+        g.addColorStop(0, `rgba(${ink},0)`); g.addColorStop(1, `rgba(${ink},${L ? 0.16 : 0.10})`);
         ctx.strokeStyle = g; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + i * w * 0.4, h); ctx.stroke();
       }
       for (let j = 1; j <= 7; j++) {
         const f = ((j / 7 + t * 0.012 * (0.5 + k)) % 1); const y = cy + (hy - cy) * f * f * 1.6; if (y > h) continue;
-        ctx.strokeStyle = `rgba(255,217,160,${0.03 + f * 0.08})`; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+        ctx.strokeStyle = `rgba(${ink},${(L ? 0.05 : 0.03) + f * (L ? 0.12 : 0.08)})`; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
       }
       // stars, streaming outward from the vanishing point
       for (const s of stars) {
@@ -78,16 +81,16 @@ export function CosmicBackdrop({ drive = 0.4, className = '' }: { drive?: number
         if (px < -10 || px > w + 10 || py < -10 || py > h + 10) { seed(s); s.z = 1; continue; }
         const size = (1 - s.z) * 2.2 * dpr + 0.3;
         const a = (1 - s.z) * (0.55 + 0.45 * Math.sin(t * 0.9 + s.tw)) * (0.45 + k * 0.55);
-        ctx.fillStyle = `rgba(255,228,190,${a.toFixed(3)})`;
+        ctx.fillStyle = `rgba(${dot},${a.toFixed(3)})`;
         ctx.beginPath(); ctx.arc(px, py, size, 0, 6.283); ctx.fill();
         if (s.z < 0.35) { // a short trail on the nearest stars gives the sense of motion
           const tx = cx + (s.x / (s.z + speed * 3)) * w * 0.5, ty = cy + (s.y / (s.z + speed * 3)) * h * 0.5;
-          ctx.strokeStyle = `rgba(255,228,190,${(a * 0.35).toFixed(3)})`; ctx.lineWidth = size * 0.8; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(px, py); ctx.stroke();
+          ctx.strokeStyle = `rgba(${dot},${(a * 0.35).toFixed(3)})`; ctx.lineWidth = size * 0.8; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(px, py); ctx.stroke();
         }
       }
       // vignette so the edges stay dark and the circle owns the middle
       const v = ctx.createRadialGradient(cx, h * 0.5, Math.min(w, h) * 0.25, cx, h * 0.5, Math.max(w, h) * 0.75);
-      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,0.85)');
+      v.addColorStop(0, L ? 'rgba(255,249,238,0)' : 'rgba(0,0,0,0)'); v.addColorStop(1, L ? 'rgba(240,206,150,0.55)' : 'rgba(0,0,0,0.85)');
       ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
     };
 

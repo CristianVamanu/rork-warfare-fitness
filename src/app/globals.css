@@ -2356,3 +2356,15 @@ html.light .hc-streak .hc-flame + div span + span { color: #7A2E00 !important; t
 .wf-dp-row svg { width: 20px; height: 20px; }
 .wf-dp-time { font: 600 12.5px/1 Inter, system-ui, sans-serif; letter-spacing: .04em; color: rgba(255,255,255,.6); font-variant-numeric: tabular-nums; margin-left: 4px; }
 .wf-dp-time b { color: #fff; font-weight: 700; }
+
+/* Breathing page in light theme: cream page, amber ink (it used to be forced dark). */
+html.light .wf-breath { background-color: #FFF9EE !important; color: #1A130A; --wf-breath-ring: #C97A00; }
+html.light .wf-breath-calm > :last-child { display: none; }
+html.light .wf-breath [class*="text-white/"] { color: rgba(26,19,10,.64) !important; }
+html.light .wf-breath [class*="text-[#FFE2B4]"], html.light .wf-breath .text-amber-400 { color: #A86400 !important; }
+html.light .wf-breath [class*="border-white/"], html.light .wf-breath [class*="divide-white/"] > * { border-color: rgba(26,19,10,.12) !important; }
+html.light .wf-breath [class*="border-[#FFE2B4]"] { border-color: rgba(168,100,0,.35) !important; }
+html.light .wf-breath [class*="bg-white/"] { background-color: #FFFFFF !important; box-shadow: 0 6px 20px rgba(120,80,20,.07); }
+html.light .wf-breath [class*="bg-[#F5A623]/"] { background-color: rgba(245,166,35,.16) !important; }
+html.light .wf-breath [class*="border-[#F5A623]/"] { border-color: rgba(214,130,0,.6) !important; }
+html.light .wf-breath [class*="text-[#F5A623]"] { color: #B56C00 !important; }

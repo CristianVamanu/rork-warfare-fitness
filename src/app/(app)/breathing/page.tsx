@@ -315,7 +315,7 @@ export default function BreathingPage() {
   const planSeconds = method ? (method.kind === 'rounds' ? Math.round(method.phases.reduce((s, p) => s + p.seconds, 0)) : minutes * 60) : 0;
 
   return (
-    <div className="wf-dark relative min-h-screen bg-[#040302] text-white">
+    <div className="wf-breath relative min-h-screen bg-[#040302] text-white">
       <CalmBackdrop />
       {step !== 'session' && <div className="relative"><Header title="Breathing" showBack /></div>}
       <PaywallGate feature="breathing" noTaste>
@@ -442,7 +442,7 @@ export default function BreathingPage() {
       )}
 
       {step === 'session' && method && (
-        <div className="wf-dark fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+        <div className="wf-breath fixed inset-0 z-[45] bg-[#040302] flex flex-col items-center justify-between overflow-hidden" style={{ paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
           <CosmicBackdrop drive={size} />
           <div className="relative w-full max-w-lg px-4 flex items-center justify-between">
             <button onClick={requestQuit} className="p-2 rounded-xl text-white/50 hover:text-white transition-colors" aria-label="End session"><X className="w-5 h-5" /></button>
@@ -514,7 +514,7 @@ export default function BreathingPage() {
 function CalmBackdrop({ breath = 0.4 }: { breath?: number }) {
   const k = Math.max(0, Math.min(1, (breath - 0.3) / 0.7));
   return (
-    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div aria-hidden className="wf-breath-calm pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 45%, rgba(214,140,50,.22), rgba(214,140,50,0) 70%)', opacity: 0.5 + k * 0.5, transition: 'opacity .6s linear' }} />
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 45% 32% at 55% 55%, rgba(120,70,30,.26), rgba(120,70,30,0) 70%)', opacity: 0.6 + k * 0.2, transition: 'opacity .6s linear' }} />
       <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 80% 65% at 50% 50%, transparent 40%, rgba(0,0,0,.85) 100%)' }} />
@@ -527,8 +527,8 @@ function MiniRing({ featured, ice }: { featured: boolean; ice: boolean }) {
   return (
     <div className="relative w-12 h-12 flex-shrink-0 flex items-center justify-center">
       <span className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, rgba(${g},.35), transparent 70%)`, opacity: featured ? 1 : 0.6 }} />
-      <span className="absolute rounded-full border" style={{ width: 44, height: 44, borderColor: 'rgba(255,255,255,.08)' }} />
-      <span className={`rounded-full border-2 ${featured ? 'w-7 h-7 animate-pulse' : 'w-6 h-6'}`} style={{ borderColor: c, boxShadow: `0 0 16px rgba(${g},.6)` }} />
+      <span className="absolute rounded-full border" style={{ width: 44, height: 44, borderColor: 'rgba(128,128,128,.18)' }} />
+      <span className={`rounded-full border-2 ${featured ? 'w-7 h-7 animate-pulse' : 'w-6 h-6'}`} style={{ borderColor: 'var(--wf-breath-ring, ' + c + ')', boxShadow: `0 0 16px rgba(${g},.6)` }} />
     </div>
   );
 }
