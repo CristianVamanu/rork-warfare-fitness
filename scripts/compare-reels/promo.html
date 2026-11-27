@@ -1,0 +1,84 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- App promo reel: six features on real app screens, alternating the dark
+     and light themes, then one phone split dark/light, then the offer.
+     Screens (same folder): app-training.png, food_dark_c.png, ripz_light.png,
+     fast_light.png, habits_dark.png, progress_light.jpg, app-home.png,
+     home_light.jpg. render_panels.mjs drives setT(t). -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#0B0B0D;font-family:Inter,system-ui,sans-serif}
+.w{position:absolute;inset:0}
+.dk{background:radial-gradient(900px 700px at 100% 0%,rgba(255,122,26,.22),transparent 60%),radial-gradient(800px 700px at 0% 100%,rgba(255,122,26,.18),transparent 60%),linear-gradient(180deg,#0E0E11,#08080A)}
+.lt{background:radial-gradient(900px 760px at 100% 0%,rgba(245,166,35,.34),transparent 62%),radial-gradient(900px 800px at 0% 100%,rgba(245,166,35,.28),transparent 62%),linear-gradient(180deg,#FFFCF5,#FFF3DC)}
+.streak{position:absolute;height:16px;border-radius:8px;background:linear-gradient(90deg,transparent,#F5A623,#FFD27A);transform:rotate(-38deg);filter:drop-shadow(0 0 18px rgba(245,166,35,.7))}
+#r{position:absolute;inset:0;transform:scale(.88);transform-origin:50% 50%}
+.abs{position:absolute}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.94}
+.bar{font-family:Barlow;font-weight:700;text-transform:uppercase}
+.gold{background:linear-gradient(180deg,#FFB347,#E8730C);-webkit-background-clip:text;background-clip:text;color:transparent}
+.stage{position:absolute;left:0;right:0;top:556px;height:1300px;perspective:2200px}
+.phone{position:absolute;left:50%;top:0;width:700px;height:1440px;margin-left:-350px;border-radius:78px;background:#16110e;padding:14px;box-shadow:0 60px 120px rgba(0,0,0,.5),0 0 0 2px #3a2c22;transform-origin:50% 0%;opacity:0}
+.screen{position:relative;width:100%;height:100%;border-radius:64px;overflow:hidden;background:#0B0B0D}
+.screen img{position:absolute;left:0;top:0;width:100%}
+.notch{position:absolute;left:50%;top:14px;width:170px;height:40px;margin-left:-85px;border-radius:22px;background:#16110e;z-index:5}
+.pips{position:absolute;left:0;right:0;top:232px;display:flex;justify-content:center;gap:12px}
+.pips i{width:70px;height:7px;border-radius:4px;background:rgba(140,130,120,.35)}.pips i.on{background:#F5A623;box-shadow:0 0 12px rgba(245,166,35,.8)}
+.full{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 70px}
+.tagc{display:inline-block;padding:8px 20px;border-radius:12px;font:700 26px Barlow;letter-spacing:.14em;text-transform:uppercase}
+</style></head><body>
+<div class="w dk"></div><div class="w lt" id="lt"></div><div id="r"></div>
+<script>
+const Q=new URLSearchParams(location.search), r=document.getElementById('r'), lt=document.getElementById('lt');
+const h=(s,root=r)=>{root.insertAdjacentHTML('beforeend',s);return root.lastElementChild;};
+const F=[
+ {img:'app-training.png', th:0, a:'Programs',      b:'built for you',   s:'14 plans, matched to your goal', y:0},
+ {img:'food_dark_c.png',  th:0, a:'Snap your food', b:'AI counts it',    s:'Calories and macros from a photo', y:0},
+ {img:'ripz_light.png',   th:1, a:'Rip a pack',     b:'do what it deals',s:'Ripz: workouts as collectible cards', y:.02},
+ {img:'fast_light.png',   th:1, a:'Fasting timer',  b:'stage by stage',  s:'See what your body is doing', y:0},
+ {img:'habits_dark.png',  th:0, a:'Quit bad habits',b:'count clean days',s:'Smoking, alcohol, junk food', y:0},
+ {img:'progress_light.jpg',th:1,a:'Combat stats',   b:'that climb',      s:'Strength, cardio, discipline', y:.2},
+];
+const HOOK=1.3, PER=1.7, N=F.length, SPLIT=HOOK+N*PER, CTA=SPLIT+1.7, DUR=15; window.DUR=DUR;
+h(`<div class="streak" style="width:480px;left:-180px;top:90px"></div>`);h(`<div class="streak" style="width:460px;right:-170px;top:40px"></div>`);
+const logoD=h(`<img src="logo-wf.webp" class="abs" style="left:50%;transform:translateX(-50%);top:150px;height:56px">`), logoL=h(`<img src="logo-wf-light.webp" class="abs" style="left:50%;transform:translateX(-50%);top:150px;height:56px">`);
+const pips=h(`<div class="pips">${F.map(()=>'<i></i>').join('')}</div>`);
+const head=h(`<div class="abs" style="left:0;right:0;top:262px;text-align:center"><div class="kan" style="font-size:104px"><span class="a"></span><br><span class="gold b"></span></div></div>`);
+const sub=h(`<div class="abs bar" style="left:0;right:0;top:482px;text-align:center;font-size:42px;letter-spacing:.04em"></div>`);
+const stage=h(`<div class="stage">${F.map(f=>`<div class="phone"><div class="screen"><div class="notch"></div><img src="${f.img}"></div></div>`).join('')}
+  <div class="phone" id="sp"><div class="screen"><div class="notch"></div><img src="app-home.png"><img src="home_light.jpg" style="clip-path:polygon(62% 0,100% 0,100% 100%,38% 100%)"><div style="position:absolute;inset:0;background:linear-gradient(104deg,transparent 49.4%,#F5A623 49.7%,#FFD27A 50.3%,transparent 50.6%);filter:drop-shadow(0 0 14px #F5A623)"></div></div></div></div>`);
+const phones=[...stage.querySelectorAll('.phone')].slice(0,N), sp=stage.querySelector('#sp');
+const hook=h(`<div class="full" style="background:radial-gradient(900px 800px at 50% 46%,rgba(255,122,26,.24),transparent 66%),#0B0B0D">
+  <img src="logo-wf.webp" style="height:56px;position:absolute;top:262px">
+  <div class="kan" style="font-size:150px;color:#fff">One app.</div><div class="kan gold" style="font-size:150px">Every tool.</div>
+  <div class="bar" style="margin-top:44px;font-size:54px;letter-spacing:.03em;color:#E6E6EA">Train. Eat. Fast. Quit. Track.</div></div>`,document.body);
+const cta=h(`<div class="full" style="background:#0B0B0D;opacity:0"><div class="w dk"></div><div style="position:relative">
+  <img src="logo-wf.webp" style="height:78px;margin-bottom:56px">
+  <div class="kan" style="font-size:132px;color:#fff">Try it free</div><div class="kan gold" style="font-size:132px">for 7 days</div>
+  <div style="margin-top:54px"><span style="display:inline-block;padding:20px 44px;border-radius:22px;border:2px solid #FF7A1A;background:#121215;box-shadow:0 0 44px rgba(255,122,26,.4);font:700 48px Barlow;text-transform:uppercase;letter-spacing:.04em;color:#fff">Link in bio</span></div>
+  <div class="bar" style="margin-top:44px;font-size:38px;letter-spacing:.06em;color:#B9BDC6">iPhone & Android · @warfarefitnessapp</div></div></div>`,document.body);
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, lerp=(a,b,k)=>a+(b-a)*k;
+window.setT=(t)=>{
+  { const k=cl((t-(HOOK-.3))/.3); hook.style.opacity=1-k; hook.style.transform=`scale(${1+.08*k})`; hook.style.visibility=k>=1?'hidden':'visible'; }
+  const i=Math.min(N-1,Math.max(0,Math.floor((t-HOOK)/PER))), inSplit=t>=SPLIT, f=F[i], t0=HOOK+i*PER;
+  // theme: cross-fade the light world in and out
+  let th=f.th; const prev=i>0?F[i-1].th:0, k=ease((t-t0)/.3); th=lerp(prev,f.th,k); if(inSplit) th=lerp(F[N-1].th,.5,ease((t-SPLIT)/.3))>.5?1:lerp(F[N-1].th,0,ease((t-SPLIT)/.3));
+  lt.style.opacity=th; const light=th>.5; logoL.style.opacity=th; logoD.style.opacity=1-th;
+  const ink=light?'#2B1B12':'#FFFFFF', sec=light?'#7B6B5F':'#C9CCD3';
+  // headline
+  const A=inSplit?'Dark or light':f.a, Bt=inSplit?'your call':f.b, St=inSplit?'Same app, both themes':f.s, hin=ease((t-(inSplit?SPLIT:t0))/.3);
+  head.querySelector('.a').textContent=A; head.querySelector('.a').style.color=ink; head.querySelector('.b').textContent=Bt; sub.textContent=St; sub.style.color=sec;
+  head.style.opacity=hin; head.style.translate=`0 ${(1-hin)*30}px`; sub.style.opacity=hin;
+  [...pips.children].forEach((p,j)=>p.className=(!inSplit&&j<=i)||inSplit?'on':''); pips.style.opacity=t>=HOOK?1:0;
+  // phones: each slides in from alternating sides, drifts, slides out
+  phones.forEach((p,j)=>{ const a=HOOK+j*PER, b=a+PER, on=t>=a-.01&&t<b+.3, dir=j%2?1:-1;
+    const kin=ease((t-a)/.45), kout=ease((t-b)/.3), loc=cl((t-a)/PER);
+    p.style.opacity=on?kin*(1-kout):0; p.style.visibility=on?'visible':'hidden';
+    p.style.transform=`translateX(${dir*(1-kin)*520-dir*kout*420}px) rotateY(${dir*lerp(26,7,kin)-dir*4*loc}deg) rotateX(${lerp(12,4,kin)}deg) scale(${lerp(.9,1,kin)+.03*loc})`;
+    const im=p.querySelector('img'); im.style.transform=`translateY(${-(F[j].y*im.clientHeight)-40*loc}px)`; });
+  { const kin=ease((t-SPLIT)/.5), on=t>=SPLIT; sp.style.opacity=on?kin:0; sp.style.visibility=on?'visible':'hidden'; sp.style.transform=`translateY(${(1-kin)*300}px) rotateY(${Math.sin((t-SPLIT)*1.6)*7}deg) rotateX(4deg) scale(${lerp(.92,1.04,kin)})`; }
+  { const a=ease((t-CTA)/.4); cta.style.opacity=a; cta.style.translate=`0 ${(1-a)*40}px`; }
+};
+window.addEventListener('load',()=>setT(+(Q.get('t')||0)));
+</script></body></html>
