@@ -1,0 +1,118 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- "GTA 6 has a fitness app. This is the real one." A product reel for the
+     Combat stats card, in the app's light theme. A phone shows the Progress
+     screen: stats fading, a workout, stats climbing. The phone's screen is a
+     hand-built copy of the real card's light-mode styling with sample numbers.
+     Seconds 5.0 to 6.4 are a plain "workout" beat, meant to be replaced with
+     real training footage in an editor. render_panels.mjs drives setT(t). -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+:root{--bg:#FFF9EE;--ink:#2B1B12;--sec:#7B6B5F;--ter:#A39486;--line:#E9DFD0;--gold:#F5A623;--deep:#C9760A;--ok:#1E9E5A;--warn:#E8730C}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.bg{position:absolute;inset:0;background:radial-gradient(900px 760px at 100% 0%,rgba(245,166,35,.34),transparent 62%),radial-gradient(900px 800px at 0% 100%,rgba(245,166,35,.28),transparent 62%),linear-gradient(180deg,#FFFCF5,#FFF3DC)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(201,118,10,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(201,118,10,.07) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(900px 1300px at 50% 55%,#000 30%,transparent 80%)}
+.streak{position:absolute;height:16px;border-radius:8px;background:linear-gradient(90deg,transparent,#F5A623,#FFD27A);transform:rotate(-38deg);filter:drop-shadow(0 0 18px rgba(245,166,35,.7))}
+#r{position:absolute;inset:0;transform:scale(.88);transform-origin:50% 50%}
+.abs{position:absolute}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.94}
+.bar{font-family:Barlow;font-weight:700;text-transform:uppercase}
+.gold{background:linear-gradient(180deg,#F7B23B,#C9760A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ink{color:var(--ink)}
+/* phone */
+.stage{position:absolute;left:0;right:0;top:556px;height:1300px;perspective:2200px}
+.phone{position:absolute;left:50%;top:0;width:700px;height:1420px;margin-left:-350px;border-radius:74px;background:#1b1512;padding:14px;box-shadow:0 60px 120px rgba(120,70,10,.38),0 0 0 2px #3a2c22,inset 0 0 0 2px #000;transform-style:preserve-3d}
+.screen{position:relative;width:100%;height:100%;border-radius:62px;overflow:hidden;background:var(--bg)}
+.notch{position:absolute;left:50%;top:14px;width:150px;height:36px;margin-left:-75px;border-radius:20px;background:#1b1512;z-index:5}
+.app{position:absolute;inset:0;padding:52px 14px 0;zoom:1.5}
+.card{background:#fff;border:1.5px solid var(--line);border-radius:26px;padding:22px;box-shadow:0 8px 24px rgba(120,70,10,.07)}
+.lbl{font:600 13px Inter,system-ui;letter-spacing:.12em;text-transform:uppercase;color:var(--sec)}
+.track{height:10px;border-radius:5px;background:#EFE6D8;overflow:hidden}
+.fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#C9760A,#F5A623);box-shadow:0 0 12px rgba(245,166,35,.55)}
+.ico{width:40px;height:40px;border-radius:12px;background:rgba(245,166,35,.12);border:1.5px solid rgba(245,166,35,.3);display:grid;place-items:center;color:var(--gold);font:800 18px Inter,system-ui}
+.val{font-family:Kanit;font-style:italic;font-weight:800;font-size:44px;line-height:1;font-variant-numeric:tabular-nums}
+.full{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 70px}
+.chip{display:inline-block;padding:14px 30px;border-radius:18px;border:2px solid rgba(201,118,10,.5);background:#fff;font:700 40px Barlow;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 10px 30px rgba(201,118,10,.16)}
+</style></head><body><div class="bg"></div><div class="grid"></div><div id="r"></div>
+<script>
+const Q=new URLSearchParams(location.search), r=document.getElementById('r');
+const h=(s,root=r)=>{root.insertAdjacentHTML('beforeend',s);return root.lastElementChild;};
+// ── timeline ───────────────────────────────────────────────────────────
+const T={hook:1.6, fade0:1.6, work0:5.0, work1:6.4, climb1:10.4, words1:12.6, end:15}; window.DUR=T.end;
+const STATS=[{k:'Strength',hint:'Sets lifted',i:'⚒',from:50,to:61,d0:-5,d1:22},{k:'Cardio',hint:'Minutes of cardio',i:'♥',from:20,to:34,d0:-8,d1:11},{k:'Discipline',hint:'Days you showed up',i:'⛨',from:57,to:78,d0:-11,d1:25}];
+h(`<div class="streak" style="width:480px;left:-180px;top:90px"></div>`);h(`<div class="streak" style="width:460px;right:-170px;top:40px"></div>`);h(`<div class="streak" style="width:540px;left:-250px;top:1730px"></div>`);
+h(`<img src="logo-wf-light.webp" class="abs" style="left:50%;transform:translateX(-50%);top:150px;height:56px">`);
+const head=h(`<div class="abs" style="left:0;right:0;top:250px;text-align:center"><div class="kan" style="font-size:104px"><span class="ink"></span><br><span class="gold"></span></div></div>`).firstChild;
+const sub=h(`<div class="abs bar" style="left:0;right:0;top:478px;text-align:center;font-size:42px;letter-spacing:.04em;color:var(--sec)"></div>`);
+const stage=h(`<div class="stage"><div class="phone"><div class="screen"><div class="notch"></div><div class="app">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div style="font:800 30px Inter,system-ui">Progress</div><div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#F5A623,#C9760A)"></div></div>
+  <div class="card" style="margin-bottom:16px"><div class="lbl">Fitness level</div>
+    <div style="display:flex;align-items:baseline;gap:14px;margin-top:6px"><div class="val" id="lvl" style="font-size:66px">71</div><div style="font:800 20px Inter,system-ui;color:var(--deep)">Dedicated</div></div>
+    <div class="track" style="margin-top:14px;height:8px"><div class="fill" id="xp" style="width:42%"></div></div></div>
+  <div class="card" id="cs"><div style="display:flex;justify-content:space-between"><div class="lbl">Combat stats</div><div class="lbl" style="font-size:11px;color:var(--ter)">Last 4 weeks</div></div>
+    <div id="status" style="font:600 15px/1.3 Inter,system-ui;margin:8px 0 18px;min-height:40px"></div>
+    ${STATS.map((s,i)=>`<div style="margin-bottom:${i<2?20:2}px"><div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;gap:12px;align-items:center"><div class="ico">${s.i}</div><div><div style="font:800 19px Inter,system-ui">${s.k}</div><div style="font:500 13px Inter,system-ui;color:var(--ter)">${s.hint}</div></div></div>
+      <div style="display:flex;align-items:baseline;gap:10px"><div class="chg" style="font:700 16px Inter,system-ui;font-variant-numeric:tabular-nums"></div><div class="val num"></div></div></div>
+      <div class="track"><div class="fill bar${i}"></div></div></div>`).join('')}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px">
+    <div class="card" style="padding:18px"><div class="lbl">Total workouts</div><div class="val" style="margin-top:8px">46</div></div>
+    <div class="card" style="padding:18px"><div class="lbl">Day streak</div><div class="val" style="margin-top:8px">2d</div></div></div>
+  <div class="card" style="margin-top:14px;padding:18px"><div style="display:flex;justify-content:space-between;align-items:baseline"><div class="lbl">This week</div><div style="font:800 18px Inter,system-ui">3 of 6 sessions</div></div><div class="track" style="margin-top:12px"><div class="fill" style="width:50%"></div></div></div>
+  </div></div></div></div>`);
+const phone=stage.firstChild, nums=[...stage.querySelectorAll('.num')], chgs=[...stage.querySelectorAll('.chg')], fills=STATS.map((s,i)=>stage.querySelector('.bar'+i)), status=stage.querySelector('#status'), cs=stage.querySelector('#cs');
+const flash=h(`<div class="abs" style="left:0;right:0;top:0;bottom:0;background:#fff;opacity:0;pointer-events:none"></div>`,document.body);
+const work=h(`<div class="full" style="background:linear-gradient(180deg,#2B1B12,#140C07);color:#fff;opacity:0">
+  <div class="bar" style="font-size:40px;letter-spacing:.3em;color:#F5A623">Then you train</div>
+  <div class="kan" style="font-size:190px;margin-top:10px;color:#fff">Workout</div>
+  <div class="kan" style="font-size:190px;background:linear-gradient(180deg,#FFD27A,#F5A623);-webkit-background-clip:text;background-clip:text;color:transparent">Done ✓</div></div>`,document.body);
+const words=h(`<div class="full" style="opacity:0">${['Strength','Cardio','Discipline'].map((w,i)=>`<div class="kan w" style="font-size:${w.length>8?150:170}px;${i===1?'':''}" ><span class="${i===1?'gold':'ink'}">${w}</span></div>`).join('')}
+  <div class="bar" style="margin-top:44px;font-size:50px;letter-spacing:.04em;color:var(--sec)">Your real workouts. Not a game.</div></div>`,document.body);
+const cta=h(`<div class="full" style="background:rgba(255,249,238,.96);opacity:0">
+  <img src="logo-wf-light.webp" style="height:74px;margin-bottom:54px">
+  <div class="kan" style="font-size:118px"><span class="ink">Get your</span><br><span class="gold">stats</span></div>
+  <div style="margin-top:50px"><span class="chip">7 days free · link in bio</span></div>
+  <div class="bar" style="margin-top:46px;font-size:38px;letter-spacing:.06em;color:var(--sec)">Follow @warfarefitnessapp</div></div>`,document.body);
+const hook=h(`<div class="full" style="background:radial-gradient(900px 800px at 50% 46%,rgba(245,166,35,.34),transparent 66%),#FFF9EE">
+  <img src="logo-wf-light.webp" style="height:56px;position:absolute;top:262px">
+  <div class="kan" style="font-size:132px"><span class="ink">GTA 6 has a</span><br><span class="gold">fitness app.</span></div>
+  <div class="bar" style="margin-top:44px;font-size:56px;letter-spacing:.03em;color:var(--ink)">This is the real-life version.</div></div>`,document.body);
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, io=(x)=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}, back=(x)=>{x=cl(x);const c=1.7;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2);};
+const lerp=(a,b,k)=>a+(b-a)*k;
+window.setT=(t)=>{
+  { const k=cl((t-(T.hook-.3))/.3); hook.style.opacity=1-k; hook.style.transform=`scale(${1+.08*k})`; hook.style.visibility=k>=1?'hidden':'visible'; }
+  const climbing=t>=T.work1, c=io((t-T.work1-.35)/2.6);            // 0..1 through the climb
+  // headline over the phone
+  const hl=climbing?['Train and','they climb.']:['Skip the gym.','Stats drop.'];
+  head.children[0].textContent=hl[0]; head.children[2].textContent=hl[1];
+  sub.textContent=climbing?'Every set and every session counts':'Just like in the game';
+  const hin=climbing?ease((t-T.work1)/.4):ease((t-T.fade0)/.5);
+  head.style.opacity=hin; head.style.translate=`0 ${(1-hin)*30}px`; sub.style.opacity=hin;
+  // phone: rises tilted, drifts, then squares up and pushes in on the stats card
+  const rise=ease((t-T.fade0)/.9), k2=io((t-T.work1)/1.6);
+  const ry=lerp(lerp(-26,-13,rise),-3,k2)+Math.sin(t*.6)*1.4, rx=lerp(lerp(16,7,rise),2,k2), sc=lerp(1,1.1,k2);
+  phone.style.transformOrigin='50% 0%'; phone.style.transform=`translateY(${(1-rise)*800}px) rotateY(${ry}deg) rotateX(${rx}deg) scale(${sc})`;
+  // stats: fading values drift down a little before the workout, then climb
+  const drift=cl((t-T.fade0)/(T.work0-T.fade0));
+  STATS.forEach((s,i)=>{
+    const lag=cl((c-i*.12)/(1-.24)), v=climbing?Math.round(lerp(s.from,s.to,io(lag))):s.from;
+    nums[i].textContent=v; fills[i].style.width=v+'%';
+    const up=climbing&&lag>.02; chgs[i].textContent=up?`↑ ${Math.round(lerp(0,s.d1,io(lag)))}`:`↓ ${Math.abs(s.d0)}`; chgs[i].style.color=up?'var(--ok)':'var(--warn)';
+    nums[i].style.scale=1+(up?.18*Math.sin(Math.PI*cl(lag)):0); nums[i].style.color=up&&lag<1?'var(--deep)':'var(--ink)';
+    fills[i].style.filter=up&&lag<1?'brightness(1.25)':'none';
+  });
+  status.textContent=climbing?'Trained today. Stats are climbing.':'Fading. 6 days since your last session. Train to hold them.';
+  status.style.color=climbing?'var(--ok)':'var(--warn)';
+  cs.style.boxShadow=climbing?`0 0 0 3px rgba(245,166,35,${.55*Math.sin(Math.PI*cl(c))+.25}),0 14px 40px rgba(201,118,10,.22)`:(drift>0?`0 0 0 2px rgba(232,115,12,${.25+.2*Math.sin(t*5)})`:'');
+  // the workout beat: swap this section for real footage
+  { const a=cl((t-T.work0)/.18)*(1-cl((t-(T.work1-.18))/.18)); work.style.opacity=a; work.style.visibility=a>0?'visible':'hidden'; work.style.transform=`scale(${1.08-.08*ease((t-T.work0)/.5)})`;
+    const f=Math.max(0,1-Math.abs(t-T.work0)/.12)+Math.max(0,1-Math.abs(t-T.work1)/.12); flash.style.opacity=.85*cl(f); }
+  // three words
+  { const on=t>=T.climb1&&t<T.words1+.3, a=ease((t-T.climb1)/.3)*(1-cl((t-T.words1)/.3)); words.style.opacity=on?a:0; words.style.visibility=on?'visible':'hidden';
+    [...words.querySelectorAll('.w')].forEach((w,i)=>{const k=back((t-T.climb1-.12-i*.28)/.34);w.style.opacity=cl((t-T.climb1-.12-i*.28)/.12);w.style.scale=lerp(2.2,1,k);});
+    const dim=1-ease((t-T.climb1)/.3); stage.style.opacity=t>=T.climb1?dim:1; head.parentNode.style.opacity=t>=T.climb1?dim:1; sub.style.opacity=t>=T.climb1?dim*hin:hin; }
+  { const a=ease((t-T.words1)/.4); cta.style.opacity=a; cta.style.translate=`0 ${(1-a)*40}px`; }
+};
+setT(+(Q.get('t')||0));
+</script></body></html>
