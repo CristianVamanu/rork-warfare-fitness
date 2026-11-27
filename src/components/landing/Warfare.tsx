@@ -96,7 +96,11 @@ export function WxHero({ ctaLabel, ctaNote, disclosure, priceLine, onDemo, facts
           {ctaNote === 'No credit card required' && <li><Check aria-hidden /> No card</li>}
           <li><Check aria-hidden /> Cancel anytime</li>
         </ul>
-        <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
+        {/* The demo button was only on the phone layouts; desktop visitors had no way to open the film. */}
+        <div className="wx-desk-ctas">
+          <Link href="/onboarding" className="wx-cta">{ctaLabel} <ArrowRight aria-hidden /></Link>
+          {demo}
+        </div>
         {(disclosure || priceLine) && <p className="wx-fine">{disclosure || priceLine}</p>}
       </div>
 

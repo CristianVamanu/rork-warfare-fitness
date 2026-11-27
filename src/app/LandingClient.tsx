@@ -781,11 +781,9 @@ export default function LandingPage({
       <WxTrial trialDays={trialDays} ctaLabel={primaryCtaLabel} note={noCardTrial ? 'No credit card required. Cancel anytime.' : (paidTrialDisclosure || 'Cancel anytime.')} />
 
       {/* FAQ — kills objections right before the final ask */}
-      <section id="faq" className="max-w-2xl lg:max-w-6xl mx-auto px-5 pb-16 pt-10 lg:grid lg:grid-cols-[1fr_1.6fr] lg:gap-14 lg:items-start">
-        <div className="text-center lg:text-left mb-6">
-          <p className="text-accent text-xs font-bold tracking-[0.3em] uppercase mb-2">Questions</p>
-          <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black italic uppercase text-white leading-none">Questions? <span className="lg:block text-accent">Answered.</span></h2>
-          <p className="hidden lg:block text-text-secondary mt-4 leading-relaxed">Everything people ask before they start. Still unsure? The trial is free, so just try it.</p>
+      <section id="faq" className="wx-faq max-w-2xl lg:max-w-4xl mx-auto px-5 pb-16 pt-10">
+        <div className="text-center mb-6 lg:mb-10">
+          <h2 className="wx-h3">Questions? <span className="wx-o">Answered.</span></h2>
         </div>
         <div className="rounded-2xl border border-white/8 bg-surface px-5">
           {FAQ_ITEMS.map((item, i) => ({
@@ -916,7 +914,7 @@ export default function LandingPage({
           once landing.heroDemoVideoUrl is set (Admin → Landing Page). Not
           autoplaying/looping like the small hero logo clip — this is a real
           demo the visitor chose to watch, so normal video controls apply. */}
-      <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action">
+      <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action" className="lg:max-w-5xl">
         {demoUrl && (
           <video
             key={demoUrl}
