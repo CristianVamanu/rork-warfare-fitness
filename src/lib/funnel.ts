@@ -51,7 +51,18 @@ export function sessionCampaign(): string {
   } catch { return 'direct'; }
 }
 
-export function funnelHit(step: FunnelStep) {
+/** Ad landing pages (/start, /see) count under their own name so each can be
+ *  compared with the home page: "<variant>-<utm_campaign or direct>". Stored
+ *  for the session, so the quiz steps that follow count toward the same page. */
+export function landingCampaign(variant: string): string {
+  let utm = '';
+  try { utm = new URLSearchParams(window.location.search).get('utm_campaign') || ''; } catch { /* ignore */ }
+  const c = normalizeCampaign(`${variant}-${utm || 'direct'}`);
+  try { sessionStorage.setItem(CAMPAIGN_KEY, c); } catch { /* private mode */ }
+  return c;
+}
+
+export function funnelHit(step: FunnelStep, campaign?: string) {
   try {
     if (typeof window === 'undefined') return;
     if (isFunnelIgnored()) return;
@@ -59,7 +70,7 @@ export function funnelHit(step: FunnelStep) {
     try { sent = JSON.parse(sessionStorage.getItem(SENT_KEY) || '[]'); } catch { sent = []; }
     if (sent.includes(step)) return;
     try { sessionStorage.setItem(SENT_KEY, JSON.stringify([...sent, step])); } catch { /* private mode: may double count, never blocks */ }
-    const body = JSON.stringify({ step, campaign: sessionCampaign() });
+    const body = JSON.stringify({ step, campaign: campaign || sessionCampaign() });
     // sendBeacon survives the page unloading right after (a tap on Start
     // navigates away immediately); fetch with keepalive is the fallback.
     if (navigator.sendBeacon && navigator.sendBeacon('/api/funnel', new Blob([body], { type: 'application/json' }))) return;

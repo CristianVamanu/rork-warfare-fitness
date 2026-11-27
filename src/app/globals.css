@@ -2393,3 +2393,45 @@ html.light .wf-tour-bar { background: rgba(26,19,10,.1); }
 html.light .wf-tour-skip { color: rgba(26,19,10,.55); }
 html.light .wf-tour-back { background: #fff; border-color: rgba(26,19,10,.16); color: #1A130A; }
 @media (prefers-reduced-motion: reduce) { .wf-tour-spot, .wf-tour-card, .wf-tour-bar i { transition: none; } }
+
+/* Ad landing pages /start and /see (AdLanders.tsx). Phone first; centred column on desktop. */
+.lpx { min-height: 100svh; max-width: 480px; margin: 0 auto; padding: 0 20px 48px; background: #080808; color: #fff; }
+html:has(.lpx), body:has(.lpx) { background: #080808; }
+.lpx-top { display: flex; align-items: center; justify-content: space-between; height: 58px; }
+.lpx-top img { height: 28px; width: auto; }
+.lpx-top a { font-size: 13px; color: rgba(255,255,255,.6); }
+.lpx-prog { height: 5px; border-radius: 5px; background: rgba(255,255,255,.1); margin-top: 6px; overflow: hidden; }
+.lpx-prog i { display: block; width: 12%; height: 100%; border-radius: 5px; background: linear-gradient(90deg, #E87900, #FFC45A); }
+.lpx-step { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.5); margin-top: 8px; }
+.lpx-h1 { font-family: 'Kanit', 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; text-transform: uppercase; font-size: clamp(32px, 9.6vw, 44px); line-height: .96; letter-spacing: -.01em; margin-top: 14px; color: #fff; }
+.lpx-h1 span { display: block; background: linear-gradient(180deg, #FFC45A, #FFA51E 45%, #E87900); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .08em; }
+.lpx-center { text-align: center; margin-top: 6px; font-size: clamp(30px, 9.4vw, 42px); }
+.lpx-sub { font-size: 14px; line-height: 1.4; color: rgba(255,255,255,.64); margin-top: 8px; }
+.lpx-goals { display: grid; gap: 8px; margin-top: 14px; }
+.lpx-goal { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 8px 14px; border-radius: 18px; border: 1px solid rgba(255,165,30,.3); background: linear-gradient(180deg, #17130E, #0D0B09); transition: border-color .15s, transform .1s; }
+.lpx-goal:hover { border-color: #FFA51E; } .lpx-goal:active { transform: scale(.985); }
+.lpx-goal i { width: 40px; height: 40px; flex: none; border-radius: 14px; display: grid; place-items: center; background: rgba(255,165,30,.12); color: #FFA51E; }
+.lpx-goal i svg { width: 22px; height: 22px; }
+.lpx-goal span { flex: 1; min-width: 0; display: block; }
+.lpx-goal b { display: block; font-size: 17px; font-weight: 800; color: #fff; }
+.lpx-goal small { display: block; font-size: 13px; color: rgba(255,255,255,.6); margin-top: 2px; }
+.lpx-goal > svg { width: 20px; height: 20px; color: #FFA51E; flex: none; }
+.lpx-note { font-size: 12px; text-align: center; color: rgba(255,255,255,.55); margin-top: 12px; }
+.lpx-facts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 36px; text-align: center; }
+.lpx-facts div { padding: 14px 4px; border-radius: 16px; border: 1px solid rgba(255,165,30,.22); background: #100D0A; }
+.lpx-facts b { display: block; font-family: 'Kanit', sans-serif; font-style: italic; font-weight: 800; font-size: 26px; line-height: 1; color: #FFA51E; text-transform: uppercase; }
+.lpx-facts span { display: block; font-size: 12px; color: rgba(255,255,255,.6); margin-top: 6px; }
+.lpx-video { margin: 14px auto 0; height: min(52svh, 560px); aspect-ratio: 720 / 1000; max-width: 100%; border-radius: 22px; overflow: hidden; border: 1px solid rgba(255,165,30,.4); box-shadow: 0 0 40px rgba(255,140,0,.22); background: #060504; }
+.lpx-video video { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lpx-cta { display: flex; align-items: center; justify-content: center; gap: 10px; height: 60px; margin-top: 16px; border-radius: 18px; background: linear-gradient(180deg, #FFC45A, #FFA51E 45%, #E87900); color: #140800; font-weight: 800; font-size: 17px; letter-spacing: .04em; text-transform: uppercase; box-shadow: 0 0 30px rgba(255,150,20,.45); }
+.lpx-cta svg { width: 20px; height: 20px; } .lpx-cta:active { transform: scale(.985); }
+.lpx-shots { display: grid; gap: 22px; margin-top: 44px; }
+.lpx-shot { display: flex; align-items: center; gap: 16px; }
+.lpx-shot img { width: 118px; flex: none; height: 200px; object-fit: cover; object-position: top; border-radius: 20px; border: 4px solid #1c1a18; box-shadow: 0 0 0 1px rgba(255,255,255,.12), 0 16px 34px rgba(0,0,0,.6); }
+.lpx-shot em { font-style: normal; font-size: 11px; font-weight: 700; letter-spacing: .28em; color: #FFA51E; }
+.lpx-shot b { display: block; font-size: 20px; font-weight: 800; margin-top: 6px; color: #fff; }
+.lpx-shot p { font-size: 14px; line-height: 1.45; color: rgba(255,255,255,.64); margin-top: 6px; }
+.lpx-pin { position: fixed; z-index: 60; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(8,8,8,.92); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,165,30,.25); transform: translateY(-100%); transition: transform .25s; }
+.lpx-pin[data-on='1'] { transform: none; }
+.lpx-pin img { height: 24px; width: auto; }
+.lpx-pin a { height: 38px; padding: 0 16px; display: grid; place-items: center; border-radius: 12px; background: linear-gradient(180deg, #FFC45A, #E87900); color: #140800; font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }

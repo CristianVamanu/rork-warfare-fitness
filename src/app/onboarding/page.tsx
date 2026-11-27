@@ -307,6 +307,9 @@ function OnboardingPageInner() {
     // A goal card on the landing page opens the quiz with that goal picked.
     const qGoal = searchParams.get('goal');
     if (qGoal && GOALS.some((g) => g.value === qGoal)) setGoal(qGoal as FitnessGoal);
+    // The quiz-first ad page (/start) already asked the goal as its first
+    // screen, so the quiz opens on the second question.
+    if (qGoal && GOALS.some((g) => g.value === qGoal) && searchParams.get('next') === '1') setStep((st) => Math.max(st, 1));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
