@@ -52,7 +52,7 @@ function GoalGrid() {
 /** The two phones, rendered in 3D (Blender) with the real dashboard on the
  *  front one. The source scene is scripts/landing-phones/phones.py. */
 function HeroPhones() {
-  return <img src="/landing/phones.webp" alt="" aria-hidden className="wx-phones3d" width={1806} height={2007} fetchPriority="high" />;
+  return <img src="/landing/phones.webp?v=3" alt="" aria-hidden className="wx-phones3d" width={1806} height={2007} fetchPriority="high" />;
 }
 
 const same = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, '');
