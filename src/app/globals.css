@@ -1457,9 +1457,20 @@ html.light .wf-art::after {
   content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
   background: var(--art) right center / cover no-repeat;
   opacity: .9;
-  -webkit-mask-image: linear-gradient(90deg, transparent 35%, #000 80%);
-  mask-image: linear-gradient(90deg, transparent 35%, #000 80%);
+  /* The art is a dark photo and light-mode text is dark, so the photo is kept
+     to the right-hand side: nothing before the half-way point, full strength
+     only at the far edge. Text that still reaches it (a long title, a
+     right-aligned figure) gets a soft cream halo below. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 40%, rgba(0,0,0,.18) 55%, rgba(0,0,0,.6) 80%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 40%, rgba(0,0,0,.18) 55%, rgba(0,0,0,.6) 80%, #000 100%);
 }
+html.light .wf-art :is(p, span, h1, h2, h3, h4, a, div) {
+  text-shadow: 0 0 2px #FFFDF8, 0 0 7px #FFFDF8, 0 0 14px rgba(255,253,248,0.95), 0 0 22px rgba(255,253,248,0.8);
+}
+/* Grey secondary text has too little contrast against a dark photo even with
+   the halo, so inside an art card it is drawn in a dark brown. */
+html.light .wf-art :is(.text-text-secondary, .text-text-tertiary) { color: #4A382C !important; }
+html.light .wf-art svg { filter: drop-shadow(0 0 3px #FFFDF8) drop-shadow(0 0 8px rgba(255,253,248,0.9)); }
 
 /* ════════════════════════════════════════════════════════════════════════
    Homepage, reference design (components/landing/Warfare.tsx). Phone layout
