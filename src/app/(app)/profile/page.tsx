@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { motion } from 'framer-motion';
-import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone, Swords, CalendarCheck } from 'lucide-react';
+import { Edit2, Camera, Dumbbell, Flame, Zap, Trophy, MessageSquare, Crown, CheckCircle, ExternalLink, Sun, Moon, ChevronRight, TrendingUp, LifeBuoy, Smartphone, Compass, Swords, CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
 import { HeroBadge, isHeroMember } from '@/components/ui/HeroBadge';
 import { useSearchParams } from 'next/navigation';
@@ -25,6 +25,8 @@ import { toggleEquipment, equipmentTier, equipmentLabel, isEquipmentItem, type E
 import { isInFreeTrial, freeTrialEndsAt } from '@/lib/membership';
 import { getActiveDiscountPercent, applyDiscount, getPlanBillingPeriods, kgToLbs } from '@/lib/utils';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useRouter, usePathname } from 'next/navigation';
+import { startAppTour } from '@/components/app/AppTour';
 import { Header } from '@/components/layout/Header';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -105,6 +107,8 @@ export default function ProfilePage() {
   }
 
   const { theme, toggleTheme } = useTheme();
+  const router = useRouter();
+  const pathname = usePathname();
   const [editModal, setEditModal] = useState(false);
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
   const [saving, setSaving] = useState(false);
@@ -857,6 +861,23 @@ export default function ProfilePage() {
               <ChevronRight className="w-4 h-4 text-text-tertiary" />
             </Card>
           </Link>
+        </motion.div>
+
+        {/* Guided tour of the home screen, retakeable any time. */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.186 }}>
+          <button type="button" className="block w-full text-left" onClick={() => startAppTour(router, pathname)}>
+            <Card className="pf-card p-4 flex items-center gap-3 hover:bg-white/5 transition-colors">
+              <PfArt name="progress" />
+              <div className="pf-ic">
+                <Compass className="w-6 h-6 text-accent" />
+              </div>
+              <div className="flex-1">
+                <p className="text-base font-bold text-white">Take the tour</p>
+                <p className="text-xs text-text-secondary">A 30-second walkthrough of where everything is.</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-text-tertiary" />
+            </Card>
+          </button>
         </motion.div>
 
         {/* Install — the app is a PWA, and a member who never adds it to the

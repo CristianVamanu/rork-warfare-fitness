@@ -19,6 +19,7 @@ import { AppThemeScope } from '@/contexts/ThemeContext';
 import { AppBackground } from '@/components/ui/AppBackground';
 import { ChatDrawer } from '@/components/chat/ChatDrawer';
 import { NativePushListener } from '@/components/app/NativePushListener';
+import { AppTour } from '@/components/app/AppTour';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, profile, loading } = useAuth();
@@ -169,6 +170,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           whichever page happens to be rendered. */}
       <WelcomeVideo />
       <RateAppPrompt />
+      <AppTour ready={!!profile} />
       {/* The workout session has its own fixed action bar; the nav's raised
           centre button would sit on top of it. */}
       {/* Channel and challenge rooms are chat screens: their message bar takes the nav's place. */}

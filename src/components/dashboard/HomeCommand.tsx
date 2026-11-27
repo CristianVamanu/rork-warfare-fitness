@@ -119,7 +119,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
       </div>
 
       {/* Readiness / weekly score: follows the theme */}
-      <div className="hc-streak relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
+      <div data-tour="week" className="hc-streak relative rounded-[20px] h-[178px] overflow-hidden -mt-[14px]" style={GLOW_CARD}>
         {/* Faint mountain behind the right half of the card. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/home/mountain.webp" alt="" aria-hidden className="hc-mtn absolute right-0 top-0 h-full w-[70%] object-cover object-right opacity-70 pointer-events-none" style={{ maskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)', WebkitMaskImage: 'linear-gradient(90deg, transparent 0%, #000 45%)' }} />
@@ -152,7 +152,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
 
 
       {/* Today's numbers */}
-      <div className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'var(--hc-strip-bg)', boxShadow: 'var(--hc-strip-shadow)' }}>
+      <div data-tour="today" className="grid grid-cols-4 rounded-[17px] h-[80px] mt-[11px] items-center" style={{ ...GLOW_CARD, background: 'var(--hc-strip-bg)', boxShadow: 'var(--hc-strip-shadow)' }}>
         {[
           { icon: Flame, color: AMBER, label: 'Calories', value: kcal.toLocaleString(), unit: `/${kcalGoal}` },
           steps != null
@@ -171,7 +171,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
       </div>
 
       {/* Nutrition / Hydration / Recovery */}
-      <div className="grid grid-cols-3 gap-[7px] mt-[15px]">
+      <div data-tour="tiles" className="grid grid-cols-3 gap-[7px] mt-[15px]">
         <PhotoCard href="/nutrition" img="/home/nutrition.webp" icon={Utensils} title="Nutrition" sub="Fuel your goals" />
         <PhotoCard href="/nutrition#water" img="/home/hydration.webp" icon={Droplet} iconColor="#3B9BFF" title="Hydration" sub="Stay optimal" />
         <PhotoCard href="/breathing" img="/home/recovery.webp" icon={Flower2} title="Recovery" sub="Recharge stronger" />
@@ -181,7 +181,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
           small cards set the row's height and the challenge card stretches to
           match, so the three always share a top and a bottom edge. (With a
           fixed 119px the small cards overflowed and hung below the big one.) */}
-      <div className="grid gap-[11px] mt-[18px] items-stretch" style={{ gridTemplateColumns: '213fr 145fr' }}>
+      <div data-tour="quick" className="grid gap-[11px] mt-[18px] items-stretch" style={{ gridTemplateColumns: '213fr 145fr' }}>
         <Link href={challenge ? `/community/challenges/${challenge.id}` : '/community/challenges'} className="relative rounded-[17px] min-h-[119px] h-full active:scale-[.98] transition-transform" style={GLOW_CARD}>
           <span className="absolute left-[15px] top-[14px] flex items-center gap-[12px] text-[9px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Trophy className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> Today&apos;s challenge</span>
           <p className="absolute left-[15px] right-[12px] top-[40px] text-[14px] font-bold text-white leading-none truncate">{challenge?.title ?? 'Pick a challenge'}</p>
