@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { CombatStatsCard } from '@/components/progress/CombatStats';
 import { useState, useEffect, useRef } from 'react';
 import nextDynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
@@ -239,6 +240,11 @@ export default function ProgressPage() {
             </div>
             <p className="text-xs text-text-tertiary mt-2">{totalXP} total XP earned</p>
           </Card>
+        </div>
+
+        {/* Strength, Cardio, Discipline: built from the last four weeks, fading when training stops */}
+        <div className="wf-rise" style={{ animationDelay: `${0.03}s` }}>
+          <CombatStatsCard workouts={workouts} />
         </div>
 
         {/* Stats Grid */}
