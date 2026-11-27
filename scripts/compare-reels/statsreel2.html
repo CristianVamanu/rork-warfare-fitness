@@ -1,0 +1,105 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- "GTA 6 has a fitness app. This is the real-life version." Product reel in
+     the app's light theme, built on REAL screenshots of the app (s_*.jpg in
+     the same folder): home, training, a workout set, then the Progress screen
+     with a push-in on the Combat stats card. The numbers called out beside the
+     phone are the ones on the screenshot. Seconds 5.5 to 6.9 (the workout set
+     screen) are the natural place to cut in real training footage.
+     render_panels.mjs drives setT(t). -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+@font-face{font-family:Barlow;src:url(barlow-condensed-700.woff2)}
+:root{--bg:#FFF9EE;--ink:#2B1B12;--sec:#7B6B5F;--gold:#F5A623;--deep:#C9760A;--ok:#1E9E5A}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:var(--bg);color:var(--ink);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+.bg{position:absolute;inset:0;background:radial-gradient(900px 760px at 100% 0%,rgba(245,166,35,.34),transparent 62%),radial-gradient(900px 800px at 0% 100%,rgba(245,166,35,.28),transparent 62%),linear-gradient(180deg,#FFFCF5,#FFF3DC)}
+.grid{position:absolute;inset:0;background-image:linear-gradient(rgba(201,118,10,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(201,118,10,.07) 1px,transparent 1px);background-size:60px 60px;mask-image:radial-gradient(900px 1300px at 50% 55%,#000 30%,transparent 80%)}
+.streak{position:absolute;height:16px;border-radius:8px;background:linear-gradient(90deg,transparent,#F5A623,#FFD27A);transform:rotate(-38deg);filter:drop-shadow(0 0 18px rgba(245,166,35,.7))}
+#r{position:absolute;inset:0;transform:scale(.88);transform-origin:50% 50%}
+.abs{position:absolute}
+.kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.94}
+.bar{font-family:Barlow;font-weight:700;text-transform:uppercase}
+.gold{background:linear-gradient(180deg,#F7B23B,#C9760A);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ink{color:var(--ink)}
+.stage{position:absolute;left:0;right:0;top:556px;height:1300px;perspective:2200px}
+.phone{position:absolute;left:50%;top:0;width:700px;height:1440px;margin-left:-350px;border-radius:78px;background:#1b1512;padding:14px;box-shadow:0 60px 120px rgba(120,70,10,.38),0 0 0 2px #3a2c22;transform-style:preserve-3d;transform-origin:50% 0%}
+.screen{position:relative;width:100%;height:100%;border-radius:64px;overflow:hidden;background:#FFF9EE}
+.notch{position:absolute;left:50%;top:14px;width:170px;height:40px;margin-left:-85px;border-radius:22px;background:#1b1512;z-index:5}
+.shot{position:absolute;left:0;top:58px;width:100%;transform-origin:50% 0}
+.ring{position:absolute;border:6px solid var(--gold);border-radius:34px;box-shadow:0 0 50px rgba(245,166,35,.8),inset 0 0 24px rgba(245,166,35,.25);opacity:0;z-index:4}
+.full{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 70px}
+.chip{display:inline-block;padding:14px 30px;border-radius:18px;border:2px solid rgba(201,118,10,.5);background:#fff;font:700 40px Barlow;text-transform:uppercase;letter-spacing:.03em;box-shadow:0 10px 30px rgba(201,118,10,.16)}
+.call{position:absolute;left:54px;right:54px;top:900px;display:flex;gap:16px;z-index:6}
+.call>div{flex:1;background:#fff;border:2px solid rgba(201,118,10,.45);border-radius:26px;padding:18px 22px;box-shadow:0 18px 50px rgba(120,70,10,.28)}
+.call .n{font-family:Kanit;font-style:italic;font-weight:800;font-size:104px;line-height:.9;font-variant-numeric:tabular-nums}
+.call .l{font:700 30px Barlow;text-transform:uppercase;letter-spacing:.06em;color:var(--sec)}
+.call .u{font:800 30px Inter,system-ui;color:var(--ok);margin-left:8px}
+</style></head><body><div class="bg"></div><div class="grid"></div><div id="r"></div>
+<script>
+const Q=new URLSearchParams(location.search), r=document.getElementById('r');
+const h=(s,root=r)=>{root.insertAdjacentHTML('beforeend',s);return root.lastElementChild;};
+// ── timeline ───────────────────────────────────────────────────────────
+const T={hook:1.5, home:1.5, train:4.2, set:5.5, prog:6.9, words:11.2, cta:12.9, end:15}; window.DUR=T.end;
+// Real numbers, read off the Progress screenshot.
+const CALL=[{l:'Strength',to:82,up:7},{l:'Discipline',to:48,up:3}];
+// Where the Combat stats card sits on the Progress screenshot (fractions of its height/width).
+const CARD={x:.04,y:.366,w:.92,h:.325}, ZK=1.03;
+h(`<div class="streak" style="width:480px;left:-180px;top:90px"></div>`);h(`<div class="streak" style="width:460px;right:-170px;top:40px"></div>`);
+h(`<img src="logo-wf-light.webp" class="abs" style="left:50%;transform:translateX(-50%);top:150px;height:56px">`);
+const head=h(`<div class="abs" style="left:0;right:0;top:250px;text-align:center"><div class="kan" style="font-size:104px"><span class="ink"></span><br><span class="gold"></span></div></div>`).firstChild;
+const sub=h(`<div class="abs bar" style="left:0;right:0;top:478px;text-align:center;font-size:42px;letter-spacing:.04em;color:var(--sec)"></div>`);
+const SHOTS=['s_home.jpg','s_training.jpg','s_session.jpg','s_progress.jpg'];
+const stage=h(`<div class="stage"><div class="phone"><div class="screen"><div class="notch"></div>${SHOTS.map(s=>`<img class="shot" src="${s}">`).join('')}<div class="ring"></div></div></div></div>`);
+const phone=stage.firstChild, shots=[...stage.querySelectorAll('.shot')], ring=stage.querySelector('.ring');
+const call=h(`<div class="call">${CALL.map(c=>`<div><div class="l">${c.l}</div><div style="display:flex;align-items:baseline"><span class="n ink">0</span><span class="u"></span></div></div>`).join('')}</div>`);
+const words=h(`<div class="full" style="opacity:0">${['Strength','Cardio','Discipline'].map((w,i)=>`<div class="kan w" style="font-size:${w.length>8?150:170}px"><span class="${i===1?'gold':'ink'}">${w}</span></div>`).join('')}
+  <div class="bar" style="margin-top:44px;font-size:50px;letter-spacing:.04em;color:var(--sec)">Your real workouts. Not a game.</div></div>`,document.body);
+const cta=h(`<div class="full" style="background:rgba(255,249,238,.96);opacity:0">
+  <img src="logo-wf-light.webp" style="height:74px;margin-bottom:54px">
+  <div class="kan" style="font-size:118px"><span class="ink">Get your</span><br><span class="gold">stats</span></div>
+  <div style="margin-top:50px"><span class="chip">7 days free · link in bio</span></div>
+  <div class="bar" style="margin-top:46px;font-size:38px;letter-spacing:.06em;color:var(--sec)">Follow @warfarefitnessapp</div></div>`,document.body);
+const hook=h(`<div class="full" style="background:radial-gradient(900px 800px at 50% 46%,rgba(245,166,35,.34),transparent 66%),#FFF9EE">
+  <img src="logo-wf-light.webp" style="height:56px;position:absolute;top:262px">
+  <div class="kan" style="font-size:132px"><span class="ink">GTA 6 has a</span><br><span class="gold">fitness app.</span></div>
+  <div class="bar" style="margin-top:44px;font-size:56px;letter-spacing:.03em;color:var(--ink)">This is the real-life version.</div></div>`,document.body);
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, io=(x)=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}, back=(x)=>{x=cl(x);const c=1.7;return 1+(c+1)*Math.pow(x-1,3)+c*Math.pow(x-1,2);};
+const lerp=(a,b,k)=>a+(b-a)*k;
+const SCENES=[
+  {t:T.home, hl:['Your streak.','Your week.'], sub:'Every session is counted'},
+  {t:T.train,hl:['Pick the plan.','Do the work.'], sub:'A program built around you'},
+  {t:T.set,  hl:['Pick the plan.','Do the work.'], sub:'Log every set'},
+  {t:T.prog, hl:['Train and','stats climb.'], sub:'Skip sessions and they fade'},
+];
+window.setT=(t)=>{
+  { const k=cl((t-(T.hook-.3))/.3); hook.style.opacity=1-k; hook.style.transform=`scale(${1+.08*k})`; hook.style.visibility=k>=1?'hidden':'visible'; }
+  const si=SCENES.reduce((a,s,i)=>t>=s.t?i:a,0), S=SCENES[si];
+  // headline changes only when its words change
+  const hlAt=si===2?T.train:S.t, hin=ease((t-hlAt)/.4);
+  head.children[0].textContent=S.hl[0]; head.children[2].textContent=S.hl[1]; sub.textContent=S.sub;
+  head.style.opacity=hin; head.style.translate=`0 ${(1-hin)*30}px`; sub.style.opacity=ease((t-S.t)/.35);
+  // screens cross-fade inside the phone; each drifts upward a little, like a slow scroll
+  shots.forEach((el,i)=>{ const a=i===0?1:ease((t-SCENES[i].t)/.35); el.style.opacity=(i<3&&t>=SCENES[i+1].t+.36)?0:a;
+    const local=cl((t-SCENES[i].t)/(((SCENES[i+1]||{t:T.words}).t)-SCENES[i].t)); let ty=-(i===3?0:60)*local, sc=1;
+    if(i===3){ const z=io((t-T.prog-.5)/1.5); sc=lerp(1,ZK,z); ty=0; el.style.transformOrigin='50% 0'; }
+    el.style.transform=`translateY(${ty}px) scale(${sc})`; });
+  // highlight ring on the Combat stats card once pushed in
+  { const z=io((t-T.prog-.5)/1.5), on=cl((t-T.prog-1.7)/.3)*(1-cl((t-(T.words-.3))/.3)), H=shots[3].clientHeight, W=shots[3].clientWidth, k=ZK;
+    ring.style.left=(W/2+(CARD.x-.5)*W*k)+'px'; ring.style.width=(CARD.w*W*k)+'px'; ring.style.top=(58+CARD.y*H*k)+'px'; ring.style.height=(CARD.h*H*k)+'px';
+    ring.style.opacity=on*(.75+.25*Math.sin(t*6)); }
+  // phone: rises tilted, drifts, squares up for the stats
+  const rise=ease((t-T.home)/.9), k2=io((t-T.prog)/1.4);
+  const ry=lerp(lerp(-26,-12,rise),-3,k2)+Math.sin(t*.6)*1.4, rx=lerp(lerp(16,7,rise),2,k2), sc=lerp(1,1.06,k2);
+  phone.style.transform=`translateY(${(1-rise)*800}px) rotateY(${ry}deg) rotateX(${rx}deg) scale(${sc})`;
+  // call-outs: the real numbers, rolling up
+  { const a=ease((t-T.prog-1.9)/.4)*(1-cl((t-(T.words-.25))/.25)); call.style.opacity=a; call.style.translate=`0 ${(1-ease((t-T.prog-1.9)/.4))*60}px`;
+    [...call.children].forEach((el,i)=>{ const k=io((t-T.prog-2.1-i*.25)/1.3), c=CALL[i];
+      el.querySelector('.n').textContent=Math.round(lerp(c.to-c.up*3,c.to,k)); el.querySelector('.u').textContent=k>.6?`↑ ${c.up} this week`:''; el.style.scale=1+.06*Math.sin(Math.PI*cl(k)); }); }
+  // three words
+  { const on=t>=T.words&&t<T.cta+.3, a=ease((t-T.words)/.3)*(1-cl((t-T.cta)/.3)); words.style.opacity=on?a:0; words.style.visibility=on?'visible':'hidden';
+    [...words.querySelectorAll('.w')].forEach((w,i)=>{const d=t-T.words-.1-i*.26;w.style.opacity=cl(d/.12);w.style.scale=lerp(2.2,1,back(d/.34));});
+    const dim=t>=T.words?1-ease((t-T.words)/.3):1; stage.style.opacity=dim; head.parentNode.style.opacity=dim; if(t>=T.words) sub.style.opacity=dim; }
+  { const a=ease((t-T.cta)/.4); cta.style.opacity=a; cta.style.translate=`0 ${(1-a)*40}px`; }
+};
+window.addEventListener('load',()=>setT(+(Q.get('t')||0)));
+</script></body></html>
