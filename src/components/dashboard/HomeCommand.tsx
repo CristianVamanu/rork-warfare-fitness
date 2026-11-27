@@ -177,19 +177,22 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         <PhotoCard href="/breathing" img="/home/recovery.webp" icon={Flower2} title="Recovery" sub="Recharge stronger" />
       </div>
 
-      {/* Today's challenge + streak */}
-      <div className="grid gap-[11px] mt-[18px]" style={{ gridTemplateColumns: '213fr 145fr' }}>
-        <Link href={challenge ? `/community/challenges/${challenge.id}` : '/community/challenges'} className="relative rounded-[17px] h-[119px] active:scale-[.98] transition-transform" style={GLOW_CARD}>
+      {/* Today's challenge + protein and water. No fixed heights: the two
+          small cards set the row's height and the challenge card stretches to
+          match, so the three always share a top and a bottom edge. (With a
+          fixed 119px the small cards overflowed and hung below the big one.) */}
+      <div className="grid gap-[11px] mt-[18px] items-stretch" style={{ gridTemplateColumns: '213fr 145fr' }}>
+        <Link href={challenge ? `/community/challenges/${challenge.id}` : '/community/challenges'} className="relative rounded-[17px] min-h-[119px] h-full active:scale-[.98] transition-transform" style={GLOW_CARD}>
           <span className="absolute left-[15px] top-[14px] flex items-center gap-[12px] text-[9px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Trophy className="w-[15px] h-[15px] text-accent" strokeWidth={2} /> Today&apos;s challenge</span>
           <p className="absolute left-[15px] right-[12px] top-[40px] text-[14px] font-bold text-white leading-none truncate">{challenge?.title ?? 'Pick a challenge'}</p>
           <p className="absolute left-[15px] right-[40px] top-[60px] text-[10px] text-white/65 leading-[1.3]">Hit your target pace and push your limits.</p>
-          <span className="absolute left-[15px] top-[93px] text-[9px] text-white/85 leading-none">{challenge ? 'Live now' : 'Browse'}</span>
-          <span aria-hidden className="absolute left-[15px] right-[45px] top-[105px] h-[2px] rounded-full bg-white/12" />
-          <span className="absolute right-[12px] top-[86px] w-[23px] h-[23px] rounded-full flex items-center justify-center" style={ROUND_BTN}><ChevronRight className="w-[12px] h-[12px] text-white" strokeWidth={2.5} /></span>
+          <span className="absolute left-[15px] bottom-[17px] text-[9px] text-white/85 leading-none">{challenge ? 'Live now' : 'Browse'}</span>
+          <span aria-hidden className="absolute left-[15px] right-[45px] bottom-[12px] h-[2px] rounded-full bg-white/12" />
+          <span className="absolute right-[12px] bottom-[10px] w-[23px] h-[23px] rounded-full flex items-center justify-center" style={ROUND_BTN}><ChevronRight className="w-[12px] h-[12px] text-white" strokeWidth={2.5} /></span>
         </Link>
-        <div className="flex flex-col gap-[8px] h-[119px]">
+        <div className="flex flex-col gap-[8px] min-h-[119px]">
           {/* Protein today */}
-          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
+          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between gap-[5px]" style={GLOW_CARD}>
             <div className="flex items-center justify-between">
               <Link href="/nutrition" className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Beef className="w-[13px] h-[13px] text-[#F87171]" strokeWidth={2} /> Protein</Link>
               <span className="flex gap-[5px]">
@@ -201,7 +204,7 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
             <span aria-hidden className="block h-[3px] rounded-full bg-white/10 overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${proteinGoal ? Math.min(100, (protein / proteinGoal) * 100) : 0}%`, background: '#F87171', boxShadow: '0 0 6px rgba(248,113,113,0.8)' }} /></span>
           </div>
           {/* Water today, with − / + */}
-          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between" style={GLOW_CARD}>
+          <div className="relative flex-1 rounded-[15px] px-[12px] py-[9px] flex flex-col justify-between gap-[5px]" style={GLOW_CARD}>
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-[6px] text-[8.5px] font-semibold tracking-[0.03em] text-white/70 uppercase"><Droplet className="w-[13px] h-[13px] text-[#3B9BFF]" strokeWidth={2} /> Water</span>
               <span className="flex gap-[5px]">
