@@ -7,7 +7,7 @@ sc.render.engine = 'CYCLES'; sc.cycles.samples = 160; sc.cycles.use_denoising = 
 sc.render.film_transparent = True
 sc.render.resolution_x, sc.render.resolution_y = 2600, 2800
 sc.view_settings.view_transform = 'Standard'
-W, H, T = 0.74, 1.437, 0.08
+W, H, T = 0.74, 1.5159, 0.08
 
 def pbr(name, color, metallic, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True

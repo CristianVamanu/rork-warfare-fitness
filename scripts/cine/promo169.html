@@ -17,11 +17,15 @@ html,body{width:1920px;height:1080px;overflow:hidden;background:#000;font-family
 .kan{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.95}
 .gold{background:linear-gradient(180deg,#FFB347,#E8730C);-webkit-background-clip:text;background-clip:text;color:transparent}
 #stage{position:absolute;inset:0;perspective:2600px;transform-origin:50% 50%}
-.ph{position:absolute;width:400px;height:812px;margin:-406px 0 0 -200px;border-radius:60px;padding:10px;background:linear-gradient(135deg,#4a4540,#11100f 30%,#35302c 62%,#0c0b0a);box-shadow:0 60px 120px rgba(0,0,0,.55),0 0 0 1.5px rgba(255,255,255,.10),inset 0 0 0 2px rgba(0,0,0,.85);opacity:0;will-change:transform}
+.ph{position:absolute;width:400px;height:858px;margin:-429px 0 0 -200px;border-radius:60px;padding:10px;background:linear-gradient(135deg,#4a4540,#11100f 30%,#35302c 62%,#0c0b0a);box-shadow:0 60px 120px rgba(0,0,0,.55),0 0 0 1.5px rgba(255,255,255,.10),inset 0 0 0 2px rgba(0,0,0,.85);opacity:0;will-change:transform}
 .ph::before{content:'';position:absolute;right:-4px;top:210px;width:4px;height:96px;border-radius:2px;background:linear-gradient(90deg,#2a2623,#55504a)}
 .ph::after{content:'';position:absolute;left:-4px;top:170px;width:4px;height:54px;border-radius:2px;background:linear-gradient(270deg,#2a2623,#55504a);box-shadow:0 74px 0 #3a3531}
 .sc{position:relative;width:100%;height:100%;border-radius:51px;overflow:hidden;background:#0B0B0D}
-.sc img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 0}
+.scr{position:absolute;inset:0}
+/* The app sits below the status bar, as on a real phone, so the island never covers it. */
+.scr img{position:absolute;left:0;top:46px;width:100%;height:calc(100% - 46px);object-fit:cover;object-position:50% 0}
+.sb{position:absolute;left:0;right:0;top:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 34px;font:600 15px "Helvetica Neue",Inter,sans-serif;letter-spacing:.01em}
+.sb svg{height:12px;display:block}
 .isl{position:absolute;left:50%;top:12px;width:104px;height:28px;margin-left:-52px;border-radius:16px;background:#040404;z-index:6}
 .gl{position:absolute;inset:0;z-index:5;background:linear-gradient(112deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,0) 26%,rgba(255,255,255,0) 74%,rgba(255,255,255,.05) 100%);pointer-events:none}
 .cap{position:absolute;top:330px;width:740px}
@@ -40,7 +44,9 @@ const h=(s,root=ui)=>{root.insertAdjacentHTML('beforeend',s);return root.lastEle
 const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, io=(x)=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}, lerp=(a,b,k)=>a+(b-a)*k;
 const win=(t,a,b,fi=.6,fo=.6)=>cl((t-a)/fi)*(1-cl((t-(b-fo))/fo));
 const T={s2:7,s3:18,s4:29,w0:31.5,w1:35.5,s5:40,s6:51,s7:64,end:74}; window.DUR=T.end;
-const phone=(imgs)=>{const p=h(`<div class="ph"><div class="sc">${imgs.map(s=>`<img src="${s}">`).join('')}<div class="isl"></div><div class="gl"></div></div></div>`,stage);p.imgs=[...p.querySelectorAll('img')];return p;};
+const TOPS={"app-home.png": "#010202", "app-training.png": "#3e2d0e", "app-set.png": "#000000", "app-nutrition.png": "#3e2d0e", "app-quests.png": "#3e2d0f", "app-coach.png": "#080808", "food_dark_c.png": "#1b110f", "fast_dark.png": "#0c0b0a", "habits_dark.png": "#120e08", "home_light.jpg": "#f9f5ea", "set_light.jpg": "#f4f4f3", "progress_light.jpg": "#fdeaca", "fast_light.png": "#fff9ee", "habits_light.png": "#fff9ee", "ripz_light.png": "#fef0d9", "training_light.jpg": "#fdeaca"};
+const SBI=`<svg viewBox="0 0 66 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><path d="M31 3.2a8 8 0 0 0-6.2 2.6l1.3 1.3a6.4 6.4 0 0 1 9.8 0l1.3-1.3A8 8 0 0 0 31 3.2zm0 3.4a4.8 4.8 0 0 0-3.7 1.7l1.3 1.3a3 3 0 0 1 4.8 0l1.3-1.3A4.8 4.8 0 0 0 31 6.6zm0 3.2a1.4 1.4 0 1 0 0 2.2 1.4 1.4 0 0 0 0-2.2z"/><rect x="42.5" y=".5" width="20" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="44" y="2" width="15" height="8" rx="2"/><rect x="63.5" y="4" width="2" height="4" rx="1" opacity=".5"/></svg>`;
+const phone=(imgs)=>{const p=h(`<div class="ph"><div class="sc">${imgs.map(s=>{const light=/light/.test(s);return `<div class="scr" style="background:${TOPS[s]||(light?'#fff9ee':'#0a0a0a')};color:${light?'#1E1410':'#fff'}"><div class="sb"><span>9:41</span>${SBI}</div><img src="${s}"></div>`;}).join('')}<div class="isl"></div><div class="gl"></div></div></div>`,stage);p.imgs=[...p.querySelectorAll('.scr')];return p;};
 const place=(p,x,y,ry,rx,sc,op,blur=0,z=1)=>{p.style.opacity=op;p.style.visibility=op>0.002?'visible':'hidden';p.style.left=x+'px';p.style.top=y+'px';p.style.zIndex=z;p.style.filter=blur>0.05?`blur(${blur}px)`:'none';p.style.transform=`rotateY(${ry}deg) rotateX(${rx}deg) scale(${sc})`;};
 const show=(p,f)=>p.imgs.forEach((im,i)=>im.style.opacity=i===0?1:cl(f-(i-1)));
 const cap=(x,ink)=>h(`<div class="cap" style="left:${x}px;color:${ink}"><div class="n"></div><div class="t"></div><div class="d"></div><div class="rule"></div></div>`);
