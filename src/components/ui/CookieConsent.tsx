@@ -5,7 +5,7 @@ import Link from 'next/link';
 
 export const COOKIE_CONSENT_KEY = 'cookieConsent';
 // Fired on every consent change (accept, reject, or reset from Settings) so
-// ConsentGatedScripts can mount/unmount the digimetrix widget immediately —
+// ConsentGatedScripts can mount/unmount the analytics scripts immediately —
 // without this, accepting only took effect after a full page reload, and a
 // later "reject" from Settings couldn't un-load an already-running
 // third-party script for the rest of the session.
@@ -64,7 +64,7 @@ export function CookieConsent() {
     <div className="fixed bottom-0 inset-x-0 z-[100] px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
       <div className="max-w-lg md:max-w-2xl mx-auto bg-surface-elevated/95 backdrop-blur-md border border-white/10 rounded-xl shadow-xl pl-3 pr-2 py-2 flex items-center gap-2">
         <p className="text-[11px] leading-snug text-text-secondary flex-1 min-w-0">
-          Essential cookies only, plus an optional chat widget.{' '}
+          Essential cookies only, plus optional analytics.{' '}
           <Link href="/privacy" className="text-accent underline whitespace-nowrap">Privacy</Link>
         </p>
         <div className="flex gap-1.5 flex-shrink-0">

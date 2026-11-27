@@ -53,7 +53,7 @@ Under UK and EU data protection law you may access, correct, export or delete yo
 ${DATA_RETENTION_SECTION.replace(/`/g, '')}
 
 ## 6. Cookies and Analytics
-Essential cookies keep you signed in and are always on. With your consent, given through the cookie banner, we also load the Meta Pixel and Google Analytics to measure our advertising and to understand how the site is used, and a third-party chat widget on public pages. You can change your choice at any time from Settings. Rejecting these never limits the app.
+Essential cookies keep you signed in and are always on. With your consent, given through the cookie banner, we also load the Meta Pixel and Google Analytics to measure our advertising and to understand how the site is used. You can change your choice at any time from Settings. Rejecting these never limits the app.
 
 ## 6a. AI Features
 Some features use artificial intelligence, including analysis of food photos, barcode matches, meal ideas and generated training suggestions. Photos and text you submit to those features are sent to OpenAI to produce the result and are not used by OpenAI to train its models under our agreement with them. The results are estimates and can be inaccurate.

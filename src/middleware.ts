@@ -66,7 +66,7 @@ export function middleware(request: NextRequest) {
     // checkout (/checkout). Loaded by a nonce'd bundle, so strict-dynamic
     // already trusts it; the explicit hosts are the fallback for browsers
     // and webviews without strict-dynamic, same as the two above.
-    `script-src ${scriptSelf} https://digimetrix.ai https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com https://checkout.stripe.com`,
+    `script-src ${scriptSelf} https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com https://checkout.stripe.com`,
     // A prior attempt scoped unsafe-inline to style-src-attr only, on the
     // assumption this app never injects raw <style> blocks — that was
     // wrong. Framer Motion (AnimatePresence/layout animations) and the
@@ -132,7 +132,7 @@ export function middleware(request: NextRequest) {
     // from OUR page (session setup, 3DS, fraud signals, telemetry).
     // Requests made inside Stripe's iframe are governed by Stripe's own
     // policy, not this one.
-    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://digimetrix.ai https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://js.stripe.com https://api.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com https://q.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://i.ytimg.com",
+    "connect-src 'self' https://*.googleapis.com https://apis.google.com https://www.google.com https://*.firebaseapp.com https://*.r2.dev https://*.r2.cloudflarestorage.com https://*.sentry.io https://*.ingest.sentry.io https://*.supabase.co https://fonts.gstatic.com https://www.facebook.com https://connect.facebook.net https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://js.stripe.com https://api.stripe.com https://checkout.stripe.com https://hooks.stripe.com https://m.stripe.network https://m.stripe.com https://r.stripe.com https://q.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://i.ytimg.com",
     // Firebase Auth opens a hidden same-project iframe at
     // <project>.firebaseapp.com/__/auth/iframe as part of its normal init
     // (session persistence / cross-tab auth-state sync) — this fires even
