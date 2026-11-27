@@ -1618,13 +1618,15 @@ html.light .wf-art svg { filter: drop-shadow(0 0 3px #FFFDF8) drop-shadow(0 0 8p
 
 /* ── Desktop composition ── */
 @media (min-width: 1024px) {
-  .wx-hero { margin-top: -80px; padding: 0; min-height: 0; height: max(700px, 54vw); }
+  /* Grows with its copy: at a fixed height the Start button and the price
+     line under it ran past the bottom and sat on the strip below. */
+  .wx-hero { margin-top: -80px; padding: 0; min-height: max(700px, 54vw); height: auto; }
   .wx-hero-bg img { object-position: center top; }
   .wx-hero-bg::after { background:
     linear-gradient(90deg, rgba(8,8,8,.9) 0%, rgba(8,8,8,.72) 24%, rgba(8,8,8,.15) 44%, rgba(8,8,8,0) 56%),
     linear-gradient(180deg, rgba(8,8,8,.45) 0%, rgba(8,8,8,0) 14%, rgba(8,8,8,0) 82%, #080808 100%); }
   .wx-hero-mob { display: none; }
-  .wx-hero-desk { display: block; position: absolute; z-index: 2; left: 4.9vw; top: calc(80px + 1.6vw); width: 40vw; }
+  .wx-hero-desk { display: block; position: relative; z-index: 2; margin-left: 4.9vw; padding-top: calc(80px + 1.6vw); padding-bottom: 3.2vw; width: 40vw; }
   .wx-hero-desk .wx-eyebrow { font-size: clamp(13px, 1.15vw, 22px); letter-spacing: .1em; }
   .wx-hero-desk .wx-h1 { font-size: clamp(44px, 4.85vw, 96px); line-height: .98; margin-top: .4vw; }
   .wx-hero-desk .wx-h1 > span { white-space: nowrap; }
