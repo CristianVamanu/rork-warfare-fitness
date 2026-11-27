@@ -1,5 +1,6 @@
 'use client';
 
+import { DemoPlayer } from '@/components/landing/DemoPlayer';
 import { isNativeApp } from '@/lib/native/health';
 import { GooglePlayBadge } from '@/components/ui/GooglePlayBadge';
 import { PLAY_STORE_URL, androidStoreUrl } from '@/lib/storeLinks';
@@ -916,15 +917,10 @@ export default function LandingPage({
           demo the visitor chose to watch, so normal video controls apply. */}
       <Modal open={demoOpen} onClose={() => setDemoOpen(false)} title="See it in action" className="lg:max-w-5xl">
         {demoUrl && (
-          <video
+          <DemoPlayer
             key={demoUrl}
-            className="w-full rounded-xl bg-black"
             src={demoUrl}
             poster={landing.heroDemoVideoUrl ? (landing.heroDemoPosterUrl || undefined) : '/videos/demo-poster.jpg'}
-            controls
-            autoPlay
-            playsInline
-            crossOrigin="anonymous"
           />
         )}
       </Modal>
