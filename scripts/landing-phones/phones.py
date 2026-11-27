@@ -7,7 +7,7 @@ sc.render.engine = 'CYCLES'; sc.cycles.samples = 160; sc.cycles.use_denoising = 
 sc.render.film_transparent = True
 sc.render.resolution_x, sc.render.resolution_y = 2600, 2800
 sc.view_settings.view_transform = 'Standard'
-W, H, T = 0.74, 1.54, 0.08
+W, H, T = 0.74, 1.437, 0.08
 
 def pbr(name, color, metallic, rough):
     m = bpy.data.materials.new(name); m.use_nodes = True
@@ -16,11 +16,11 @@ def pbr(name, color, metallic, rough):
     return m
 GOLD = pbr('black', (0.025, 0.025, 0.028), 1.0, 0.38)
 BLACK = pbr('black', (0.008, 0.008, 0.01), 0.0, 0.06)
-def mat_screen(img):
+def mat_screen(img, strength=1.15):
     m = bpy.data.materials.new('scr'); m.use_nodes = True
     nt = m.node_tree; nt.nodes.clear()
     t = nt.nodes.new('ShaderNodeTexImage'); t.image = bpy.data.images.load(os.path.join(D, img))
-    e = nt.nodes.new('ShaderNodeEmission'); e.inputs['Strength'].default_value = 1.15
+    e = nt.nodes.new('ShaderNodeEmission'); e.inputs['Strength'].default_value = strength
     o = nt.nodes.new('ShaderNodeOutputMaterial')
     nt.links.new(t.outputs['Color'], e.inputs['Color']); nt.links.new(e.outputs['Emission'], o.inputs['Surface'])
     return m
@@ -42,7 +42,7 @@ def slab(w, h, t, r, mat, name, edge=0.012):
     return o
 
 def screen(w, h, r, img):
-    o = slab(w, h, 0.002, r, mat_screen(img), 'screen', edge=0)
+    o = slab(w, h, 0.002, r, mat_screen(img, 0.96 if 'light' in img else 1.15), 'screen', edge=0)
     uv = o.data.uv_layers.new(name='uv')
     for poly in o.data.polygons:
         for li in poly.loop_indices:
@@ -59,7 +59,7 @@ def phone(img, loc, rot):
     body.location = loc; body.rotation_euler = [math.radians(a) for a in rot]
     return body
 
-phone('screen_ripz.jpg', (0.52, -0.02, -0.75), (0, -26, -7))
+phone('screen_home_light.jpg', (0.52, -0.02, -0.75), (0, -26, -7))
 phone('screen_home_p.jpg', (-0.20, 0.0, 0.2), (0, -26, -7))
 
 cam = bpy.data.objects.new('cam', bpy.data.cameras.new('cam')); bpy.context.collection.objects.link(cam)
