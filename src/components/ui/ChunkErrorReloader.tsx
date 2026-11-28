@@ -18,11 +18,15 @@ export function isChunkLoadError(reason: unknown): boolean {
   return /ChunkLoadError|Loading chunk|Failed to fetch dynamically imported module/i.test(msg);
 }
 
-/** Reloads once per session; returns false when it already tried (so the caller shows/reports the error). */
+/** Reloads to pick up the new build; returns false when a reload just happened
+ *  and the chunk still fails (so the caller shows and reports the error).
+ *  The guard is a time window, not once per session: a tab left open across
+ *  two deploys needs a second reload, and used to be reported as a crash. */
 export function reloadOnceForChunkError(): boolean {
   try {
-    if (sessionStorage.getItem(RELOAD_FLAG)) return false; // already tried once this session — avoid a loop
-    sessionStorage.setItem(RELOAD_FLAG, '1');
+    const last = Number(sessionStorage.getItem(RELOAD_FLAG) || 0);
+    if (last && Date.now() - last < 20_000) return false; // just reloaded and it failed again: avoid a loop
+    sessionStorage.setItem(RELOAD_FLAG, String(Date.now()));
   } catch { /* storage blocked: still try one reload */ }
   window.location.reload();
   return true;

@@ -205,8 +205,8 @@ export function ErrorsPanel() {
                       // Horizontal scroll on its own container: a stack trace
                       // is the one thing here that must not be wrapped or
                       // truncated, and it must not push the page sideways.
-                      <div className="overflow-x-auto rounded-lg border border-white/8 bg-black/40">
-                        <pre className="text-[11px] leading-relaxed text-text-secondary p-3 font-mono whitespace-pre">{e.stack}</pre>
+                      <div className="overflow-x-auto rounded-lg border border-white/8" style={{ background: '#14110E' }}>
+                        <pre className="wf-dark text-[11px] leading-relaxed p-3 font-mono whitespace-pre" style={{ color: '#D8D8D8' }}>{e.stack}</pre>
                       </div>
                     ) : (
                       <p className="text-xs text-text-tertiary">No stack trace was captured for this one.</p>

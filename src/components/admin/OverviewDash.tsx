@@ -55,41 +55,65 @@ function curve(pts: [number, number][]) {
   return d;
 }
 
+// The board opens on the numbers from the last visit (kept on this device)
+// and swaps in fresh ones as each request lands, so it never starts empty.
+// Only what the cards draw is kept: sign-up time, age and program name per
+// member, never names or emails.
+const CACHE_KEY = 'wf.admin.overview.v1';
+type Cache = { uid: string; users?: U[]; total?: number; funnel?: Funnel; fin?: Record<string, Fin> };
+function readCache(uid: string | undefined): Cache | null {
+  if (!uid || typeof window === 'undefined') return null;
+  try { const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') as Cache | null; return c && c.uid === uid ? c : null; } catch { return null; }
+}
+function patchCache(uid: string | undefined, patch: (c: Cache) => void) {
+  if (!uid) return;
+  try { const c = readCache(uid) ?? { uid }; patch(c); localStorage.setItem(CACHE_KEY, JSON.stringify(c)); } catch { /* storage full or blocked: the board still works */ }
+}
+
 export function OverviewDash() {
   const { user } = useAuth();
-  const [users, setUsers] = useState<U[] | null>(null);
-  const [total, setTotal] = useState<number | null>(null);
-  const [funnel, setFunnel] = useState<Funnel | null>(null);
-  const [fin, setFin] = useState<Fin | null>(null);
+  const uid = user?.uid;
+  const [cached] = useState(() => readCache(uid));
+  const [users, setUsers] = useState<U[] | null>(cached?.users ?? null);
+  const [total, setTotal] = useState<number | null>(cached?.total ?? null);
+  const [funnel, setFunnel] = useState<Funnel | null>(cached?.funnel ?? null);
+  const [fin, setFin] = useState<Fin | null>(cached?.fin?.month ?? null);
   const [finErr, setFinErr] = useState(false);
   const [range, setRange] = useState<'week' | 'month' | 'year'>('month');
   const [barRange, setBarRange] = useState<'visit' | 'account'>('visit');
   const [month, setMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1).getTime(); });
 
   useEffect(() => {
-    getAllUsers(500).then((u) => setUsers(u as U[])).catch(() => setUsers([]));
-    countUsers().then(setTotal).catch(() => setTotal(null));
+    getAllUsers(500).then((u) => {
+      const slim: U[] = (u as U[]).map((x) => ({ createdAt: ms(x.createdAt) ?? undefined, age: x.age, activeProgram: x.activeProgram?.programName ? { programName: x.activeProgram.programName } : undefined }));
+      setUsers(slim); patchCache(uid, (c) => { c.users = slim; });
+    }).catch(() => setUsers((prev) => prev ?? []));
+    countUsers().then((n) => { setTotal(n); patchCache(uid, (c) => { c.total = n; }); }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (!user) return;
     (async () => {
       const h = { Authorization: `Bearer ${await getIdToken(user)}` };
-      fetch('/api/admin/funnel?days=60', { headers: h }).then((r) => r.ok ? r.json() : null).then(setFunnel).catch(() => setFunnel(null));
+      fetch('/api/admin/funnel?days=60', { headers: h }).then((r) => r.ok ? r.json() : null).then((f) => { if (f) { setFunnel(f); patchCache(uid, (c) => { c.funnel = f; }); } }).catch(() => {});
     })();
-  }, [user]);
+  }, [user, uid]);
   useEffect(() => {
     if (!user) return;
     const days = range === 'week' ? 7 : range === 'month' ? 30 : 365;
     const to = Math.floor(Date.now() / 1000); const from = to - days * 86400;
     const gran = range === 'year' ? 'month' : 'day';
+    const kept = readCache(uid)?.fin?.[range];
+    if (kept) { setFin(kept); setFinErr(false); }
     (async () => {
       try {
         const r = await fetch(`/api/admin/finance?view=overview&from=${from}&to=${to}&gran=${gran}&tz=${encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)}`, { headers: { Authorization: `Bearer ${await getIdToken(user)}` } });
         if (!r.ok) throw new Error();
-        setFin(await r.json()); setFinErr(false);
-      } catch { setFinErr(true); }
+        const f = await r.json() as Fin;
+        setFin(f); setFinErr(false); patchCache(uid, (c) => { c.fin = { ...(c.fin ?? {}), [range]: f }; });
+      } catch { if (!kept) setFinErr(true); }
     })();
-  }, [user, range]);
+  }, [user, uid, range]);
 
   // ── derived ──
   const signupsByDay = useMemo(() => {
