@@ -2273,6 +2273,36 @@ html.light .hc-root .hc-streak .bg-white\/10 { background-color: rgba(0,0,0,0.08
 .ov-fun li { display: grid; grid-template-columns: 110px 1fr 70px; align-items: center; gap: 10px; font-size: 13px; color: #cfcfcf; }
 .ov-fun li b { text-align: right; font-weight: 500; color: #fff; }
 .ov-meter { height: 10px; border-radius: 999px; background: #1a1918; overflow: hidden; } .ov-meter i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #F5A623, #FFC45A); }
+.ov-prog ul { grid-template-columns: minmax(0, 1fr); } .ov-prog li { min-width: 0; }
+/* Admin overview in light theme: white cards on cream, same amber accents. */
+html.light .ov-card { background: linear-gradient(180deg, #FFFFFF, #FFF8EC); border-color: rgba(60,40,10,.10); box-shadow: 0 8px 26px rgba(120,80,20,.08); color: #1A130A; }
+html.light .ov-card h3, html.light .ov-fun li b { color: #1A130A; }
+html.light .ov-seg { background: #F4ECDD; border-color: rgba(60,40,10,.12); }
+html.light .ov-seg button { color: #7A6A55; }
+html.light .ov-seg button.is-on { background: #1A130A; color: #fff; }
+html.light .ov-kpis small, html.light .ov-total small, html.light .ov-big small, html.light .ov-empty, html.light .ov-bar small { color: #7A6A55; }
+html.light .ov-chg.up { background: rgba(245,166,35,.2); color: #9A5B00; } html.light .ov-chg.down { background: rgba(60,40,10,.08); color: #6b5a45; }
+html.light .ov-empty a { color: #B56C00; }
+html.light .ov-month { border-color: rgba(60,40,10,.14); } html.light .ov-month button { color: #6b5a45; }
+html.light .ov-grid span { background: #F6EFE2; border-color: rgba(60,40,10,.07); color: #5a4a38; }
+html.light .ov-grid span.blank { background: none; }
+html.light .ov-grid span.has { background: rgba(245,166,35,.28); color: #1A130A; border-color: rgba(214,130,0,.45); }
+html.light .ov-grid span.hot { background: linear-gradient(180deg, #FFC45A, #F5A623); color: #1a0d00; }
+html.light .ov-grid span.today { outline-color: #1A130A; }
+html.light .ov-grid i { background: #B56C00; }
+html.light .ov-total, html.light .ov-prog li { background: #F6EFE2; border-color: rgba(60,40,10,.07); }
+html.light .ov-pills span { background: linear-gradient(135deg, #FFF1D6, #FFFFFF); border-color: rgba(214,130,0,.4); }
+html.light .ov-col { background: repeating-linear-gradient(135deg, rgba(60,40,10,.07) 0 2px, transparent 2px 7px); }
+html.light .ov-col span { background: #E4D9C6; border-top-color: rgba(60,40,10,.2); }
+html.light .ov-col span.top { background: linear-gradient(180deg, #FFC45A, #F5A623); }
+html.light .ov-col em { background: #1A130A; color: #fff; }
+html.light .ov-rank { background: rgba(245,166,35,.22); color: #9A5B00; }
+html.light .ov-prog li b { background: #fff; border-color: rgba(60,40,10,.1); }
+html.light .ov-bubbles .b1 { background: #E4D9C6; color: #1A130A; }
+html.light .ov-bubbles .b2 { background: #1A130A; color: #fff; }
+html.light .ov-go { border-color: rgba(60,40,10,.16); color: #3a2c1c; }
+html.light .ov-fun li { color: #5a4a38; }
+html.light .ov-meter { background: #EDE3D1; }
 
 /* ── Calmer glow (owner: "too glowing"). Same design, same colours: the
    amber edge and glow are kept, just softer. Overrides the rules above. ── */

@@ -165,7 +165,7 @@ export function OverviewDash() {
                 <linearGradient id="ovf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#F5A623" stopOpacity=".35" /><stop offset="1" stopColor="#F5A623" stopOpacity="0" /></linearGradient>
                 <pattern id="ovl" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 0V6" stroke="rgba(245,166,35,.18)" strokeWidth="1" /></pattern>
               </defs>
-              {[0.25, 0.5, 0.75].map((f) => <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="rgba(255,255,255,.05)" />)}
+              {[0.25, 0.5, 0.75].map((f) => <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="currentColor" strokeOpacity=".07" />)}
               {path && <path d={`${path} L${W},${H} L0,${H} Z`} fill="url(#ovl)" />}
               {path && <path d={`${path} L${W},${H} L0,${H} Z`} fill="url(#ovf)" />}
               {path && <path d={path} fill="none" stroke="#F5A623" strokeWidth="2.5" />}
