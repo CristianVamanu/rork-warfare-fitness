@@ -2470,6 +2470,9 @@ html:has(.lpx), body:has(.lpx) { background: #080808; }
    DesktopSidebar.tsx replaces the floating bottom bar; HomeDesktop.tsx
    replaces the phone home layout. Both follow the theme through --hd-*. */
 .wf-only-desktop, .wf-side { display: none; }
+/* Phones: the two home groups dissolve so their cards are direct items of the stack. */
+.wf-home-main, .wf-home-aside { display: contents; }
+.wf-only-mobile:empty { display: none; }
 :root { --hd-card: #141210; --hd-card2: #1B1612; --hd-border: rgba(245,166,35,.20); --hd-text: #FFFFFF; --hd-mut: rgba(255,255,255,.62); --hd-track: rgba(255,255,255,.10); --hd-shadow: 0 12px 34px rgba(0,0,0,.42); --hd-side: rgba(11,10,9,.92); --hd-chip: rgba(255,255,255,.06); --hd-chip-b: rgba(255,255,255,.12); --hd-wash: rgba(245,166,35,.13); }
 html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,60,.26); --hd-text: #1A130A; --hd-mut: #6F6254; --hd-track: #EFE6D8; --hd-shadow: 0 10px 28px rgba(120,80,20,.09); --hd-side: #FFFBF4; --hd-chip: #FFFFFF; --hd-chip-b: #E9DFD0; --hd-wash: rgba(245,166,35,.16); }
 @media (min-width: 1024px) {
@@ -2479,7 +2482,8 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   html main.wf-app-main { padding-bottom: 2.5rem; }
   main.wf-app-main[data-wide] { max-width: 1560px; }
 
-  .wf-side { display: flex; flex-direction: column; position: fixed; z-index: 35; left: 0; top: 0; bottom: 0; width: 248px; padding: 26px 18px 18px; background: var(--hd-side); border-right: 1px solid var(--hd-border); backdrop-filter: blur(14px); overflow-y: auto; }
+  .wf-side { display: flex; flex-direction: column; position: fixed; z-index: 35; left: 0; top: 0; bottom: 0; width: 248px; padding: 26px 18px 18px; background: var(--hd-side); border-right: 1px solid var(--hd-border); backdrop-filter: blur(14px); overflow-y: auto; scrollbar-width: none; }
+  .wf-side::-webkit-scrollbar { display: none; }
   .wf-side-logo { display: block; padding: 0 8px 26px; } .wf-side-logo img { height: 34px; width: auto; }
   .wf-side nav { display: grid; gap: 4px; }
   .wf-side nav a, .wf-side-foot a, .wf-side-foot button { display: flex; align-items: center; gap: 16px; height: 50px; padding: 0 18px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--hd-mut); transition: background .15s, color .15s; text-align: left; width: 100%; }
@@ -2493,11 +2497,16 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   .wf-side-promo b { color: #FFA51E; font-weight: 800; }
   .wf-side-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--hd-border); }
   .wf-side-foot a, .wf-side-foot button { height: 42px; font-size: 14px; } .wf-side-foot svg { width: 19px; height: 19px; }
+  /* Shorter screens: drop the picture card first, then tighten the rows, so Settings and Logout are always on screen. */
+  @media (max-height: 940px) { .wf-side-promo { display: none; } }
+  @media (max-height: 760px) { .wf-side { padding-top: 18px; } .wf-side-logo { padding-bottom: 14px; } .wf-side nav a { height: 42px; } .wf-side nav { gap: 2px; } }
 
   /* The cards under the home top sit in two columns instead of one stretched one. */
-  .wf-home-stack { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; padding: 0 28px 16px; }
-  .wf-home-stack > * { margin-top: 0 !important; min-width: 0; }
-  .wf-home-stack > .wf-home-top { grid-column: 1 / -1; }
+  .wf-home-stack { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; padding: 0 28px 16px; }
+  .wf-home-stack > .wf-home-top { grid-column: 1 / -1; grid-row: 1; }
+  .wf-home-main, .wf-home-aside { display: flex; flex-direction: column; gap: 18px; min-width: 0; grid-row: 2; }
+  .wf-home-main { grid-column: 1; } .wf-home-aside { grid-column: 2; }
+  .wf-home-main > *, .wf-home-aside > * { min-width: 0; }
 
   .hd { color: var(--hd-text); padding-top: 26px; }
   .hd-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 0 4px 20px 16px; }

@@ -441,7 +441,7 @@ export default function DashboardPage() {
     <div className="relative">
       <div className="relative">
       <div className="wf-only-mobile"><Header overlay /></div>
-      <div className="wf-home-stack relative px-4 pt-0 pb-4 space-y-3.5">
+      <div className="wf-home-stack relative px-4 pt-0 pb-4 flex flex-col gap-3.5">
         {/* Top of Home: hero, readiness / weekly score, today's numbers,
             Nutrition / Hydration / Recovery, today's challenge and the streak. */}
         <motion.div className="wf-home-top" {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
@@ -467,8 +467,14 @@ export default function DashboardPage() {
           />
         </motion.div>
 
-        {/* Browser-only: disappears once opened from the home screen. */}
-        <InstallAppStrip />
+        {/* Two groups. On phones they dissolve (display: contents) and every
+            card stacks in the order set by `order`, as before. On desktop each
+            group is its own column, so a short card never leaves a hole next
+            to a tall one. See .wf-home-aside / .wf-home-main in globals.css. */}
+        <div className="wf-home-aside">
+        {/* Browser-only: disappears once opened from the home screen. Phones only:
+            a desktop already has the store card below. */}
+        <div className="wf-only-mobile"><InstallAppStrip /></div>
 
 
         {/* Watch data, in the same card style as the tiles above. Native apps
@@ -487,6 +493,17 @@ export default function DashboardPage() {
 
         {/* The day's tip. Renders nothing when there is none. */}
         <DailyTip />
+
+        {/* Personal trackers — fasting timer and "days without" streaks keep
+            their own components; both host multi-step modals. */}
+        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="order-1 space-y-2.5 pt-1">
+          <FastingWidget />
+          <DaysWithoutWidget />
+        </motion.div>
+
+        </div>
+
+        <div className="wf-home-main">
 
         {/* Today's Workout — hero. Pulled out of the bento grid entirely:
             that grid's rows are a fixed 86px each (auto-rows-[86px]), so any
@@ -831,15 +848,9 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Personal trackers — fasting timer and "days without" streaks keep
-            their own components; both host multi-step modals. */}
-        <motion.div variants={stagger.item} initial={stagger.item.initial} animate={stagger.item.animate} className="space-y-2.5 pt-1">
-          <FastingWidget />
-          <DaysWithoutWidget />
-        </motion.div>
-
         {/* Weekly coach report, at the end of the page: a weekly read, not a daily action. */}
-        <div id="weekly-report" className="scroll-mt-6"><WeeklyReportCard /></div>
+        <div id="weekly-report" className="order-2 scroll-mt-6"><WeeklyReportCard /></div>
+        </div>
 
       </div>
       </div>
