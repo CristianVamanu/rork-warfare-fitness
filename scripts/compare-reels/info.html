@@ -54,7 +54,7 @@ const Q=new URLSearchParams(location.search), r=document.getElementById('r');
 const h=(s,root=r)=>{root.insertAdjacentHTML('beforeend',s);return root.lastElementChild;};
 const cl=x=>Math.min(1,Math.max(0,x)), ease=x=>{x=cl(x);return 1-Math.pow(1-x,3);}, win=(t,a,b,fi=.3,fo=.3)=>cl((t-a)/fi)*(1-cl((t-(b-fo))/fo));
 const T={hook:0,cmp:2.4,res:6.0,take:11.6,cta:13.4,end:15}; window.DUR=T.end;
-const HOOKN=+(Q.get('hookn')||0);
+const HOOKN=+(Q.get('hookn')||0), HSP=+(Q.get('hsp')||1.25);
 // hook: full-bleed footage (outside the safe-zone scale) with the line on top
 const hook=h(`<div class="L" style="z-index:30;background:#060606">${HOOKN?'<img id="hookimg">':''}
  <div class="L" style="background:linear-gradient(180deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,0) 30%,rgba(0,0,0,0) 55%,rgba(0,0,0,.75) 100%)"></div>
@@ -93,7 +93,7 @@ const SP=2.6;
 window.setT=async(t)=>{
   const ho=1-cl((t-(T.cmp-.3))/.3); hook.style.opacity=ho; hook.style.visibility=ho>0?'visible':'hidden'; hook.style.transform=`scale(${1+.05*cl(t/T.cmp)})`;
   const jobs=[];
-  if(himg&&ho>0){himg.src='hook/f_'+String(Math.min(HOOKN-1,Math.floor(t*30))).padStart(4,'0')+'.jpg';jobs.push(himg.decode().catch(()=>{}));}
+  if(himg&&ho>0){himg.src='hook/f_'+String(Math.min(HOOKN-1,Math.floor(t*30*HSP))).padStart(4,'0')+'.jpg';jobs.push(himg.decode().catch(()=>{}));}
   fade(cmp,t,T.cmp,T.res); fade(res,t,T.res,T.take); fade(take,t,T.take,T.cta+.2);
   if(t>=T.cmp-.1&&t<T.res){P.forEach((p,i)=>{const span=p.to-p.from, k=Math.floor((t-T.cmp)*29.97*SP)%(span*2), f=p.from+(k<span?k:2*span-k); imgs[i].src=p.fr+'/f_'+String(f).padStart(4,'0')+'.jpg'; jobs.push(imgs[i].decode());});}
   bars.forEach((e,i)=>{const x=INFO.rows[i], k=ease((t-T.res-.6-i*.45)/.9), hb=e.querySelector('.half'), fb=e.querySelector('.full');
