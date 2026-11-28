@@ -1,0 +1,125 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- "One line." 9:16 reel, 21 s, one continuous shot with no hard cuts.
+     A single orange line of light does every job: it slams in under the logo,
+     highlights the plan, fills the Complete Set button, scans the meal, lights
+     Start Workout, underlines the closing words and slots back under the logo.
+     The line is ONE element driven by ONE function (lineAt). Real app screens.
+     Designed 1080x1920, text inside the Reels safe area. render169.mjs drives setT(t)
+     (env PAGE=oneline.html VW=1080 VH=1920). -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+*{margin:0;box-sizing:border-box}
+html,body{width:1080px;height:1920px;overflow:hidden;background:#070707;font-family:"Helvetica Neue",Inter,system-ui,sans-serif;color:#fff}
+.abs{position:absolute}
+#glow{position:absolute;inset:-200px;background:radial-gradient(900px 760px at 50% 58%,rgba(255,132,20,.20),transparent 62%),radial-gradient(700px 500px at 88% 6%,rgba(255,150,40,.09),transparent 60%)}
+#cam{position:absolute;inset:0;transform-origin:50% 55%}
+.ph{position:absolute;left:540px;top:1240px;width:400px;height:858px;margin:-429px 0 0 -200px;border-radius:60px;padding:10px;background:linear-gradient(135deg,#4a4540,#11100f 30%,#35302c 62%,#0c0b0a);box-shadow:0 60px 120px rgba(0,0,0,.6),0 0 0 1.5px rgba(255,255,255,.10)}
+.sc{position:relative;width:100%;height:100%;border-radius:51px;overflow:hidden;background:#0B0B0D}
+.scr{position:absolute;inset:0}
+.scr img{position:absolute;left:0;top:46px;width:100%;height:calc(100% - 46px);object-fit:cover;object-position:50% 0}
+.sb{position:absolute;left:0;right:0;top:0;height:46px;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 34px;font:600 15px "Helvetica Neue",sans-serif}
+.sb svg{height:12px}
+.isl{position:absolute;left:50%;top:12px;width:104px;height:28px;margin-left:-52px;border-radius:16px;background:#040404;z-index:6}
+.cap{position:absolute;left:60px;right:60px;top:256px;text-align:center}
+.cap .n{font-weight:700;font-size:24px;letter-spacing:.38em;text-transform:uppercase;color:#FFA51E}
+.cap .t{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;font-size:92px;line-height:.98;margin-top:14px}
+.cap .d{font-weight:300;font-size:32px;line-height:1.3;margin-top:10px;opacity:.85}
+/* the line */
+#line{position:absolute;left:0;top:0;background:linear-gradient(90deg,#E87900,#FFA51E 40%,#FFD27A);box-shadow:0 0 18px rgba(255,150,20,.95),0 0 60px rgba(255,130,10,.55);will-change:transform;z-index:40}
+#line::after{content:'';position:absolute;right:-6px;top:50%;width:26px;height:26px;margin-top:-13px;border-radius:50%;background:radial-gradient(closest-side,#fff,rgba(255,200,120,.7) 45%,transparent);opacity:var(--head,1)}
+#ring{position:absolute;width:120px;height:120px;margin:-60px;border-radius:50%;border:3px solid #FFC45A;opacity:0;z-index:41}
+.big{font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;line-height:.98;text-align:center;left:40px;right:40px}
+.or{background:linear-gradient(180deg,#FFC45A,#FFA51E 45%,#E87900);-webkit-background-clip:text;background-clip:text;color:transparent;padding:0 .08em}
+#grain{position:absolute;inset:0;opacity:.05;background-image:radial-gradient(#fff 1px,transparent 1px);background-size:3px 3px;mix-blend-mode:overlay;pointer-events:none;z-index:60}
+</style></head><body>
+<div id="glow"></div>
+<div id="cam">
+  <img id="logo" class="abs" src="logo-wf.webp" style="left:50%;top:880px;height:112px;transform:translateX(-50%);opacity:0">
+  <div id="phone" class="ph" style="opacity:0"><div class="sc" id="sc"><div class="isl"></div></div></div>
+  <div class="cap" id="cap" style="opacity:0"><div class="n"></div><div class="t"></div><div class="d"></div></div>
+  <div class="abs big" id="w1" style="top:820px;font-size:150px;opacity:0">Show up.</div>
+  <div class="abs big" id="w2" style="top:1010px;font-size:104px;opacity:0"><span class="or">It does the rest.</span></div>
+  <div class="abs" id="url" style="left:0;right:0;top:1130px;text-align:center;font-weight:300;font-size:34px;letter-spacing:.3em;text-transform:uppercase;opacity:0">warfarefitness.com</div>
+  <div class="abs" id="free" style="left:0;right:0;top:1196px;text-align:center;font-weight:300;font-size:24px;letter-spacing:.22em;text-transform:uppercase;opacity:0">7 days free · iPhone · Android · Web</div>
+  <div id="ring"></div>
+  <div id="line"></div>
+</div>
+<div id="grain"></div>
+<script>
+const Q=new URLSearchParams(location.search), $=(s)=>document.querySelector(s);
+const cl=(x)=>Math.min(1,Math.max(0,x)), ease=(x)=>{x=cl(x);return 1-Math.pow(1-x,3);}, io=(x)=>{x=cl(x);return x<.5?4*x*x*x:1-Math.pow(-2*x+2,3)/2;}, lerp=(a,b,k)=>a+(b-a)*k;
+const win=(t,a,b,fi=.4,fo=.4)=>cl((t-a)/fi)*(1-cl((t-(b-fo))/fo));
+// Scene starts (s). Voice lines are placed against these; see VO in the notes.
+const T={slam:.2,plan:2.2,set:5.8,food:9.4,home:12.8,words:15.6,hero:18.4,end:21}; window.DUR=T.end;
+// Phone screen geometry on the 1080x1920 stage (phone scale PS, centred at 540,1130).
+const PS=1.45, CY=1240, XI=540-200*PS+10*PS, WI=380*PS, YI=CY-429*PS+10*PS+46*PS; // image left, width, top
+const sx=(f)=>XI+WI*f, sy=(f)=>YI+WI*f; // positions as fractions of the screen image width
+// screens
+const SCR=[['app-training.png','#3e2d0e'],['app-set.png','#000'],['food_dark_c.png','#1b110f'],['app-home.png','#010202']];
+const SBI=`<svg viewBox="0 0 66 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="42.5" y=".5" width="20" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="44" y="2" width="15" height="8" rx="2"/></svg>`;
+const scr=SCR.map(([s,c],i)=>{$('#sc').insertAdjacentHTML('afterbegin',`<div class="scr" style="background:${c};opacity:0;z-index:${i+1}"><div class="sb"><span>9:41</span>${SBI}</div><img src="${s}"></div>`);return $('#sc').firstElementChild;});
+const CAPS=[['Your plan','Built for you.','Every session written out, day by day.'],['Your workout','Every set counts.','Weight, reps and rest, logged as you go.'],['Your food','Snap a meal.','The camera reads it. You get the macros.'],['Your week','Then show up.','One tap starts today’s session.']];
+// ── the line: keyframes [t, centreX, centreY, width, height, radius, opacity, head] and ONE function ──
+const ROWS=[.781,.877,.973,1.065];
+const K=[
+ [0,     540,1010, 0,   10,5, 0, 1],
+ [T.slam-.12,540,1010,1700,6,3, 1, 1],          // rushing in as a streak
+ [T.slam+.06,540,1010, 250,10,5, 1, 1],          // SLAM under the logo
+ [T.slam+.5, 540,1010, 330,10,5, 1, 0],
+ [1.5,   540,1010, 330,10,5, 1, 0],
+ [T.plan+.3, 540,sy(ROWS[0]), WI*.86,WI*.085,10, .34, 0],   // becomes the plan's row highlight
+ ...ROWS.slice(1).flatMap((r,i)=>[[T.plan+1.0+i*.7,540,sy(ROWS[i]),WI*.86,WI*.085,10,.34,0],[T.plan+1.3+i*.7,540,sy(r),WI*.86,WI*.085,10,.34,0]]),
+ [T.set-.3,  540,sy(ROWS[3]), WI*.86,WI*.085,10, .34, 0],
+ [T.set+.5,  sx(.07)+4,sy(1.41), 8,WI*.125,22, .9, 1],       // jumps to the Complete Set button, as a thin edge
+ [T.set+1.3, sx(.07)+4,sy(1.41), 8,WI*.125,22, .9, 1],
+ [T.set+2.3, 540,sy(1.41), WI*.86,WI*.125,22, .55, 1],       // fills the button left to right
+ [T.food-.5, 540,sy(1.41), WI*.86,WI*.125,22, .55, 0],
+ [T.food+.4, 540,sy(.05), WI,5,3, 1, 0],                     // becomes the scanner
+ [T.food+1.5,540,sy(.79), WI,5,3, 1, 0],
+ [T.food+2.5,540,sy(.05), WI,5,3, 1, 0],
+ [T.home-.3, 540,sy(.4), WI,5,3, .9, 0],
+ [T.home+.6, sx(.737),sy(.80), WI*.46,6,3, 1, 1],            // underlines Start Workout
+ [T.words-.5,sx(.737),sy(.80), WI*.46,6,3, 1, 1],
+ [T.words+.5,210,985, 0,10,5, 1, 1],                         // leaves the phone, starts under the words
+ [T.words+1.7,540,985, 660,10,5, 1, 1],                      // runs left to right under "Show up."
+ [T.hero-.25,540,985, 660,10,5, 1, 1],
+ [T.hero+.08,540,1010, 250,10,5, 1, 1],                      // slots back under the logo on the hit
+ [T.hero+.5, 540,1010, 330,10,5, 1, 0],
+ [T.end,     540,1010, 330,10,5, 1, 0],
+];
+function lineAt(t){ let i=0; while(i<K.length-2&&t>=K[i+1][0])i++; const a=K[i],b=K[i+1],k=io((t-a[0])/Math.max(.001,b[0]-a[0])); return a.map((v,n)=>n?lerp(v,b[n],k):t); }
+const line=$('#line'), ring=$('#ring');
+window.setT=(t)=>{
+  // camera: always drifting, one continuous move
+  const drift=1+.035*Math.sin(t*.35)+.02*cl(t/T.end); $('#cam').style.transform=`scale(${drift}) translate(${Math.sin(t*.5)*6}px,${Math.cos(t*.4)*5}px)`;
+  $('#glow').style.opacity=.75+.25*Math.sin(t*.8);
+  // logo: revealed by the slam, rises away, returns for the hero
+  const lg=$('#logo'), in1=ease((t-T.slam)/.45), out1=1-ease((t-1.5)/.6), hero=ease((t-T.hero)/.5);
+  lg.style.opacity=Math.max(in1*out1,hero); lg.style.transform=`translateX(-50%) translateY(${t<T.hero?-120*(1-out1):0}px) scale(${t<T.hero?1+.12*(1-in1):1+.1*(1-hero)})`;
+  // slam shake
+  const sh=Math.max(0,1-Math.abs(t-T.slam-.06)/.25), sh2=Math.max(0,1-Math.abs(t-T.hero-.08)/.25), s=sh+sh2*.7;
+  document.body.style.translate=`${Math.sin(t*90)*10*s}px ${Math.cos(t*70)*8*s}px`;
+  // phone: rises on the beat, drops away for the words
+  const up=ease((t-T.plan+.3)/.8), dn=io((t-T.words+.3)/.8), ph=$('#phone');
+  ph.style.opacity=up*(1-dn); ph.style.transform=`translateY(${(1-up)*520+dn*700}px) rotateY(0) scale(${PS*lerp(.9,1,up)})`;
+  const starts=[T.plan,T.set,T.food,T.home];
+  scr.forEach((el,i)=>{ el.style.opacity=i===0?1:ease((t-starts[i]+.25)/.5); });
+  // captions
+  const cap=$('#cap'); let ci=0; starts.forEach((s0,i)=>{ if(t>=s0-.05)ci=i; });
+  const c0=starts[ci], c1=ci<3?starts[ci+1]:T.words; cap.style.opacity=win(t,c0+.05,c1-.05,.4,.3)*(t>=T.plan?1:0); cap.style.transform=`translateY(${(1-ease((t-c0)/.5))*22}px)`;
+  cap.children[0].textContent=CAPS[ci][0]; cap.children[1].textContent=CAPS[ci][1]; cap.children[2].textContent=CAPS[ci][2];
+  // tap rings: Complete Set, Start Workout
+  const taps=[[T.set+2.45,540,sy(1.41)],[T.home+1.5,sx(.737),sy(.763)]]; let ro=0;
+  taps.forEach(([t0,x,y])=>{ const k=(t-t0)/.55; if(k>=0&&k<1){ ro=1-k; ring.style.left=x+'px'; ring.style.top=y+'px'; ring.style.transform=`scale(${.4+k*1.6})`; } }); ring.style.opacity=ro;
+  // closing words
+  const w1=$('#w1'), w2=$('#w2'), wo=1-ease((t-T.hero+.35)/.3);
+  { const k=ease((t-T.words-.4)/.6); w1.style.opacity=k*wo; w1.style.transform=`translateY(${(1-k)*26}px)`; }
+  { const k=ease((t-T.words-1.5)/.6); w2.style.opacity=k*wo; w2.style.transform=`translateY(${(1-k)*26}px)`; }
+  [['#url',.9],['#free',1.3]].forEach(([id,a])=>{ const k=ease((t-T.hero-a)/.6), e=$(id); e.style.opacity=(id==='#free'?.6:1)*k; e.style.transform=`translateY(${(1-k)*16}px)`; });
+  // the line
+  const [,x,y,w,h,r,a,head]=lineAt(t);
+  line.style.width=w+'px'; line.style.height=h+'px'; line.style.borderRadius=r+'px'; line.style.opacity=a; line.style.transform=`translate(${x-w/2}px,${y-h/2}px)`; line.style.setProperty('--head',head*(h<20?1:.0));
+  line.style.mixBlendMode=h>20?'screen':'normal';
+};
+window.addEventListener('load',()=>{window.READY=true;setT(+(Q.get('t')||0));});
+</script></body></html>
