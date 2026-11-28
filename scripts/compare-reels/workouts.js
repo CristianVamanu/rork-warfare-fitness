@@ -27,4 +27,26 @@ window.WORKOUTS = {
       { name: 'Russian Twist', fr: 'kb_twist', n: 245, m: 'Obliques, abs', sets: 3, reps: '20', per: '10 each side', abs: 1 },
       { name: 'Plank Pass-Through', fr: 'kb_plank', n: 342, m: 'Abs, shoulders', sets: 3, reps: '10', per: '5 each side', abs: 1 },
     ] },
+  home_women: {
+    title: ['20-Minute', 'Home', 'Workout'], sub: 'For women · 6 moves · no equipment',
+    rest: 'Rest 30 s', foot: 'About 20 minutes · 3 rounds of each move · rest 30 s between sets',
+    ex: [
+      { name: 'Jumping Jack', fr: 'hw_g_jack', n: 158, m: 'Warm-up, full body', sets: 3, reps: '30 s' },
+      { name: 'Squat', fr: 'hw_g_squat', n: 198, m: 'Quads, glutes', sets: 3, reps: '15' },
+      { name: 'Push-Up', fr: 'hw_g_pushup', n: 198, m: 'Chest, triceps, core', sets: 3, reps: '8–12' },
+      { name: 'Plank Hip Raise', fr: 'hw_g_bridge', n: 199, m: 'Abs, shoulders', sets: 3, reps: '10–12', abs: 1 },
+      { name: 'Reverse Crunch', fr: 'hw_g_revcrunch', n: 198, m: 'Lower abs', sets: 3, reps: '12–15', abs: 1 },
+      { name: 'Front Plank', fr: 'hw_g_plank', n: 219, m: 'Abs, core', sets: 3, reps: '30 s', abs: 1 },
+    ] },
+  home_men: {
+    title: ['20-Minute', 'Home', 'Workout'], sub: 'For men · 6 moves · no equipment',
+    rest: 'Rest 30 s', foot: 'About 20 minutes · 3 rounds of each move · rest 30 s between sets',
+    ex: [
+      { name: 'Jumping Jack', fr: 'hw_m_jack', n: 158, m: 'Warm-up, full body', sets: 3, reps: '40 s' },
+      { name: 'Push-Up', fr: 'fr_pushup', m: 'Chest, triceps, core', sets: 3, reps: '12–15' },
+      { name: 'Squat', fr: 'fr_Squat', m: 'Quads, glutes', sets: 3, reps: '20' },
+      { name: 'Close-Grip Push-Up', fr: 'hw_m_cgpush', n: 197, m: 'Triceps, chest', sets: 3, reps: '8–12' },
+      { name: 'Burpee', fr: 'hw_m_burpee', n: 198, m: 'Full body, conditioning', sets: 3, reps: '10' },
+      { name: 'Lying Leg Raise', fr: 'hw_m_legraise', n: 197, m: 'Abs, hip flexors', sets: 3, reps: '12–15', abs: 1 },
+    ] },
 };
