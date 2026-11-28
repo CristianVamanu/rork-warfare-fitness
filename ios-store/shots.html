@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8">
+<!-- App Store screenshots, 1290x2796 (iPhone 6.9"). shots.html?i=0..5, rendered by render.cjs.
+     Real app screens only, each in a phone frame with a status bar. -->
+<style>
+@font-face{font-family:Kanit;src:url(kanit-800-italic.woff2)}
+*{margin:0;box-sizing:border-box}
+html,body{width:1290px;height:2796px;overflow:hidden;font-family:"Helvetica Neue",Inter,system-ui,sans-serif;color:#fff}
+body.dk{background:radial-gradient(1100px 900px at 50% 62%,rgba(255,132,20,.26),transparent 62%),radial-gradient(900px 600px at 90% 0%,rgba(255,150,40,.12),transparent 60%),linear-gradient(180deg,#0E0C0A,#050505)}
+body.lt{background:radial-gradient(1100px 900px at 50% 62%,rgba(245,166,35,.34),transparent 62%),linear-gradient(180deg,#FFFEFA,#F4EAD8);color:#1E1410}
+.tag{position:absolute;left:0;right:0;top:150px;text-align:center;font-weight:700;font-size:34px;letter-spacing:.34em;text-transform:uppercase;color:#FFA51E}
+.lt .tag{color:#B56C00}
+h1{position:absolute;left:60px;right:60px;top:220px;text-align:center;font-family:Kanit;font-style:italic;font-weight:800;text-transform:uppercase;font-size:128px;line-height:.98;letter-spacing:-.01em}
+h1 span{display:block;background:linear-gradient(180deg,#FFC45A,#FFA51E 45%,#E87900);-webkit-background-clip:text;background-clip:text;color:transparent;padding:0 .1em}
+.lt h1 span{background:linear-gradient(180deg,#F5A021,#D9760A);-webkit-background-clip:text;background-clip:text}
+.ph{position:absolute;left:50%;top:640px;width:940px;height:2016px;margin-left:-470px;border-radius:140px;padding:22px;background:linear-gradient(135deg,#4a4540,#11100f 30%,#35302c 62%,#0c0b0a);box-shadow:0 80px 160px rgba(0,0,0,.6),0 0 0 3px rgba(255,255,255,.10),0 0 120px rgba(255,140,0,.22)}
+.lt .ph{box-shadow:0 80px 160px rgba(90,60,10,.35),0 0 0 3px rgba(0,0,0,.25)}
+.sc{position:relative;width:100%;height:100%;border-radius:120px;overflow:hidden}
+.sc img{position:absolute;left:0;top:108px;width:100%;height:calc(100% - 108px);object-fit:cover;object-position:50% 0}
+.sb{position:absolute;left:0;right:0;top:0;height:108px;display:flex;align-items:center;justify-content:space-between;padding:14px 72px 0 80px;font-weight:600;font-size:36px}
+.sb svg{height:28px}
+.isl{position:absolute;left:50%;top:28px;width:244px;height:66px;margin-left:-122px;border-radius:36px;background:#040404}
+</style></head><body>
+<script>
+const S=[
+ ['Training','Your program.','Ready every day.','app-home.png','#010202',0],
+ ['Log','Log every set.','Beat last time.','app-set.png','#000000',0],
+ ['Plan','Built around','your goal.','app-training.png','#3e2d0e',0],
+ ['Nutrition','Snap a meal.','Get the macros.','food_dark_c.png','#1b110f',0],
+ ['Targets','Hit your','daily targets.','app-nutrition.png','#3e2d0e',0],
+ ['Your way','Dark or light.','Your call.','home_light.jpg','#f9f5ea',1],
+];
+const i=+(new URLSearchParams(location.search).get('i')||0), [tag,a,b,img,bar,light]=S[i];
+document.body.className=light?'lt':'dk';
+const SBI=`<svg viewBox="0 0 66 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><path d="M31 3.2a8 8 0 0 0-6.2 2.6l1.3 1.3a6.4 6.4 0 0 1 9.8 0l1.3-1.3A8 8 0 0 0 31 3.2zm0 3.4a4.8 4.8 0 0 0-3.7 1.7l1.3 1.3a3 3 0 0 1 4.8 0l1.3-1.3A4.8 4.8 0 0 0 31 6.6zm0 3.2a1.4 1.4 0 1 0 0 2.2 1.4 1.4 0 0 0 0-2.2z"/><rect x="42.5" y=".5" width="20" height="11" rx="3.2" fill="none" stroke="currentColor" opacity=".45"/><rect x="44" y="2" width="15" height="8" rx="2"/><rect x="63.5" y="4" width="2" height="4" rx="1" opacity=".5"/></svg>`;
+document.body.insertAdjacentHTML('beforeend',`<div class="tag">${tag}</div><h1>${a}<span>${b}</span></h1>
+<div class="ph"><div class="sc" style="background:${bar};color:${light?'#1E1410':'#fff'}"><div class="sb"><span>9:41</span>${SBI}</div><img src="${img}"><div class="isl"></div></div></div>`);
+document.fonts.ready.then(()=>window.READY=true);
+</script></body></html>
