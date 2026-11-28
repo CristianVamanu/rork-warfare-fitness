@@ -96,7 +96,7 @@ export function ShowAppLanding({ note }: { note: string }) {
     return () => io.disconnect();
   }, []);
   return (
-    <main className="lpx">
+    <main className="lpx lpx-see">
       <div className="lpx-pin" data-on={pinned ? '1' : '0'} aria-hidden={!pinned}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={LOGO} alt="" />
@@ -104,11 +104,13 @@ export function ShowAppLanding({ note }: { note: string }) {
       </div>
       <Top />
       <h1 className="lpx-h1 lpx-center">See the app. <span>Then decide.</span></h1>
+      {/* Desktop only (hidden on phones by CSS): the headline has room for a line of context. */}
+      <p className="lpx-sub lpx-see-sub">Your training plan, every set tracked, food and water, all in one place. Watch it, then build yours in 2 minutes.</p>
       <div className="lpx-video">
         <video src="/videos/lp-clip.mp4" poster="/videos/lp-clip-poster.jpg" autoPlay muted loop playsInline preload="metadata" aria-label="The Warfare Fitness app: dashboard, training plan, workout, nutrition and quests" />
       </div>
-      <Link ref={cta} href="/onboarding" className="lpx-cta">Build my plan <ArrowRight aria-hidden /></Link>
-      <p className="lpx-note">{note}</p>
+      <Link ref={cta} href="/onboarding" className="lpx-cta lpx-cta-main">Build my plan <ArrowRight aria-hidden /></Link>
+      <p className="lpx-note lpx-note-main">{note}</p>
       <div className="lpx-shots">
         {SHOTS.map((s, i) => (
           <div key={s.title} className="lpx-shot">
@@ -119,8 +121,10 @@ export function ShowAppLanding({ note }: { note: string }) {
         ))}
       </div>
       <Facts />
-      <Link href="/onboarding" className="lpx-cta">Build my plan <ArrowRight aria-hidden /></Link>
-      <p className="lpx-note">{note}</p>
+      <div className="lpx-final">
+        <Link href="/onboarding" className="lpx-cta">Build my plan <ArrowRight aria-hidden /></Link>
+        <p className="lpx-note">{note}</p>
+      </div>
     </main>
   );
 }

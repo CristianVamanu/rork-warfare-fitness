@@ -2634,3 +2634,30 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   .lpx-quiz .lpx-facts b { font-size: 38px; }
   .lpx-quiz .lpx-facts span { font-size: 14px; margin-top: 8px; }
 }
+
+/* /see on desktop: full-bleed stage, the pitch on the left and the app clip on the right. Phones keep the single column. */
+.lpx-see-sub { display: none; }
+@media (min-width: 900px) {
+  .lpx-see { max-width: none; width: 100%; min-height: 100svh; padding: 0 max(40px, calc((100vw - 1180px) / 2)) 72px; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 72px; align-content: start; grid-template-rows: auto minmax(0, 1fr) auto auto minmax(0, 1fr);
+    background: radial-gradient(720px 620px at 76% 44%, rgba(255,132,20,.20), transparent 62%), radial-gradient(900px 500px at 10% 0%, rgba(255,150,40,.08), transparent 60%), linear-gradient(180deg, #0B0A09, #050505); }
+  .lpx-see > * { grid-column: 1 / -1; }
+  .lpx-see .lpx-top { height: 76px; } .lpx-see .lpx-top img { height: 38px; }
+  .lpx-see .lpx-top a { font-size: 14px; font-weight: 600; color: #fff; height: 40px; padding: 0 18px; display: grid; place-items: center; border-radius: 999px; border: 1px solid rgba(255,255,255,.16); }
+  .lpx-see .lpx-top a:hover { border-color: #FFA51E; }
+  .lpx-see .lpx-h1 { grid-column: 1; grid-row: 2; align-self: end; text-align: left; font-size: clamp(56px, 5.6vw, 92px); margin: 0; text-shadow: 0 10px 40px rgba(0,0,0,.6); }
+  .lpx-see .lpx-see-sub { display: block; grid-column: 1; grid-row: 3; font-size: 19px; line-height: 1.5; max-width: 520px; margin-top: 22px; color: rgba(255,255,255,.72); }
+  .lpx-see .lpx-cta-main { grid-column: 1; grid-row: 4; justify-self: start; height: 66px; padding: 0 44px; margin-top: 32px; font-size: 18px; border-radius: 999px; box-shadow: 0 0 40px rgba(255,150,20,.5), inset 0 1px 0 rgba(255,255,255,.4); transition: transform .18s; }
+  .lpx-see .lpx-cta-main:hover { transform: translateY(-2px); }
+  .lpx-see .lpx-note-main { grid-column: 1; grid-row: 5; justify-self: start; align-self: start; text-align: left; font-size: 13.5px; font-weight: 600; margin-top: 18px; padding: 9px 16px; border-radius: 999px; color: #FFD79A; background: rgba(255,165,30,.10); border: 1px solid rgba(255,165,30,.28); }
+  .lpx-see .lpx-video { grid-column: 2; grid-row: 2 / span 4; margin: 10px 0 0; height: min(74svh, 660px); border-radius: 32px; border: 1px solid rgba(255,165,30,.45); box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 70px rgba(255,140,0,.28); }
+  .lpx-see .lpx-shots { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px; margin-top: 84px; }
+  .lpx-see .lpx-shot { flex-direction: column; align-items: flex-start; gap: 20px; padding: 26px; border-radius: 24px; background: linear-gradient(180deg, rgba(34,27,19,.9), rgba(15,13,11,.9)); border: 1px solid rgba(255,165,30,.22); box-shadow: 0 14px 34px rgba(0,0,0,.45); }
+  .lpx-see .lpx-shot img { width: 100%; height: 300px; object-fit: cover; object-position: top; border-radius: 16px; border: 1px solid rgba(255,255,255,.1); }
+  .lpx-see .lpx-shot b { font-size: 24px; } .lpx-see .lpx-shot p { font-size: 15.5px; }
+  .lpx-see .lpx-facts { max-width: 760px; width: 100%; margin: 64px auto 0; gap: 0; padding-top: 28px; border-top: 1px solid rgba(255,165,30,.18); }
+  .lpx-see .lpx-facts div { background: none; border: 0; border-radius: 0; padding: 0 12px; }
+  .lpx-see .lpx-facts div + div { border-left: 1px solid rgba(255,255,255,.1); }
+  .lpx-see .lpx-facts b { font-size: 38px; } .lpx-see .lpx-facts span { font-size: 14px; margin-top: 8px; }
+  .lpx-see .lpx-final { text-align: center; margin-top: 56px; }
+  .lpx-see .lpx-final .lpx-cta { display: inline-flex; height: 62px; padding: 0 44px; border-radius: 999px; font-size: 17px; }
+}
