@@ -2498,12 +2498,21 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   .wf-side-foot { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--hd-border); }
   .wf-side-foot a, .wf-side-foot button { height: 42px; font-size: 14px; } .wf-side-foot svg { width: 19px; height: 19px; }
   /* Shorter screens: drop the picture card first, then tighten the rows, so Settings and Logout are always on screen. */
-  @media (max-height: 940px) { .wf-side-promo { display: none; } }
-  @media (max-height: 760px) { .wf-side { padding-top: 18px; } .wf-side-logo { padding-bottom: 14px; } .wf-side nav a { height: 42px; } .wf-side nav { gap: 2px; } }
+  @media (max-height: 899px) { .wf-side { padding-top: 20px; } .wf-side-logo { padding-bottom: 16px; } .wf-side nav { gap: 2px; } .wf-side nav a { height: 46px; } .wf-side-promo { height: 148px; margin-top: 16px; } .wf-side-promo p { top: 36px; } }
+  @media (max-height: 779px) { .wf-side-promo { display: none; } }
+  @media (max-height: 659px) { .wf-side nav a { height: 40px; } .wf-side-foot a, .wf-side-foot button { height: 36px; } }
 
   /* The cards under the home top sit in two columns instead of one stretched one. */
-  .wf-home-stack { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: start; padding: 0 28px 16px; }
+  .wf-home-stack { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; align-items: stretch; padding: 0 28px 16px; }
   .wf-home-stack > .wf-home-top { grid-column: 1 / -1; grid-row: 1; }
+  .wf-home-stack > .wf-home-report { grid-column: 1 / -1; grid-row: 3; }
+  /* The two columns end level: the last block of each grows to fill what is left,
+     so the shorter column never stops short of the other. */
+  .wf-home-main > :last-child, .wf-home-aside > :last-child { flex: 1 1 auto; }
+  .wf-home-main > :last-child .wf-art { height: 100% !important; min-height: 156px; }
+  .wf-home-aside > :last-child { display: flex; flex-direction: column; gap: 10px; padding-top: 0; }
+  .wf-home-aside > :last-child > * { flex: 1 1 auto; margin-top: 0 !important; }
+  .wf-home-aside > :last-child > * > :first-child, .wf-home-aside > :last-child > a > *, .wf-home-aside > :last-child > button > * { height: 100%; }
   .wf-home-main, .wf-home-aside { display: flex; flex-direction: column; gap: 18px; min-width: 0; grid-row: 2; }
   .wf-home-main { grid-column: 1; } .wf-home-aside { grid-column: 2; }
   .wf-home-main > *, .wf-home-aside > * { min-width: 0; }
@@ -2520,7 +2529,7 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   .hd-actions svg { width: 21px; height: 21px; }
   .hd-actions .hd-avatar { overflow: hidden; padding: 0; margin-left: 6px; border-color: rgba(245,166,35,.5); }
 
-  .hd-hero { position: relative; min-height: 232px; border-radius: 24px; overflow: hidden; padding: 56px 54px 40px; background: #0A0908 url('/home/hero-desktop.webp') right center / cover no-repeat; border: 1px solid rgba(245,166,35,.22); box-shadow: var(--hd-shadow); }
+  .hd-hero { position: relative; min-height: 262px; border-radius: 24px; overflow: hidden; padding: 62px 54px 46px; background: #0A0908 url('/home/hero-desktop.webp') right top / cover no-repeat; border: 1px solid rgba(245,166,35,.22); box-shadow: var(--hd-shadow); }
   .hd-hero h2 { font-family: 'Kanit', 'Barlow Condensed', sans-serif; font-style: italic; font-weight: 800; text-transform: uppercase; font-size: clamp(34px, 3.2vw, 46px); line-height: 1; letter-spacing: -.01em; color: #fff; }
   .hd-hero h2 span { background: linear-gradient(180deg, #FFC45A, #FFA51E 45%, #E87900); -webkit-background-clip: text; background-clip: text; color: transparent; padding-right: .08em; }
   .hd-hero p { font-size: 18px; color: rgba(255,255,255,.88); margin-top: 12px; }

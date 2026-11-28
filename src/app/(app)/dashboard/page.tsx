@@ -848,9 +848,10 @@ export default function DashboardPage() {
           )}
         </motion.div>
 
-        {/* Weekly coach report, at the end of the page: a weekly read, not a daily action. */}
-        <div id="weekly-report" className="order-2 scroll-mt-6"><WeeklyReportCard /></div>
         </div>
+
+        {/* Weekly coach report, at the end of the page: a weekly read, not a daily action. Full width on desktop. */}
+        <div id="weekly-report" className="wf-home-report order-2 scroll-mt-6"><WeeklyReportCard /></div>
 
       </div>
       </div>
