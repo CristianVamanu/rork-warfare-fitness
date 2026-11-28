@@ -232,15 +232,9 @@ export function RevealOffer(p: RevealOfferProps) {
         </div>
       )}
       {offer.line && <p className="wf-readout text-[10px] font-bold text-text-tertiary text-center">{offer.line}</p>}
-      {/* The person who balks at the price used to just leave. Now they
-          leave an email and get week one of a program for free, and the
-          follow-up does the selling later. Only shown when the admin has the
-          free plan switched on, since the page 404s otherwise. */}
-      {freePlanOn && !p.busy && (
-        <p className="text-center text-xs text-text-tertiary pt-1">
-          Not ready yet? <Link href="/free-plan/pick" className="text-accent font-semibold hover:underline">Get week one free by email</Link>
-        </p>
-      )}
+      {/* No second option here on purpose: the offer screen has one action.
+          (It used to link to the free week-one plan by email; the owner removed
+          it so nothing pulls attention away from starting.) */}
     </div>
   );
 
