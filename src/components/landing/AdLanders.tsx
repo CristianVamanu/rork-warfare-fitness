@@ -49,12 +49,15 @@ function Facts() {
 export function QuizFirstLanding({ note }: { note: string }) {
   useVisit('quiz');
   return (
-    <main className="lpx">
+    <main className="lpx lpx-quiz">
       <Top />
+      {/* Desktop only: the athlete beside the choices (hidden on phones by CSS). */}
+      <div className="lpx-fig" aria-hidden />
       <div className="lpx-prog" aria-hidden><i /></div>
       <p className="lpx-step">Step 1 · takes about 2 minutes</p>
       <h1 className="lpx-h1">What&apos;s your <span>main goal?</span></h1>
       <p className="lpx-sub">Pick one. We build your training plan and calorie target around it.</p>
+      <p className="lpx-pick">Select your goal</p>
       <div className="lpx-goals">
         {GOALS.map(({ goal, label, sub, Icon }) => (
           <Link key={goal} href={`/onboarding?goal=${goal}&next=1`} className="lpx-goal">
@@ -65,6 +68,10 @@ export function QuizFirstLanding({ note }: { note: string }) {
         ))}
       </div>
       <p className="lpx-note">{note}</p>
+      <p className="lpx-legal">
+        By continuing you agree to our <Link href="/terms">Terms</Link> and acknowledge our <Link href="/privacy">Privacy Policy</Link>.
+        This site does not provide medical advice. Check with a healthcare professional about any health concerns before starting.
+      </p>
       <Facts />
     </main>
   );

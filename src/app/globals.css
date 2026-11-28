@@ -2583,3 +2583,38 @@ html.light { --hd-card: #FFFFFF; --hd-card2: #FFF6E8; --hd-border: rgba(214,150,
   .hd-pm .plus.blue { background: rgba(59,155,255,.18); border-color: rgba(59,155,255,.5); color: #3B9BFF; }
 }
 @media (min-width: 1024px) and (max-width: 1279px) { .hd-row2 { grid-template-columns: 1fr; } .hd-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* /start (.lpx-quiz): centred headline, the athlete on the left, the choices on the right, on phones and desktop alike. */
+.lpx-quiz { display: grid; grid-template-columns: 40% minmax(0, 1fr); column-gap: 14px; align-content: start; padding: 0 18px 44px; }
+.lpx-quiz > * { grid-column: 1 / -1; }
+.lpx-quiz .lpx-top { justify-content: center; position: relative; height: 62px; }
+.lpx-quiz .lpx-top a { position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-weight: 600; color: #fff; }
+.lpx-quiz .lpx-prog, .lpx-quiz .lpx-step { display: none; }
+.lpx-quiz .lpx-h1 { text-align: center; font-size: clamp(34px, 10vw, 46px); margin-top: 8px; }
+.lpx-quiz .lpx-sub { text-align: center; margin-top: 10px; }
+.lpx-quiz .lpx-fig { grid-column: 1; grid-row: 4 / span 2; margin: 16px 0 0 -18px; min-height: 100%; border-radius: 0 22px 22px 0; background: url('/home/hero.webp') 74% 25% / cover no-repeat; -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent 100%), linear-gradient(90deg, #000 70%, transparent 100%); -webkit-mask-composite: source-in; mask-image: linear-gradient(180deg, #000 70%, transparent 100%), linear-gradient(90deg, #000 70%, transparent 100%); mask-composite: intersect; }
+.lpx-quiz .lpx-pick { grid-column: 2; grid-row: 4; margin-top: 22px; text-align: center; font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #FFA51E; }
+.lpx-quiz .lpx-goals { grid-column: 2; grid-row: 5; gap: 10px; margin-top: 12px; }
+.lpx-quiz .lpx-goal { min-height: 58px; padding: 8px 14px; border-radius: 12px; background: #1E1C1A; border-color: rgba(255,255,255,.06); }
+.lpx-quiz .lpx-goal i, .lpx-quiz .lpx-goal small, .lpx-quiz .lpx-goal > svg { display: none; }
+.lpx-quiz .lpx-goal b { font-size: 16px; line-height: 1.15; }
+.lpx-quiz .lpx-note { margin-top: 18px; color: rgba(255,255,255,.72); }
+.lpx-quiz .lpx-legal { font-size: 12px; line-height: 1.5; color: rgba(255,255,255,.5); margin-top: 8px; text-align: center; }
+.lpx-quiz .lpx-legal a { color: #FFA51E; text-decoration: underline; }
+.lpx-quiz .lpx-facts { margin-top: 30px; }
+@media (min-width: 900px) {
+  .lpx-quiz { max-width: 1040px; padding: 0 32px 64px; grid-template-columns: minmax(0, 400px) minmax(0, 400px); justify-content: center; column-gap: 56px; }
+  .lpx-quiz .lpx-top { height: 76px; } .lpx-quiz .lpx-top img { height: 36px; } .lpx-quiz .lpx-top a { font-size: 15px; }
+  .lpx-quiz .lpx-h1 { font-size: clamp(48px, 5vw, 68px); margin: 14px 0 0; } .lpx-quiz .lpx-h1 span { display: inline; }
+  .lpx-quiz .lpx-sub { font-size: 17px; margin-top: 14px; }
+  .lpx-quiz .lpx-fig { grid-row: 4 / span 4; margin: 26px 0 0; min-height: 560px; border-radius: 28px; background-position: 62% 30%; -webkit-mask-image: radial-gradient(120% 100% at 55% 45%, #000 45%, transparent 82%); mask-image: radial-gradient(120% 100% at 55% 45%, #000 45%, transparent 82%); }
+  .lpx-quiz .lpx-pick { margin-top: 34px; font-size: 18px; }
+  .lpx-quiz .lpx-goals { gap: 12px; margin-top: 18px; }
+  .lpx-quiz .lpx-goal { min-height: 70px; padding: 10px 18px; border-radius: 14px; }
+  .lpx-quiz .lpx-goal i { display: grid; } .lpx-quiz .lpx-goal small, .lpx-quiz .lpx-goal > svg { display: block; }
+  .lpx-quiz .lpx-goal b { font-size: 17px; }
+  .lpx-quiz .lpx-goal:hover { border-color: #FFA51E; background: #25211C; }
+  .lpx-quiz .lpx-note { grid-column: 2; grid-row: 6; text-align: left; font-size: 13px; margin-top: 16px; }
+  .lpx-quiz .lpx-legal { grid-column: 2; grid-row: 7; text-align: left; font-size: 12.5px; margin-top: 10px; }
+  .lpx-quiz .lpx-facts { max-width: 640px; width: 100%; margin: 48px auto 0; }
+}
