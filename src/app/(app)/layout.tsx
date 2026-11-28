@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getMembershipConfig } from '@/lib/firestore';
 import { HeaderDataProvider } from '@/contexts/HeaderDataContext';
 import { BottomNav } from '@/components/layout/BottomNav';
+import { DesktopSidebar } from '@/components/layout/DesktopSidebar';
 import { WorkoutOutboxFlusher } from '@/components/workout/WorkoutOutboxFlusher';
 import { BrandSplash } from '@/components/ui/BrandSplash';
 import { PwaInstallBanner } from '@/components/ui/PwaInstallBanner';
@@ -136,14 +137,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   if (profile.twoFactorPendingSince && pathname !== '/verify-2fa') return <BrandSplash />;
 
   const hideNav = pathname === '/banned' || pathname === '/verify-2fa';
+  // The workout session has its own fixed action bar, and channel and
+  // challenge rooms are chat screens with a message bar: neither shows the
+  // app navigation (bottom bar on phones, side rail on desktop).
+  const showNav = !hideNav && !pathname.startsWith('/training/session') && !/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname);
 
   return (
     // No bg-background here — redundant with <body>'s own background-color
     // (same var(--background) token), which is all that's needed as the
     // fallback base paint before/around AppBackground's fixed decorative
     // layer underneath.
-    <div className="min-h-screen">
+    <div className={`min-h-screen wf-shell${showNav ? ' has-side' : ''}`}>
       <AppBackground />
+      {showNav && <DesktopSidebar />}
       <HeaderDataProvider>
         {/* Inside the app shell: the member's theme preference may show.
             Unmounts on navigation to any public page, which goes dark. */}
@@ -152,7 +158,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {!hideNav && <VerifyEmailNotice variant="banner" />}
         <WorkoutOutboxFlusher />
         {!hideNav && <ChatDrawer />}
-        <main data-chat={/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname) ? '' : undefined} className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
+        <main data-wide={pathname === '/dashboard' ? '' : undefined} data-chat={/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname) ? '' : undefined} className="wf-app-main pb-24 max-w-lg md:max-w-2xl lg:max-w-4xl mx-auto relative">
           {/* The warm wash behind every screen's header. Painted once here
               rather than per page, so a page cannot forget it or double it. */}
           <div
@@ -174,7 +180,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* The workout session has its own fixed action bar; the nav's raised
           centre button would sit on top of it. */}
       {/* Channel and challenge rooms are chat screens: their message bar takes the nav's place. */}
-      {!hideNav && !pathname.startsWith('/training/session') && !/^\/community\/(challenges\/[^/]+|(?!challenges$|prs$)[^/]+)$/.test(pathname) && <BottomNav />}
+      {showNav && <BottomNav />}
       {!hideNav && <PwaInstallBanner />}
     </div>
   );

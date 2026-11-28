@@ -440,11 +440,11 @@ export default function DashboardPage() {
       </Suspense>
     <div className="relative">
       <div className="relative">
-      <Header overlay />
-      <div className="relative px-4 pt-0 pb-4 space-y-3.5">
+      <div className="wf-only-mobile"><Header overlay /></div>
+      <div className="wf-home-stack relative px-4 pt-0 pb-4 space-y-3.5">
         {/* Top of Home: hero, readiness / weekly score, today's numbers,
             Nutrition / Hydration / Recovery, today's challenge and the streak. */}
-        <motion.div {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
+        <motion.div className="wf-home-top" {...stagger.item} initial={stagger.item.initial} animate={stagger.item.animate}>
           <HomeCommand
             name={firstName}
             kcal={Math.round(calories ?? 0)}
@@ -839,7 +839,7 @@ export default function DashboardPage() {
         </motion.div>
 
         {/* Weekly coach report, at the end of the page: a weekly read, not a daily action. */}
-        <WeeklyReportCard />
+        <div id="weekly-report" className="scroll-mt-6"><WeeklyReportCard /></div>
 
       </div>
       </div>

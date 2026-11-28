@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHealthHistory } from '@/lib/useHealthHistory';
 import { readiness } from '@/lib/healthTrends';
 import { useHomeChallenge } from './HomeHero';
+import { HomeDesktop } from './HomeDesktop';
 
 const AMBER = '#F5A623';
 const GLOW_CARD: React.CSSProperties = {
@@ -100,7 +101,13 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
   return (
     // 11pt side margins like the design (the page gives 16). The photo hero
     // stays dark in both themes (wf-dark); everything below follows the theme.
-    <div className="hc-root -mx-[5px]">
+    <>
+    <HomeDesktop name={name} kcal={kcal} kcalGoal={kcalGoal} protein={protein} proteinGoal={proteinGoal} waterMl={waterMl} waterGoalMl={waterGoalMl}
+      workouts={workouts} streak={streak} startHref={startHref} sessionsThisWeek={sessionsThisWeek} daysPerWeek={daysPerWeek} steps={steps}
+      headline={headline} sub={sub} coachLine={hasWatch ? `${headline} ${sub}` : 'Your weekly report reads your logged sessions, food and recovery.'}
+      challenge={challenge ? { id: challenge.id, title: challenge.title } : null}
+      onAddWater={onAddWater} onRemoveWater={onRemoveWater} waterBusy={waterBusy} onAddProtein={onAddProtein} onRemoveProtein={onRemoveProtein} proteinBusy={proteinBusy} />
+    <div className="hc-root -mx-[5px] wf-only-mobile">
       <div className="wf-dark">
       {/* Hero: runs up under the transparent header; greeting left, athlete right */}
       <div className="home-hero-box relative -mx-[11px] h-[182px] overflow-hidden">
@@ -218,5 +225,6 @@ export function HomeCommand({ name, kcal, kcalGoal, protein, proteinGoal, waterM
         </div>
       </div>
     </div>
+    </>
   );
 }

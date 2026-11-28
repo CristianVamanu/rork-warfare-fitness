@@ -131,7 +131,7 @@ function AppNav({ pathname }: { pathname: string }) {
   const navRef = useRef<HTMLElement>(null);
   usePinToVisibleBottom(navRef);
   return (
-    <nav ref={navRef} className="fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main"
+    <nav ref={navRef} className="wf-bottomnav fixed bottom-0 inset-x-0 z-40 px-3 pb-safe pointer-events-none" aria-label="Main"
       // The strip under the floating bar is filled, so content never shows
       // through between the bar and the bottom of the screen.
       style={{ background: 'linear-gradient(180deg, rgb(var(--background-rgb) / 0) 0%, rgb(var(--background-rgb) / 0.92) 45%, rgb(var(--background-rgb)) 100%)', paddingTop: 18 }}>
