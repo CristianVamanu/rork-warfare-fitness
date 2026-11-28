@@ -95,7 +95,7 @@ window.setT=async(t)=>{
   const jobs=[];
   if(himg&&ho>0){himg.src='hook/f_'+String(Math.min(HOOKN-1,Math.floor(t*30*HSP))).padStart(4,'0')+'.jpg';jobs.push(himg.decode().catch(()=>{}));}
   fade(cmp,t,T.cmp,T.res); fade(res,t,T.res,T.take); fade(take,t,T.take,T.cta+.2);
-  if(t>=T.cmp-.1&&t<T.res){P.forEach((p,i)=>{const span=p.to-p.from, k=Math.floor((t-T.cmp)*29.97*SP)%(span*2), f=p.from+(k<span?k:2*span-k); imgs[i].src=p.fr+'/f_'+String(f).padStart(4,'0')+'.jpg'; jobs.push(imgs[i].decode());});}
+  if(t>=T.cmp-.1&&t<T.res){P.forEach((p,i)=>{const span=p.to-p.from, k=Math.floor((t-T.cmp)*29.97*SP)%(span*2), f=p.from+(k<span?k:2*span-k); imgs[i].src=p.fr+'/f_'+String(f).padStart(4,'0')+'.jpg'; jobs.push(imgs[i].decode().catch(()=>{}));});}
   bars.forEach((e,i)=>{const x=INFO.rows[i], k=ease((t-T.res-.6-i*.45)/.9), hb=e.querySelector('.half'), fb=e.querySelector('.full');
     hb.querySelector('i').style.width=(x.a/mxOf(x)*100*k)+'%'; fb.querySelector('i').style.width=(x.b/mxOf(x)*100*k)+'%';
     hb.querySelector('em').textContent=k>.05?'+'+(x.a*k).toFixed(1)+'%':''; fb.querySelector('em').textContent=k>.05?'+'+(x.b*k).toFixed(1)+'%':'';});
