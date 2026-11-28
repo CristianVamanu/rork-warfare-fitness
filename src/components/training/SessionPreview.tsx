@@ -15,15 +15,16 @@ import type { Exercise } from '@/types';
  * Kit chips turn amber when the member's saved equipment lacks one; with no
  * equipment saved it never warns (see missingFor).
  */
-export function SessionPreview({ exercises }: { exercises: readonly Exercise[] }) {
+/** The kit a session needs, as chips. Amber when the member's saved equipment
+ *  lacks one; with no equipment saved it never warns (see missingFor). */
+export function SessionKit({ exercises }: { exercises: readonly Exercise[] }) {
   const { profile } = useAuth();
   if (exercises.length === 0) return null;
   const needs = dayNeeds(exercises);
   const mine = Array.isArray(profile?.equipmentItems) ? (profile.equipmentItems as unknown[]).filter(isEquipmentItem) : [];
   const missing = missingFor(needs, mine);
   return (
-    <>
-      <div className="mb-2 flex flex-wrap items-center gap-1.5">
+    <div className="mb-2 flex flex-wrap items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wider text-text-tertiary mr-0.5">Kit</span>
         {needs.length === 0 && <span className="text-[11px] text-text-secondary">None, bodyweight session</span>}
         {needs.map((n) => (
@@ -32,7 +33,15 @@ export function SessionPreview({ exercises }: { exercises: readonly Exercise[] }
           </span>
         ))}
         {missing.length > 0 && <span className="text-[11px] text-amber-300/80">not in your equipment</span>}
-      </div>
+    </div>
+  );
+}
+
+export function SessionPreview({ exercises }: { exercises: readonly Exercise[] }) {
+  if (exercises.length === 0) return null;
+  return (
+    <>
+      <SessionKit exercises={exercises} />
       <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
         {exercises.map((ex, i) => (
           <div key={ex.id ?? i} className="flex items-center gap-2.5 px-3 py-2 text-sm">

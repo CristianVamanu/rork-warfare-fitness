@@ -1,6 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
+import { SessionKit } from '@/components/training/SessionPreview';
 import { useState, useEffect, useRef, useMemo, Suspense } from 'react';
 import { InstallAppStrip } from '@/components/app/InstallAppStrip';
 import { motion } from 'framer-motion';
@@ -648,6 +649,8 @@ export default function DashboardPage() {
                       header and the progress bar. Listing every exercise for
                       today fills that space with the thing the user actually
                       opens this card to know: what's in the session. */}
+                  {/* Same kit chips as the program page, so the two cards agree about the session. */}
+                  {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && <div className="mt-2"><SessionKit exercises={todayDay!.exercises} /></div>}
                   {!isRestToday && (todayDay?.exercises?.length ?? 0) > 0 && (
                     <div className="mt-1 rounded-xl border border-white/8 bg-black/20 divide-y divide-white/6">
                       {todayDay!.exercises.slice(0, 4).map((ex, i) => (
