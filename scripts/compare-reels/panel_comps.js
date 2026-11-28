@@ -90,4 +90,32 @@ window.COMPS = {
     b: { name: 'Leg Press', fr: 'fr_Sled_45_Degree_Leg_Wide_Press', primary: 'Quadriceps, glutes', secondary: 'Hamstrings, adductors, calves', move: 'You sit and push the sled away', best: 'Heavy leg work with the back fully supported', short: ['You sit and push', 'Fully supported back', 'Handles very heavy loads'], type: 'Compound' },
     best: '<b>Hack squat</b> for the quads · <b>Leg press</b> for heavy volume',
   },
+  fly_dbbench: {
+    hook: { big: ['Fly or', 'press?'], sub: 'Same dumbbells, different job for the chest' },
+    ctaQ: 'Flies or', ctaQ2: 'presses?',
+    a: { name: 'Dumbbell Fly', fr: 'fr_fly', primary: 'Chest', secondary: 'Front delts', move: 'Arms open wide in an arc, elbows stay slightly bent', best: 'Isolating the chest with a long stretch', short: ['Only the shoulder moves', 'Long stretch across the chest', 'Use lighter weights'], type: 'Isolation' },
+    b: { name: 'Dumbbell Bench', fr: 'fr_dbbench', primary: 'Chest', secondary: 'Front delts, triceps', move: 'Dumbbells pressed straight up, elbows bend and extend', best: 'Chest size and pressing strength', short: ['Shoulders and elbows both move', 'Triceps help the chest', 'Handles heavier weights'], type: 'Compound' },
+    best: '<b>Press</b> for strength · <b>Fly</b> to isolate the chest',
+  },
+  latraise_uprow: {
+    hook: { big: ['Lateral raise or', 'upright row?'], sub: 'Two ways to build the side delts' },
+    ctaQ: 'Lateral raise or', ctaQ2: 'upright row?',
+    a: { name: 'Lateral Raise', fr: 'fr_latraise', primary: 'Side delts', secondary: 'Upper traps', move: 'Arms lift out to the sides to shoulder height', best: 'Isolating the side delts', short: ['Only the shoulder moves', 'Targets the side delts', 'Light weights, strict reps'], type: 'Isolation' },
+    b: { name: 'Upright Row', fr: 'fr_uprow', primary: 'Side delts, upper traps', secondary: 'Biceps, front delts', move: 'Weights pulled up the front of the body, elbows lead', best: 'Delts and traps together, with more load', short: ['Shoulders and elbows both move', 'Traps work hard too', 'You can go heavier'], type: 'Compound' },
+    best: '<b>Raise</b> to isolate the delts · <b>Row</b> for delts and traps',
+  },
+  arnold_milpress: {
+    hook: { big: ['Arnold press or', 'overhead press?'], sub: 'One twist changes the lift' },
+    ctaQ: 'Arnold or', ctaQ2: 'overhead press?',
+    a: { name: 'Arnold Press', fr: 'fr_arnold', primary: 'Front and side delts', secondary: 'Triceps, upper traps', move: 'Palms start facing you and rotate out as you press', best: 'Shoulder size through a long range of motion', short: ['Dumbbells rotate as you press', 'Longer range of motion', 'Lighter than a barbell press'], type: 'Compound' },
+    b: { name: 'Overhead Press', fr: 'fr_milpress', n: 198, primary: 'Front and side delts', secondary: 'Triceps, upper traps, core', move: 'One bar pressed straight up from the shoulders', best: 'Overhead strength', short: ['Both arms press one bar', 'Heaviest shoulder press', 'Core holds you steady'], type: 'Compound' },
+    best: '<b>Arnold</b> for range · <b>Overhead press</b> for strength',
+  },
+  lunge_squat: {
+    hook: { big: ['Lunge or', 'squat?'], sub: 'One leg at a time, or both together' },
+    ctaQ: 'Lunges or', ctaQ2: 'squats?',
+    a: { name: 'Barbell Lunge', fr: 'fr_bblunge', primary: 'Quadriceps, glutes', secondary: 'Hamstrings, adductors, core', move: 'One leg steps and takes most of the load', best: 'Evening out each leg, balance', short: ['One leg works at a time', 'Challenges your balance', 'Shows up a weaker side'], type: 'Compound' },
+    b: { name: 'Back Squat', fr: 'fr_Classic_Barbell_Squat', primary: 'Quadriceps, glutes', secondary: 'Adductors, hamstrings, lower back', move: 'Both legs push together, feet fixed', best: 'Lifting the most weight, overall leg strength', short: ['Both legs work together', 'More stable base', 'You can load it heaviest'], type: 'Compound' },
+    best: '<b>Squat</b> for heavy strength · <b>Lunge</b> for balance and each leg',
+  },
 };
